@@ -503,8 +503,19 @@ onUnmounted(() => {
 <style scoped>
 .v2-designer {
   display: grid;
-  grid-template-rows: 48px 1fr 28px;
-  height: 100vh;
+  /* 中排用 minmax(0, 1fr)：`1fr` 的隐式最小尺寸是 auto，容器被压矮时会被内容顶住，
+     写成 minmax(0, 1fr) 才允许画布区真正收缩（与 __body 的 min-height: 0 配套）。 */
+  grid-template-rows: 48px minmax(0, 1fr) 28px;
+  /* 高度吃满宿主容器，**不写死 100vh**（2026-09-10 修）：
+     宿主若有页头 / 侧栏 / tab，100vh 会把组件撑出 wrapper，整页出现滚动条，
+     status-bar 与「纸张缩放条」被挤出可视区，必须滚到底才看得见。
+     前提：宿主容器链路必须有**确定高度**，三种接法任选其一 ——
+       ① flex 宿主：祖先链 `display:flex; flex-direction:column; min-height:0`，本组件自然撑满；
+       ② 固定高宿主：`.host { height: calc(100vh - <页头高>) }`；
+       ③ 兜底：任一祖先上设 `--v2-designer-height`（如 `calc(100vh - 56px)`），
+          组件拿不到确定高度时用它顶上。 */
+  height: var(--v2-designer-height, 100%);
+  min-height: 0;
   overflow: hidden;
   background: #f3f4f6;
 }
