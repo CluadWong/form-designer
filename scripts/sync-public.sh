@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# scripts/sync-public.sh —— 把 lab（内部开发主线）的迭代同步到 release（对外发布分支）
+# scripts/sync-public.sh —— 把 dev（内部开发主线）的迭代同步到 release（对外发布分支）
 #
-# 为什么不能直接 `git merge lab`：
-#   lab 上刻意不存在任何对外发布资产（发布脚本 / 对外 README / 发布指南 / 包名与协议等
-#   发布身份字段）。merge 时 lab 的「这些文件不存在」会被当成删除应用掉，所以合并后
-#   必须从 release@{1}（合并前的 release）逐个恢复。反向地，只属于 lab 的内部资产
+# 为什么不能直接 `git merge dev`：
+#   dev 上刻意不存在任何对外发布资产（发布脚本 / 对外 README / 发布指南 / 包名与协议等
+#   发布身份字段）。merge 时 dev 的「这些文件不存在」会被当成删除应用掉，所以合并后
+#   必须从 release@{1}（合并前的 release）逐个恢复。反向地，只属于 dev 的内部资产
 #   （本脚本自身）要从 release 移除，不能随发布分支出去。
 #
-# 另一个坑：本脚本只存在于 lab。切到 release 后它在工作树里就没了，而 bash 是按偏移
+# 另一个坑：本脚本只存在于 dev。切到 release 后它在工作树里就没了，而 bash 是按偏移
 #   逐行读脚本文件的 —— 内容被替换或删除会执行到错误的东西（2026-09-10 在 promote
 #   上踩过：脚本运行中自我替换，实际执行的仍是旧逻辑）。所以开头先自复制到临时目录
 #   再 exec，之后读的是副本。
 #
 # 用法：
 #   npm run sync                  # 合并 → 恢复发布资产 → 验证 → 本地提交
-#   npm run sync -- --push        # 额外推 public（release + lab）
+#   npm run sync -- --push        # 额外推 public（release + dev）
 #   npm run sync -- --no-verify   # 跳过 vitest / vue-tsc
 #   npm run sync -- --dry-run     # 仅打印步骤，不改动
 #
-# 前置：在 lab 分支、工作树干净、已配置 public remote。
+# 前置：在 dev 分支、工作树干净、已配置 public remote。
 # 发版请用 release 分支上的 `npm run release`。
 set -euo pipefail
 
@@ -50,8 +50,8 @@ warn() { printf '%s[sync]%s %s\n' "$c_yellow" "$c_reset" "$*"; }
 run() { if [ $DRY -eq 1 ]; then printf '%s[dry-run]%s %s\n' "$c_bold" "$c_reset" "$*"; else "$@"; fi; }
 
 # ---- 守卫 ----
-[ "$(git rev-parse --abbrev-ref HEAD)" = "lab" ] \
-  || { echo "请先切到 lab 分支（当前：$(git rev-parse --abbrev-ref HEAD)）" >&2; exit 1; }
+[ "$(git rev-parse --abbrev-ref HEAD)" = "dev" ] \
+  || { echo "请先切到 dev 分支（当前：$(git rev-parse --abbrev-ref HEAD)）" >&2; exit 1; }
 [ -z "$(git status --porcelain)" ] \
   || { echo "工作树不干净，请先提交或暂存改动" >&2; exit 1; }
 git remote get-url public >/dev/null 2>&1 \
@@ -69,16 +69,16 @@ run git checkout release
 REL_PKG="$(mktemp)"
 if [ $DRY -eq 0 ]; then cp package.json "$REL_PKG"; fi
 
-# ---- 3. 合并 lab ----
-info "3/7 合并 lab（冲突取 lab 侧 -X theirs）"
-if ! run git merge --no-edit --allow-unrelated-histories -X theirs lab; then
+# ---- 3. 合并 dev ----
+info "3/7 合并 dev（冲突取 dev 侧 -X theirs）"
+if ! run git merge --no-edit --allow-unrelated-histories -X theirs dev; then
   echo "合并产生需人工解决的冲突。" >&2
-  echo "  解决后执行：git commit；确认无误再 git checkout lab" >&2
-  echo "  放弃本次同步：git merge --abort && git checkout lab" >&2
+  echo "  解决后执行：git commit；确认无误再 git checkout dev" >&2
+  echo "  放弃本次同步：git merge --abort && git checkout dev" >&2
   exit 1
 fi
 
-# ---- 4. 恢复 release 侧发布资产（lab 上没有，merge 会当成删除） ----
+# ---- 4. 恢复 release 侧发布资产（dev 上没有，merge 会当成删除） ----
 info "4/7 恢复 release 侧发布资产"
 PUBLIC_ASSETS=(
   scripts/release.sh
@@ -96,12 +96,12 @@ for p in "${PUBLIC_ASSETS[@]}"; do
   fi
 done
 
-# ---- 4b. 移除只属于 lab 的内部资产（不该出现在对外发布分支） ----
+# ---- 4b. 移除只属于 dev 的内部资产（不该出现在对外发布分支） ----
 info "4b 移除 release 侧不该有的内部资产"
-LAB_ONLY_ASSETS=(
+DEV_ONLY_ASSETS=(
   scripts/sync-public.sh
 )
-for p in "${LAB_ONLY_ASSETS[@]}"; do
+for p in "${DEV_ONLY_ASSETS[@]}"; do
   if [ -e "$p" ]; then
     run git rm --cached -q -- "$p"
     if [ $DRY -eq 0 ]; then rm -f "$p"; fi
@@ -131,9 +131,9 @@ fi
 # ---- 7. 提交 / 推送 / 切回 ----
 info "7/7 提交并推送"
 if [ -z "$(git status --porcelain)" ]; then
-  info "无变更（lab 已全部并入 release），无需提交"
+  info "无变更（dev 已全部并入 release），无需提交"
 else
-  MSG="sync: 合并 lab 到 release（恢复发布资产与发布身份字段）"
+  MSG="sync: 合并 dev 到 release（恢复发布资产与发布身份字段）"
   if [ $DRY -eq 0 ]; then
     run git commit -q -m "$MSG"
     info "已提交 $(git rev-parse --short HEAD)"
@@ -144,11 +144,10 @@ fi
 
 if [ $DO_PUSH -eq 1 ]; then
   run git push public release
-  run git push public lab
-  info "已推 public：release + lab"
+  info "已推 public：release"
 else
-  info "未推送（加 --push 可推 public 的 release + lab）"
+  info "未推送（加 --push 可推 public 的 release）"
 fi
 
-run git checkout lab
-info "已切回 lab。发版：git checkout release && npm run release"
+run git checkout dev
+info "已切回 dev。发版：git checkout release && npm run release"

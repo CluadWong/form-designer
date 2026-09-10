@@ -136,23 +136,23 @@ npm run preview    # 预览构建产物
 
 ### 分支与同步
 
-三条分支，两套 remote：
+两条分支，两套 remote：
 
 | 分支 | remote | 用途 |
 |---|---|---|
-| `lab` | `origin`（内部仓库） | **内部开发主线**。日常开发在这里，不含任何对外发布资产与发布脚本 |
-| `release` | `public` | 对外发布分支。由 `npm run sync` 从 `lab` 单向同步，只保留源码、测试与对外文档 |
+| `dev` | `origin`（内部仓库） | **内部开发主线**。日常开发在这里，不含任何对外发布资产与发布脚本 |
+| `release` | `public` | 对外发布分支。由 `npm run sync` 从 `dev` 单向同步，只保留源码、测试与对外文档 |
 | `main` | `public` | 公开仓库默认分支，已设分支保护禁止直推；`release` 发版后由脚本自动开 PR 合并 |
 
-同步（在 `lab` 分支、工作树干净时执行）：
+同步（在 `dev` 分支、工作树干净时执行）：
 
 ```bash
-npm run sync            # 合并 lab → release，恢复发布资产，跑验证，本地提交
-npm run sync -- --push   # 额外推 public（release + lab）
+npm run sync            # 合并 dev → release，恢复发布资产，跑验证，本地提交
+npm run sync -- --push   # 额外推 public（仅 release）
 ```
 
 `sync` 会自动把 `release` 侧的发布资产（发布脚本、对外 README、包名与协议等发布身份字段）恢复回来，
-这些文件在 `lab` 上刻意不存在，因此**不要手动把 `release` 合并回 `lab`**。
+这些文件在 `dev` 上刻意不存在，因此**不要手动把 `release` 合并回 `dev`**。
 
 ## License
 
