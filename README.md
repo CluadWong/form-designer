@@ -1,4 +1,4 @@
-# ticket-designer
+# form-designer
 
 > 固定布局表单设计器：可视化编排版式 → 导出 Schema JSON → 由渲染组件消费并填充 / 打印。
 
@@ -22,15 +22,15 @@
 ## 安装
 
 ```bash
-npm install ticket-designer
+npm install @cluadwong/form-designer
 ```
 
 - `vue` 是 peerDependency（`^3.5.0`），需自行安装；同页挂多个实例时务必 `resolve.dedupe: ['vue']`（见「注意事项」）。
 - 三个运行时依赖会随包自动装上：`@panzoom/panzoom`（纸张视口缩放）、`dompurify`（HTML 模块净化）、
   `vue-print-next`（局部打印）。它们在构建时已 external，不会打进包产物，但**必须随包安装** ——
   若你有依赖裁剪策略，别把它们剔除。
-- 包内提供两个按需入口：`ticket-designer/renderer`（渲染 / 填写 / 打印）与
-  `ticket-designer/designer`（编排模板），详见「用法」。
+- 包内提供两个按需入口：`@cluadwong/form-designer/renderer`（渲染 / 填写 / 打印）与
+  `@cluadwong/form-designer/designer`（编排模板），详见「用法」。
 
 ## 快速开始
 
@@ -39,10 +39,10 @@ npm install ticket-designer
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
-import { FormRenderer, printForm } from 'ticket-designer/renderer'
-import type { FormSchemaV2, FormDataV2 } from 'ticket-designer/renderer'
+import { FormRenderer, printForm } from '@cluadwong/form-designer/renderer'
+import type { FormSchemaV2, FormDataV2 } from '@cluadwong/form-designer/renderer'
 // 样式按入口分离，引入 renderer 对应的样式
-import 'ticket-designer/renderer/style.css'
+import '@cluadwong/form-designer/renderer/style.css'
 
 // 设计器导出的 Schema JSON（服务端存储后下发）
 const schema = ref<FormSchemaV2>(/* ... */)
@@ -79,8 +79,8 @@ const formRef = ref<InstanceType<typeof FormRenderer> | null>(null)
 需要在应用内编排模板时，改用 `designer` 入口：
 
 ```ts
-import { FormDesigner, buildBlankSchema } from 'ticket-designer/designer'
-import 'ticket-designer/designer/style.css'
+import { FormDesigner, buildBlankSchema } from '@cluadwong/form-designer/designer'
+import '@cluadwong/form-designer/designer/style.css'
 ```
 
 ## 用法
@@ -89,8 +89,8 @@ import 'ticket-designer/designer/style.css'
 
 | 入口 | 内容 | 谁用 |
 |---|---|---|
-| `ticket-designer/renderer` | `FormRenderer` / `GridFormRenderer` / `printForm` / `collectFieldValues` / Schema 类型 | 消费端：渲染、填写、打印 |
-| `ticket-designer/designer` | `FormDesigner` / `FormDesignerExposed` / `defaultDesignerUIConfig` / `buildBlankSchema` / `collectFormData` / `serializeSchemaJson` | 需要在应用内编排模板、并取 Schema JSON 与表单数据时 |
+| `@cluadwong/form-designer/renderer` | `FormRenderer` / `GridFormRenderer` / `printForm` / `collectFieldValues` / Schema 类型 | 消费端：渲染、填写、打印 |
+| `@cluadwong/form-designer/designer` | `FormDesigner` / `FormDesignerExposed` / `defaultDesignerUIConfig` / `buildBlankSchema` / `collectFormData` / `serializeSchemaJson` | 需要在应用内编排模板、并取 Schema JSON 与表单数据时 |
 
 数据流：
 
@@ -111,9 +111,9 @@ Schema 只描述版式，不携带数据；数据（含字段权限、校验规�
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
-import { FormDesigner } from 'ticket-designer/designer'
-import type { FormDesignerExposed } from 'ticket-designer/designer'
-import 'ticket-designer/designer/style.css'
+import { FormDesigner } from '@cluadwong/form-designer/designer'
+import type { FormDesignerExposed } from '@cluadwong/form-designer/designer'
+import '@cluadwong/form-designer/designer/style.css'
 
 const designerRef = ref<FormDesignerExposed | null>(null)
 
@@ -149,10 +149,10 @@ function openExisting(text: string) {
 <FormDesigner :ui-config="{ showFillDataModule: false, locale: 'en' }" />
 ```
 
-**② 纯函数（服务端 / 脚本里也能算）** —— `ticket-designer/designer` 同时导出：
+**② 纯函数（服务端 / 脚本里也能算）** —— `@cluadwong/form-designer/designer` 同时导出：
 
 ```ts
-import { collectFormData, serializeFormDataJson, serializeSchemaJson } from 'ticket-designer/designer'
+import { collectFormData, serializeFormDataJson, serializeSchemaJson } from '@cluadwong/form-designer/designer'
 
 const schemaJson = serializeSchemaJson(schema)   // 美化 JSON 文本
 const data = collectFormData(canvasEl)           // { 单位: "...", ... }（无字段 → {}）
@@ -174,11 +174,11 @@ const json = serializeFormDataJson(data)         // 美化 JSON 文本
 - **vue 唯一实例**：`vue` 是 peerDependency，消费方必须 `resolve.dedupe: ['vue']`，否则会打进第二份 Vue，响应式 / provide-inject / 组件解析全断。
 - **样式别引错**：样式按入口分离（`renderer/style.css` / `designer/style.css`），只用渲染端就不要引 designer 样式，避免污染全局。
 - **Schema 不含数据**：字段权限、校验规则与数据同轨在渲染时注入，不进 Schema，存储态 schema 可放心复用。
-- **tsconfig 的模块解析方式影响子路径类型**：`ticket-designer/designer` 与 `ticket-designer/renderer` 的运行时由 `exports`
+- **tsconfig 的模块解析方式影响子路径类型**：`@cluadwong/form-designer/designer` 与 `@cluadwong/form-designer/renderer` 的运行时由 `exports`
   解析，但 **`tsconfig` 若为 `moduleResolution: "node"`（node10，老项目常见）会忽略 `exports`** ——
   此时靠 `package.json` 的 `typesVersions` 回落到 `dist/*.d.ts`。两者都已配好；新项目用
   `bundler` / `node16` 走 `exports`。**别删 `typesVersions`**，否则老项目 TypeScript 会报
-  `Cannot find module 'ticket-designer/designer'`（Vite 运行时仍正常，只有类型报错，很容易被误判）。
+  `Cannot find module '@cluadwong/form-designer/designer'`（Vite 运行时仍正常，只有类型报错，很容易被误判）。
 - `FormRenderer` 的 `options` 支持 `bare / zoom / fitOnMount / readonly` 等渲染形态，详见 [docs/engine.md](./docs/engine.md)。
 
 ## 架构与目录

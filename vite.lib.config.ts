@@ -15,7 +15,7 @@ import path from "node:path";
  *      `@panzoom/panzoom`、`dompurify`、`vue-print-next` 走 npm 正常安装即可（渲染内核在用，
  *      非设计器专属）；一并 external，宿主自行安装由 `dependencies` 声明的那几份。
  *      ⚠️ `vue-print-next` 是渲染内核的**运行时依赖**（`print-form.ts` 顶层 import），
- *      不是设计器专属——`ticket-designer/renderer` 入口也会引到它，宿主只装 renderer 也必须装它。
+ *      不是设计器专属——`@cluadwong/form-designer/renderer` 入口也会引到它，宿主只装 renderer 也必须装它。
  *   2. 只出 ESM —— 宿主是 Vite，不需要 UMD / CJS。
  *   3. `@/` 别名必须与主配置一致，否则 lib 构建解析失败。
  */
@@ -25,7 +25,7 @@ import path from "node:path";
  * 背景：`manualChunks` 把 `src/components/renderer-v2/**` 整体归到 `renderer-core` chunk，
  * 而 CSS 只跟随模块所在 chunk 输出一次 —— 于是 `.grid-form-paper` / `.layout-grid__row` /
  * `.paper-viewport` 等渲染内核 scoped 样式全部只落在 `renderer-core.css`。
- * 后果：宿主只引 `ticket-designer/designer/style.css` 时纸张没有白底与阴影、
+ * 后果：宿主只引 `@cluadwong/form-designer/designer/style.css` 时纸张没有白底与阴影、
  * 网格版式塌掉（选中节点时因 `.is-design-selected` 在 designer-ui.css 里才看得到纸）。
  *
  * 修法：构建后把 `renderer-core.css` 内容 **前置拼接** 到 `designer-ui.css`
@@ -48,8 +48,8 @@ import path from "node:path";
  * 与其靠人工核对，不如让构建期硬断言：缺了就直接失败。
  *
  * 两组分别覆盖三种宿主引用方式：
- *   - RENDERER_REQUIRED：宿主只引 `ticket-designer/renderer` → `renderer-core.css` 必须自足，否则纸没白底/版式塌。
- *   - DESIGNER_REQUIRED：宿主引 `ticket-designer/designer` → 合并后 `designer-ui.css` 必须同时含内核与设计器骨架。
+ *   - RENDERER_REQUIRED：宿主只引 `@cluadwong/form-designer/renderer` → `renderer-core.css` 必须自足，否则纸没白底/版式塌。
+ *   - DESIGNER_REQUIRED：宿主引 `@cluadwong/form-designer/designer` → 合并后 `designer-ui.css` 必须同时含内核与设计器骨架。
  *
  * 注意：`.v2-toolbar` 来自唯一的**非 scoped 全局表** `src/components/designer/styles/designer-ui.css`
  * （由 `FormDesigner.vue` import）；其余三条来自该 SFC 的 scoped 块。任一侧被挪走都会被这里拦住。
@@ -103,12 +103,12 @@ function mergeDesignerCss(): Plugin {
       fs.writeFileSync(ui, merged, "utf8");
       fs.writeFileSync(path.join(distDir, "ticket-designer.css"), merged, "utf8");
 
-      // ① 渲染内核入口必须自足：宿主只引 `ticket-designer/renderer/style.css` 时纸张与版式要有样式。
+      // ① 渲染内核入口必须自足：宿主只引 `@cluadwong/form-designer/renderer/style.css` 时纸张与版式要有样式。
       const coreMissing = RENDERER_REQUIRED.filter((sel) => !coreCss.includes(sel));
       if (coreMissing.length) {
         this.error(
           `renderer-core.css 缺少渲染内核样式（${coreMissing.join("、")}）：` +
-            `renderer 入口不自足，宿主只引 ticket-designer/renderer 会丢纸张与版式样式。`,
+            `renderer 入口不自足，宿主只引 @cluadwong/form-designer/renderer 会丢纸张与版式样式。`,
         );
       }
 
