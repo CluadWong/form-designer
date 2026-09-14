@@ -15,7 +15,7 @@
 #
 # 前置条件：
 #   - 当前在 release 分支、工作树干净
-#   - 已 `npm login` 且账号对包名 ticket-designer 有发布权限
+#   - 已 `npm login` 且账号对包名 @cluadwong/form-designer 有发布权限
 #   - 本机 .npmrc 的 registry 指向 npmjs（否则会发到私有源）
 set -euo pipefail
 
@@ -55,7 +55,7 @@ run npm run build:lib
 run npm run build:types
 
 if [ $DO_PUBLISH -eq 1 ]; then
-  info "3/4 发布到 npmjs（ticket-designer）"
+  info "3/4 发布到 npmjs（@cluadwong/form-designer）"
   PUB=()
   [ -n "$OTP" ] && PUB+=(--otp "$OTP")
   # 发布前确认 registry 指向公共 npmjs（防本机 .npmrc 把包发到私有源）
@@ -83,12 +83,12 @@ if [ $DO_PUSH -eq 1 ]; then
       info "release → main 的 PR 已存在，跳过创建"
     elif ! run gh pr create --base main --head release \
         --title "release: v$VER" \
-        --body "自动发布流程提交的版本 v$VER。包体已发至 npmjs（ticket-designer）。" \
+        --body "自动发布流程提交的版本 v$VER。包体已发至 npmjs（@cluadwong/form-designer）。" \
         --auto-merge 2>/dev/null; then
       info "auto-merge 不可用，改用普通 PR（需手动或自动合并）"
       run gh pr create --base main --head release \
         --title "release: v$VER" \
-        --body "自动发布流程提交的版本 v$VER。包体已发至 npmjs（ticket-designer）。"
+        --body "自动发布流程提交的版本 v$VER。包体已发至 npmjs（@cluadwong/form-designer）。"
     fi
   else
     echo "未检测到 gh CLI，请手动创建 PR 将 release 合并到 main：" >&2
