@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# scripts/sync-public.sh —— 把 dev（内部开发主线）的迭代同步到 release（对外发布分支）
+# scripts/sync-public.sh —— 把 dev（开发主线）的迭代同步到 release（对外发布分支）
 #
 # 为什么不能直接 `git merge dev`：
 #   dev 上刻意不存在任何对外发布资产（发布脚本 / 对外 README / 发布指南 / 包名与协议等
 #   发布身份字段）。merge 时 dev 的「这些文件不存在」会被当成删除应用掉，所以合并后
-#   必须从 release@{1}（合并前的 release）逐个恢复。反向地，只属于 dev 的内部资产
-#   （本脚本自身）要从 release 移除，不能随发布分支出去。
+#   必须从「合并前的 release」（脚本内记作 REL_PREV）逐个恢复。反向地，只属于 dev 的
+#   开发主线资产（本脚本自身）要从 release 移除，不能随发布分支出去。
 #
 # 另一个坑：本脚本只存在于 dev。切到 release 后它在工作树里就没了，而 bash 是按偏移
 #   逐行读脚本文件的 —— 内容被替换或删除会执行到错误的东西（2026-09-10 在 promote
@@ -68,6 +68,10 @@ run git checkout release
 # release 侧权威的 package.json 先备份（合并后按字段恢复发布身份）
 REL_PKG="$(mktemp)"
 if [ $DRY -eq 0 ]; then cp package.json "$REL_PKG"; fi
+# 记录合并前 release 的位置。**不能用 release@{1}** —— git checkout 会往分支 reflog
+# 写一条同值条目，合并后 release@{1} 可能落到更早一代，把上一代的发布资产恢复出来
+# （2026-09-14 实测：README / release.sh 回退成旧的 @scope 包名版本）。
+REL_PREV="$(git rev-parse HEAD)"
 
 # ---- 3. 合并 dev ----
 info "3/7 合并 dev（冲突取 dev 侧 -X theirs）"
@@ -89,15 +93,15 @@ PUBLIC_ASSETS=(
   LICENSE
 )
 for p in "${PUBLIC_ASSETS[@]}"; do
-  if git cat-file -e "release@{1}:$p" 2>/dev/null; then
-    run git checkout "release@{1}" -- "$p"
+  if git cat-file -e "$REL_PREV:$p" 2>/dev/null; then
+    run git checkout "$REL_PREV" -- "$p"
   else
-    warn "  跳过（release@{1} 无此路径）：$p"
+    warn "  跳过（合并前的 release 无此路径）：$p"
   fi
 done
 
-# ---- 4b. 移除只属于 dev 的内部资产（不该出现在对外发布分支） ----
-info "4b 移除 release 侧不该有的内部资产"
+# ---- 4b. 移除只属于 dev 的开发主线资产（不该出现在对外发布分支） ----
+info "4b 移除 release 侧不该有的开发主线资产"
 DEV_ONLY_ASSETS=(
   scripts/sync-public.sh
 )
