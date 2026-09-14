@@ -1,7 +1,7 @@
 /**
  * 设计器入口（模板编排端入口）
  *
- * 需要让用户在宿主系统内编排模板时才引用：`import { FormDesigner } from "ticket-designer/designer"`。
+ * 需要让用户在宿主系统内编排模板时才引用：`import { FormDesigner } from "@cluadwong/form-designer/designer"`。
  * 会带上设计器全部 UI 与非 scoped 全局样式（styles/designer-ui.css），消费端不要引。
  *
  * 注意：入口文件一律用相对路径 import，理由见 renderer.ts 顶部注释。

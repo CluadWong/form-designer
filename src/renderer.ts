@@ -1,7 +1,7 @@
 /**
  * 渲染 / 填写 / 打印入口（消费端入口）
  *
- * ERP 等宿主系统只需引用这个入口：`import { FormRenderer } from "ticket-designer/renderer"`。
+ * ERP 等宿主系统只需引用这个入口：`import { FormRenderer } from "@cluadwong/form-designer/renderer"`。
  * 设计器（FormDesigner）及其 UI 资源不在本入口内，不会被打进消费端产物。
  *
  * 典型用法：设计器导出 Schema JSON → 服务端存储 → 宿主用 FormRenderer 加载 schema + data 渲染 / 填写 / 打印。
