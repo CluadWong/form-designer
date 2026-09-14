@@ -27,4 +27,17 @@ describe("collectFieldValues DOM 遍历采集（十续）", () => {
     const values = collectFieldValues(wrapper.element);
     expect(values["单位"]).toBe("新值");
   });
+
+  it("表格节点本身不是字段：表级 field 不得被采集成整表文本（2026-09-11）", () => {
+    const wrapper = mount(GridFormRenderer, {
+      props: { schema: makeYunlvSecondTicketFirstFiveRowsSchema(), data: demoData },
+    });
+    const values = collectFieldValues(wrapper.element);
+    // 此前 <table data-field="工作任务"> 会让采集器把整张表 innerText
+    // （表头标题拼 \n，"工作地点或地段\n工作内容"）当成一个字段值
+    expect(values["工作任务"]).toBeUndefined();
+    // 派生的逐行字段照常采集
+    expect(values["工作地点_1"]).toBeDefined();
+    expect(values["工作内容_1"]).toBeDefined();
+  });
 });

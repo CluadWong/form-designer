@@ -5,14 +5,20 @@
  *   落点判定在表面层 CanvasSurface，见 A6），本组件只转发 dragstart；
  * - 结构树的全局折叠/展开信号由宿主 provide（`TreeControlKey`），NodeTreeItem 经
  *   inject 接收，provide/inject 跨层级生效，本组件只转发「折叠全部/展开全部」点击；
+ * - **定位**（2026-09-11）：画布点选节点后，宿主置 `focusId` 并自增 `focusToken`，
+ *   祖先链的展开由各 `NodeTreeItem` 自行处理；**滚动到可见**只能由本组件做（只有它
+ *   持有 `.v2-tree` 容器）。折叠态下目标行不在 DOM 里，故滚动前先 `nextTick` 等
+ *   展开渲染完成，未命中时再等一轮；
  * - `data-palette` 为测试/落点钩子，原样保留；`.v2-sidebar` 基础样式在非 scoped
  *   `styles/designer-ui.css`。
  */
+import { nextTick, ref, watch } from "vue";
 import NodeTreeItem from "./NodeTreeItem.vue";
 import type { TreeNode } from "./NodeTreeItem.vue";
 import type { NodeKind } from "./composables/useSchemaEdits";
+import { scrollRowIntoView } from "./composables/treeControl";
 
-defineProps<{
+const props = defineProps<{
   /** 统一编辑闸门（C1）：非设计态零件库禁用、删除按钮禁用。 */
   editable: boolean;
   /** 删除按钮完整禁用态（含 page/grid-cell 不可删判定），由宿主计算。 */
@@ -20,6 +26,48 @@ defineProps<{
   nodeTree: TreeNode[];
   selectedNodeId: string | null;
 }>();
+
+const treeRef = ref<HTMLElement | null>(null);
+const sidebarRef = ref<HTMLElement | null>(null);
+
+/**
+ * 结构树里 `id` 对应的行元素。用 `data-tree-node-id` 而**不是** `data-node-id`
+ * —— 后者是画布内核的节点寻址属性（`NODE_ID_ATTR`），两侧同名会让 `[data-node-id]`
+ * 查询在侧栏与画布间歧义（测试里 `find` 会先命中侧栏行）。节点 id 不做选择器转义，
+ * 直接按 dataset 比对。
+ */
+function findRow(id: string): HTMLElement | null {
+  const tree = treeRef.value;
+  if (!tree) return null;
+  const rows = tree.querySelectorAll<HTMLElement>("[data-tree-node-id]");
+  for (const row of Array.from(rows)) {
+    if (row.dataset.treeNodeId === id) return row;
+  }
+  return null;
+}
+
+/**
+ * 把选中行滚进视野。滚动分两级：先在 `.v2-tree`（自身 `overflow:auto`）内就近滚动，
+ * 再确保结构树整块在 `.v2-sidebar` 视野内（侧栏也可能出现滚动条）。用就近算法而非
+ * `scrollIntoView`，避免连环滚动整个页面。
+ */
+function revealSelectedRow(id: string | null): void {
+  if (!id) return;
+  const row = findRow(id);
+  if (!row) return;
+  if (treeRef.value) scrollRowIntoView(treeRef.value, row);
+  if (sidebarRef.value && treeRef.value) scrollRowIntoView(sidebarRef.value, treeRef.value);
+}
+
+watch(
+  () => props.selectedNodeId,
+  async (id) => {
+    if (!id) return;
+    await nextTick();
+    if (!findRow(id)) await nextTick();
+    revealSelectedRow(id);
+  },
+);
 
 const emit = defineEmits<{
   (e: "add-node", kind: NodeKind): void;
@@ -33,7 +81,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <aside class="v2-sidebar v2-sidebar--left">
+  <aside ref="sidebarRef" class="v2-sidebar v2-sidebar--left">
     <div class="v2-sidebar__group-title">基础组件</div>
     <button
       class="v2-palette-item v2-palette-item--button"
@@ -116,7 +164,7 @@ const emit = defineEmits<{
         删除
       </button>
     </div>
-    <div class="v2-tree">
+    <div ref="treeRef" class="v2-tree">
       <NodeTreeItem
         v-for="root in nodeTree"
         :key="root.id"

@@ -3,6 +3,7 @@
  * 顶部工具栏（批次 3 壳层拆件，2026-09-08）：**纯展示 + 事件上抛**，不持有文档状态。
  * - 样例集 / dirty / 撤销重做可用性 / 预览态由宿主（FormDesigner 编排层）注入；
  * - 一切动作（保存/读取/导入导出/打印/帮助…）经 emit 回宿主编排层执行；
+ * - 「导出数据」「保存数据」**不限预览态**（设计态同样能采集字段与值，无字段即 `{}`）。
  * - 两个隐藏 file input 留在宿主（`useSchemaDocument` / `useFillData` 直接持有其 ref），
  *   不随工具栏下放；`.v2-toolbar` 基础样式在非 scoped `styles/designer-ui.css`。
  * - `data-view-mode` / `data-help-toggle` 为测试钩子，拆件时必须原样保留。
@@ -19,7 +20,7 @@ const props = defineProps<{
   dirty: boolean;
   canUndo: boolean;
   canRedo: boolean;
-  /** 预览态：决定「导出/保存数据」禁用、预览按钮激活态与文案。 */
+  /** 预览态：决定预览按钮激活态与文案（填充数据组的导出/保存已不限预览态）。 */
   previewMode: boolean;
   /** 全局 UI 配置（设计页可见性开关），缺省见 `defaultDesignerUIConfig`。 */
   uiConfig?: Partial<DesignerUIConfig>;
@@ -61,7 +62,12 @@ const emit = defineEmits<{
       >{{ dirty ? tl("toolbar.dirty") : tl("toolbar.saved") }}</span
     >
     <div v-if="cfg.showNewBlank || cfg.showSamples" class="v2-toolbar__group">
-      <button v-if="cfg.showNewBlank" class="v2-toolbar__button" type="button" @click="emit('reset-blank')">
+      <button
+        v-if="cfg.showNewBlank"
+        class="v2-toolbar__button"
+        type="button"
+        @click="emit('reset-blank')"
+      >
         {{ tl("toolbar.newBlank") }}
       </button>
       <template v-if="cfg.showSamples">
@@ -96,16 +102,32 @@ const emit = defineEmits<{
     </div>
     <div v-if="cfg.showTemplateModule" class="v2-toolbar__group">
       <span class="v2-toolbar__label">{{ tl("toolbar.module.template") }}</span>
-      <button class="v2-toolbar__button" type="button" @click="emit('save-template')">
+      <button
+        class="v2-toolbar__button"
+        type="button"
+        @click="emit('save-template')"
+      >
         {{ tl("toolbar.saveTemplate") }}
       </button>
-      <button class="v2-toolbar__button" type="button" @click="emit('load-template')">
+      <button
+        class="v2-toolbar__button"
+        type="button"
+        @click="emit('load-template')"
+      >
         {{ tl("toolbar.loadTemplate") }}
       </button>
-      <button class="v2-toolbar__button" type="button" @click="emit('export-template')">
+      <button
+        class="v2-toolbar__button"
+        type="button"
+        @click="emit('export-template')"
+      >
         {{ tl("toolbar.exportTemplate") }}
       </button>
-      <button class="v2-toolbar__button" type="button" @click="emit('import-template')">
+      <button
+        class="v2-toolbar__button"
+        type="button"
+        @click="emit('import-template')"
+      >
         {{ tl("toolbar.importTemplate") }}
       </button>
     </div>
@@ -114,19 +136,10 @@ const emit = defineEmits<{
       <button
         class="v2-toolbar__button"
         type="button"
-        :title="tl('toolbar.importFillDataTip')"
-        @click="emit('import-fill-data')"
+        :title="tl('toolbar.saveFillDataTip')"
+        @click="emit('save-fill-data')"
       >
-        {{ tl("toolbar.importFillData") }}
-      </button>
-      <button
-        class="v2-toolbar__button"
-        type="button"
-        :title="tl('toolbar.exportFillDataTip')"
-        :disabled="!previewMode"
-        @click="emit('export-fill-data')"
-      >
-        {{ tl("toolbar.exportFillData") }}
+        {{ tl("toolbar.saveFillData") }}
       </button>
       <button
         class="v2-toolbar__button"
@@ -139,11 +152,19 @@ const emit = defineEmits<{
       <button
         class="v2-toolbar__button"
         type="button"
-        :title="tl('toolbar.saveFillDataTip')"
-        :disabled="!previewMode"
-        @click="emit('save-fill-data')"
+        data-export-fill-data
+        :title="tl('toolbar.exportFillDataTip')"
+        @click="emit('export-fill-data')"
       >
-        {{ tl("toolbar.saveFillData") }}
+        {{ tl("toolbar.exportFillData") }}
+      </button>
+      <button
+        class="v2-toolbar__button"
+        type="button"
+        :title="tl('toolbar.importFillDataTip')"
+        @click="emit('import-fill-data')"
+      >
+        {{ tl("toolbar.importFillData") }}
       </button>
     </div>
     <div v-if="cfg.showPreviewPrint || cfg.showHelp" class="v2-toolbar__group">
@@ -158,7 +179,12 @@ const emit = defineEmits<{
       >
         {{ previewMode ? tl("toolbar.exitPreview") : tl("toolbar.preview") }}
       </button>
-      <button v-if="cfg.showPreviewPrint" class="v2-toolbar__button" type="button" @click="emit('print')">
+      <button
+        v-if="cfg.showPreviewPrint"
+        class="v2-toolbar__button"
+        type="button"
+        @click="emit('print')"
+      >
         {{ tl("toolbar.print") }}
       </button>
       <button

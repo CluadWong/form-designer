@@ -129,6 +129,8 @@ Table 用于规则明细，不用于整张表单排版。
 设计态根据 minRows 重复 rowTemplate 作为空数据占位。填写态渲染行数 = `max(minRows, data 中实际出现的最大行号)`：
 行模板字段名由渲染期按「列key_行号」自动派生（列 `工作地点` 第 r 行即 `工作地点_r`），data 含 `工作地点_5` 即补渲染第 5 行；中间未填行留空，保证 data 完整可见（非 repeatable 配置属性）。表格内字段不可单独选中/配置，增删列即增删字段。
 
+表格节点本身**不是字段**：表级 `field` 只作标签，不写入 DOM `data-field`，不参与 `collectFieldValues` 采集与 `collectSchemaFields` 字段清单（2026-09-11 修正，此前 `<table data-field>` 会把整表文本采成一个字段值）。
+
 ## 7. HTML 与 Image
 
 ### 7.1 HTML
@@ -231,6 +233,25 @@ interface FormPreviewProps {
 - required 在预览中标记，并在提交时校验。
 
 权限属于流程运行配置，不写入模板 Schema。
+
+### 11.1 交付契约：Schema JSON 与表单数据
+
+设计器对宿主交付两份 JSON（`designer` 入口导出纯函数，`FormDesigner` 实例经 `defineExpose` 亦可直取）：
+
+| 产物 | 形状 | 用途 |
+|---|---|---|
+| Schema JSON | `FormSchemaV2` | 版式描述；服务端存储后下发给 `FormRenderer` |
+| 表单数据 | `{ 字段名: 值 }`，如 `{"单位":"运输队"}` | 表单当前的字段与值；无字段时为 `{}` |
+
+- **取值唯一真源 = `collectFieldValues`**（`renderer-v2/collectFieldValues`）：遍历渲染 DOM 的 `[data-field]` 采集。与消费页渲染采集是**同一份实现**，故设计器导出的数据与消费页采集的数据口径必然一致。
+- 普通字段取 `[data-field]` 元素文本、图片字段取 `src`；HTML 模块穿透 Shadow DOM 取 `{{field}}`(data-bind) 与原生 `[data-field]`。
+- **没有任何字段元素时返回 `{}`**（不是 `null` / `undefined`），空表单可直接存库。
+- 默认**外发口径脱敏**：HIDDEN 字段出 `***`；本机回源真实值用 `{ maskHidden: false, baseData }`。
+- 导出是**只读**操作：不修改文档、不写回 schema；数据不落库，每次由宿主现算。
+- 工具栏「导出文件」/「导出数据」与这两个 API 是**同一实现**，点击时把对应 JSON `console.log` 到控制台，联调可直接抄走。「导出数据」「保存数据」**均不限预览态**（设计态同样有渲染 DOM，采到的是字段默认值；无字段则 `{}`）。
+- 程序化契约见 `FormDesignerExposed`：`getSchema` / `getFormData` / `setSchema` / `exportSchemaFile` / `exportFillDataFile` / `print` / `resetBlank`。`getSchema` / `getFormData` 直接返回原生对象（需 JSON 文本时宿主自行 `JSON.stringify`）；`setSchema` 接受对象或 JSON 文本，载入后重置历史与选中。
+- `print` 是**局部打印**（实现 = `vue-print-next`）：只把纸张序列化进同源 iframe 再调起浏览器打印，宿主页面的菜单 / 头部 / 其他区域**不进打印流**。纸张尺寸仍由 `@page` 唯一真源（渲染内核注入）决定，调用方**不要**再自己写 `@page`。实现契约见 [engine.md §19](./engine.md#19-打印实现契约2026-09-11-改为局部打印)。
+
 
 ## 12. 保存、加载和版本
 

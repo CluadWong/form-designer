@@ -6,6 +6,19 @@ import demoData from "@/dev/demoData";
 import { parseTolerantFormSchemaV2 } from "@/types";
 
 /**
+ * 打印改走 vue-print-next（2026-09-11）：本文件只需断言「消费页拿得到 print() 且它能
+ * 把内核画布交给打印插件」，真实打印栈由 `print-form.test.ts` 覆盖，故替身掉插件本身。
+ */
+const { printCtorSpy } = vi.hoisted(() => ({ printCtorSpy: vi.fn() }));
+vi.mock("vue-print-next", () => ({
+  VuePrintNext: class {
+    constructor(options: unknown) {
+      printCtorSpy(options);
+    }
+  },
+}));
+
+/**
  * FormRenderer（G8 公共渲染入口）测试：
  * - 消费态 `readonly` 默认 true → 字段只读回显（仅浏览详情）；
  * - `options.readonly=false` → 进入填写态，字段可输入，失焦 emit field-change / update:data；
@@ -130,19 +143,16 @@ describe("FormRenderer（G8 公共入口）", () => {
     expect(wrapper.find(".grid-form-canvas--bare").exists()).toBe(true);
   });
 
-  it("D2：向消费页暴露 print()，触发宿主打印（消费页无需自己 window.print）", () => {
-    const original = window.print;
-    const spy = vi.fn();
-    window.print = spy;
-    try {
-      const wrapper = mount(FormRenderer, { props: { schema: sampleSchema } });
-      const exposed = wrapper.vm as unknown as { print: () => boolean };
-      expect(typeof exposed.print).toBe("function");
-      expect(exposed.print()).toBe(true);
-      expect(spy).toHaveBeenCalledTimes(1);
-    } finally {
-      window.print = original;
-    }
+  it("D2：向消费页暴露 print()，交给内核做局部打印（消费页无需自己 window.print）", () => {
+    printCtorSpy.mockClear();
+    const wrapper = mount(FormRenderer, { props: { schema: sampleSchema } });
+    const exposed = wrapper.vm as unknown as { print: () => boolean };
+    expect(typeof exposed.print).toBe("function");
+    expect(exposed.print()).toBe(true);
+    expect(printCtorSpy).toHaveBeenCalledTimes(1);
+    // 只把本次实例的纸张交给插件（实例作用域选择器，避免同页多个 FormRenderer 串打）。
+    const options = printCtorSpy.mock.calls[0][0] as { el: string };
+    expect(options.el).toMatch(/^\[data-v2-print-scope="\d+"\]$/);
   });
 });
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, inject } from "vue";
-import { TreeControlKey, type TreeControl } from "./composables/treeControl";
+import { TreeControlKey, treeContainsId, type TreeControl } from "./composables/treeControl";
 
 export interface TreeNode {
   id: string;
@@ -32,6 +32,23 @@ if (control) {
   watch(control.token, () => {
     expanded.value = control.target.value;
   });
+  /**
+   * 定位展开：画布点选（或问题面板定位）后，`focusToken` 自增。若待定位节点
+   * 落在自己子树内就展开自己 —— 目标行被折叠隐藏时无法滚动定位，必须先展开
+   * 整条祖先链（每层祖先由各自的实例负责展开）。
+   *
+   * `immediate`：折叠态下子节点是**未挂载**的（`v-if="expanded"`），祖先展开后
+   * 它们才挂载，此时 `focusToken` 已经变过、watch 不会再触发。故挂载瞬间也要
+   * 判一次，让展开沿祖先链逐层传递下去。「折叠全部 / 展开全部」会把 `focusId`
+   * 清空，所以 `immediate` 不会让已折叠的树被旧焦点复活。
+   */
+  watch(
+    control.focusToken,
+    () => {
+      if (treeContainsId(props.node, control.focusId.value)) expanded.value = true;
+    },
+    { immediate: true },
+  );
 }
 
 function onRowClick(): void {
@@ -49,6 +66,7 @@ function onToggle(): void {
       class="v2-tree-row"
       :class="{ 'v2-tree-row--selected': node.id === selectedId }"
       :style="{ paddingLeft: `${depth * 14 + 6}px` }"
+      :data-tree-node-id="node.id"
       @click="onRowClick"
     >
       <button

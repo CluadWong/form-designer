@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type ComponentPublicInstance } from "vue";
 import type {
   FieldActionTriggerV2,
   FieldPermissionV2,
@@ -122,14 +122,21 @@ function onAction(payload: FieldActionTriggerV2): void {
   emit("action", payload);
 }
 
+/** 内核实例引用（`$el` 即 `.grid-form-canvas`）：`printForm` 需要根元素才能圈定纸张。 */
+const rendererRef = ref<ComponentPublicInstance | null>(null);
+
 /**
  * D2：向消费页暴露打印能力，使「触发」与「呈现」同归渲染层。
  * 消费页 `ref.value.print()` 即可打印，无需自己 `window.print()`、也无需关心
  * `@page` 纸张注入（由本组件持有内核渲染实例在挂载期完成）。
- * @returns 是否真的触发了打印（宿主不支持时为 `false`）。
+ *
+ * 打印走内核的**局部打印**（vue-print-next）：只把纸张序列化进同源 iframe，
+ * 消费页其余内容（导航 / 头部 / 其他区域）不进打印流。
+ * @returns 是否真的触发了打印（找不到打印根 / 宿主不支持时为 `false`）。
  */
 function print(): boolean {
-  return printForm();
+  const el = rendererRef.value?.$el;
+  return printForm({ root: el instanceof HTMLElement ? el : null });
 }
 
 /**
@@ -157,6 +164,7 @@ defineExpose({ print, getFormData, validate });
 <template>
   <PaperViewport v-if="options?.zoom" :fit-on-mount="options?.fitOnMount ?? false">
     <GridFormRenderer
+      ref="rendererRef"
       :schema="schema"
       :mode="renderMode"
       :data="data"
@@ -169,6 +177,7 @@ defineExpose({ print, getFormData, validate });
   </PaperViewport>
   <GridFormRenderer
     v-else
+    ref="rendererRef"
     :schema="schema"
     :mode="renderMode"
     :data="data"

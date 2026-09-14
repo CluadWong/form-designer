@@ -42,8 +42,8 @@ describe("yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构�
     expectField("工作班成员");
     expectField("工作班成员人数");
     expectField("电站设备");
-    // 工作任务 + 计划工作时间
-    expectField("工作任务");
+    // 计划工作时间（「工作任务」是内嵌表的标签不是字段，表本身不带 data-field，
+    // 逐行派生字段 工作地点_N / 工作内容_N 见下一例）
     expectField("计划工作时间_开始");
     expectField("计划工作时间_截止");
     // 工作条件 / 安全措施 / 签发

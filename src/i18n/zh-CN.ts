@@ -12,8 +12,8 @@ export const zhCN: Messages = {
   "toolbar.undo": "撤销",
   "toolbar.redo": "重做",
   "toolbar.module.template": "模板",
-  "toolbar.saveTemplate": "保存",
-  "toolbar.loadTemplate": "读取",
+  "toolbar.saveTemplate": "保存模板",
+  "toolbar.loadTemplate": "读取模板",
   "toolbar.exportTemplate": "导出文件",
   "toolbar.importTemplate": "导入文件",
   "toolbar.module.fillData": "填充数据",
@@ -26,9 +26,11 @@ export const zhCN: Messages = {
   "toolbar.print": "打印",
   "toolbar.help": "帮助",
   "toolbar.importFillDataTip": "选择填写数据 JSON 文件并进入预览态",
-  "toolbar.exportFillDataTip": "需先进入预览态填写，再导出当前填写值",
+  "toolbar.exportFillDataTip":
+    "导出表单当前的字段与值 JSON（设计态 / 预览态均可，无字段则为空对象）",
   "toolbar.loadFillDataTip": "读取本地已保存的填写数据并进入预览态",
-  "toolbar.saveFillDataTip": "需先进入预览态填写，再保存到本地",
-  "toolbar.previewTip": "查看表单的实际填写效果；预览中可直接输入内容，并可导出为填写数据",
+  "toolbar.saveFillDataTip": "保存表单当前的字段与值到本机（设计态 / 预览态均可，无字段则为空对象）",
+  "toolbar.previewTip":
+    "查看表单的实际填写效果；预览中可直接输入内容，并可导出为填写数据",
   "toolbar.helpTip": "查看使用说明",
 };

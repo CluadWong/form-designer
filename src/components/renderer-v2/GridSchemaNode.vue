@@ -25,6 +25,15 @@ import {
 
 defineOptions({ name: "GridSchemaNodeV2" });
 
+/**
+ * 表格节点**不带** `data-field`（2026-09-11）：表不是字段本身，可采集字段是
+ * 模板派生的 `列key_行号`（见 `bindTableRowCell`）。此前把 `node.field` 绑在
+ * `<table>` 上，`collectFieldValues` 按 `[data-field]` 取 `innerText`，会把整张表
+ * （表头各列标题拼 `\n`）当成一个字段值采回——`getFormData` 里出现
+ * `工作任务: "工作地点或地段\n工作内容"` 这种脏数据。字段清单侧
+ * （`collectSchemaFields`）从不消费表级 `field`，摘掉无副作用。
+ */
+
 const emit = defineEmits<{
   (e: "field-change", field: string, value: string): void;
   (e: "action-trigger", payload: FieldActionTriggerV2): void;
@@ -104,7 +113,7 @@ const resolvedMode = computed<RenderMode>(() => {
 /** 设计态：字段 contenteditable 就地占位、节点可拖拽。 */
 const isDesign = computed(() => resolvedMode.value === "design");
 /**
- * 字段是否可输入：预览/消费态即「交互填充态」——复用同一 `<p>` 渲染路径，字段可编辑、
+ * 字段是否可输入：预览/消费态即「交互填充态」——复用同一 `<div>` 渲染路径，字段可编辑、
  * 值来自 data，用户输入经 DOM 遍历采集（不逐键回写响应式 data，见十续）。
  * 故所有非 design 模式（现仅 preview 一种）均视为可输入；仅 design 态字段是占位、不承载真实数据。
  * 但同时受 `readonly` 硬闸门约束：外部传入 readonly（如真·只读展示）时强制不可编辑。
@@ -206,9 +215,9 @@ function textCss(style?: TextStyleV2): CSSProperties {
 
 function pStyle(node: PNodeV2): CSSProperties {
   // 字段 P 默认允许换行（内容超过宽度时自动换行），不再依赖 multiline 配置。
-  // 宽度作用于「可输入区域」：无前/后标签时整个 <p> 即输入区，故 width 作用于组件整体；
+  // 宽度作用于「可输入区域」：无前/后标签时整个 <div> 即输入区，故 width 作用于组件整体；
   // 有前/后标签（复合字段）时，宽度只作用于输入区（见 fieldInputStyle，挂在内层 span/控件），
-  // 此时 <p> 不加 width，避免把前缀/后缀也算进宽度。
+  // 此时 <div> 不加 width，避免把前缀/后缀也算进宽度。
   return {
     ...textCss(node.style),
     whiteSpace: "pre-wrap",
@@ -451,7 +460,7 @@ function fieldLines(node: PNodeV2): string[] {
 }
 
 /** 字段控件已统一（A3 / 十续）：不再区分「填充态控件 / 静态文本」——
- *  设计/预览/填写/打印共用同一个可编辑 `<p>`，值落在内层 `<span>` 文本里，
+ *  设计/预览/填写/打印共用同一个可编辑 `<div>`，值落在内层 `<span>` 文本里，
  *  是否可输入只由 `contenteditable`（= `canFill` / 非 readonly）决定。 */
 
 const BROKEN_PLACEHOLDER =
@@ -489,6 +498,18 @@ function onImgError(): void {
 }
 </script>
 
+<!--
+  字段容器**必须是 `<div>`，不能是 `<p>`**（2026-09-11 修复）。
+  原因：`innerBorder` 会在容器内渲染 `<div class="layout-p__line">`，而 `<p>` 的 HTML 内容模型
+  只允许 phrasing content —— HTML 解析器遇到 `<div>` 会执行「close a p element」，强制闭合 `<p>`，
+  把逐行 div 与后标签推到容器外面，末尾还会多出一个空 `<p>`。
+  Vue 用 DOM API 建树、不经过解析器，所以**屏幕上一直正常**；但凡走一次 HTML 往返就会炸：
+  局部打印（vue-print-next 走 `cloneNode` → `outerHTML` → `document.write`）、导出 HTML、SSR、复制粘贴。
+  表现即「屏幕一行、打印时前后标签各占一行」。守卫见 FieldContainerHtmlRoundTrip.test.ts。
+
+  注：本注释必须留在模板**外**——写成模板根级注释会成为 Fragment 的第一个节点，
+  使多根组件下 VTU 的 wrapper.element 回退到宿主容器，令子组件单测断言失真。
+-->
 <template>
   <div
     v-if="node.type === 'grid'"
@@ -556,7 +577,7 @@ function onImgError(): void {
     {{ node.text }}
   </div>
 
-  <p
+  <div
     v-else-if="node.type === 'p'"
     class="layout-p"
     :class="{
@@ -627,19 +648,18 @@ function onImgError(): void {
       </div></span
     >
 
-    <!-- 非复合字段：普通展示值。直接作为 <p> 的 v-else 子项（不经 <template v-else>
-         包裹，否则 contenteditable <p> 的数据晚到时文本子节点不会重新 patch）。 -->
+    <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
+         包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 -->
     <span v-else class="layout-p__value">{{ displayValue(node) }}</span>
 
     <span v-if="node.suffix" class="layout-p__label">{{ node.suffix }}</span>
-  </p>
+  </div>
 
   <table
     v-else-if="node.type === 'table'"
     class="layout-table"
     :class="[`layout-table--${node.border ?? 'all'}`]"
     :data-node-id="node.id"
-    :data-field="node.field"
   >
     <thead>
       <tr
@@ -837,10 +857,10 @@ function onImgError(): void {
   outline: none;
 }
 
-/* 设计态直接可编辑的 <p>（无前/后标签）：回车插入的 <div> 默认成为 flex 行内子项、
+/* 设计态直接可编辑的 <div>（无前/后标签）：回车插入的 <div> 默认成为 flex 行内子项、
    被排成一行，导致多行换行失效（前标签非 null 时用 inline-block 的 .layout-p__input
    包裹，无此问题）。强制每个插入的 div 占满整行并换行，使多行换行生效，
-   即使空字段下回车也能正常换行。复合字段的可编辑区域在 .layout-p__input（非 <p> 直接子级），
+   即使空字段下回车也能正常换行。复合字段的可编辑区域在 .layout-p__input（非 <div> 直接子级），
    故不受影响。
    注意：contenteditable 插入的 <div> 是浏览器运行时塞入、不带 scoped 的 data-v 属性，
    普通 `.layout-p > div`（编译为 `.layout-p[data-v] > div[data-v]`）匹配不到——
@@ -918,15 +938,15 @@ function onImgError(): void {
   outline: none;
 }
 
-/* 非复合字段的展示值：原先直接作为 <p> 的文本内容渲染，但 Vue 对
-   contenteditable <p> 的直接文本子节点在「数据晚于挂载到达」时不会重新 patch
+/* 非复合字段的展示值：原先直接作为 <div> 的文本内容渲染，但 Vue 对
+   contenteditable <div> 的直接文本子节点在「数据晚于挂载到达」时不会重新 patch
    （复合字段的值放在 .layout-p__input 内则正常）。统一用 .layout-p__value 承载，
-   作为 <p> 的 flex 子项填充整行，既保持版式一致，又让预览/填充态数据变化能正确刷新。 */
+   作为 <div> 的 flex 子项填充整行，既保持版式一致，又让预览/填充态数据变化能正确刷新。 */
 .layout-p__value {
   flex: 1 1 auto;
   min-width: 0;
   /* 空值兜底（关键）：该 span 作为 flex 子项会被「块化」，内容为空时高度为 0，
-     于是 <p> 的内容盒塌缩成 0，只剩 1px 下边框——在单元格里（align-self:center）
+     于是 <div> 的内容盒塌缩成 0，只剩 1px 下边框——在单元格里（align-self:center）
      看起来就是「垂直居中的一条直线」；而光标所在的行盒仍按 line-height 从内容盒
      顶部向下撑开，于是光标落在横线下方。
      给定一个行高（1.35em，与 .layout-p 的 line-height 一致）作为最小高度，
@@ -937,7 +957,7 @@ function onImgError(): void {
   overflow-wrap: anywhere;
 }
 
-/* 字段 P 已统一渲染为可编辑 <p>（预览 / 填写态与设计态同结构，行高一致），
+/* 字段 P 已统一渲染为可编辑 <div>（预览 / 填写态与设计态同结构，行高一致），
    不再使用 textarea 控件（G11 的 textarea 分支已回退，见十续）。复合字段的可输入区
    为 .layout-p__input（设计/预览/填写共用），见上。 */
 

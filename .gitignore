@@ -36,3 +36,7 @@ dist-ssr
 
 # 发布包消费端验证脚手架（临时，含 npm pack 产物与假 node_modules，不入库）
 .tmp-erp-check/
+
+# 设计器「导出文件」生成的调试样例（前缀 + 时间戳，非项目内容，不入库）
+src/dev/ticket-schema-v2-*.json
+src/dev/ticket-fill-data-*.json

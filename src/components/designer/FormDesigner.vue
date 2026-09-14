@@ -8,8 +8,15 @@ import type { DesignerUIConfig } from "./config";
 import { setLocale, DEFAULT_LOCALE } from "@/i18n";
 /** D2：打印触发收口到渲染内核，设计器不再裸调 `window.print()`。 */
 import { printForm } from "@/components/renderer-v2/print-form";
+/** 表单数据采集口径类型（`getFormData` 的脱敏 / 回源开关）。 */
+import type { CollectFieldValuesOptions } from "@/components/renderer-v2";
 import { validateFormSchemaV2 } from "@/types";
 import type { FormDataV2, FormSchemaV2 } from "@/types";
+import {
+  collectFormData,
+  normalizeIncomingSchema,
+  type FormDesignerExposed,
+} from "./export-api";
 import { paginateSchema } from "@/engine-v2/pagination";
 import StatusBar from "./StatusBar.vue";
 import DesignerToolbar from "./DesignerToolbar.vue";
@@ -34,7 +41,7 @@ const props = defineProps<{
   /** 可载入的样例集（由外层注入，设计器不依赖 dev 目录，见 B3）。 */
   samples?: SampleEntry[];
   /** 全局 UI 配置（设计页可见性开关）：缺省见 `defaultDesignerUIConfig`，
-   *  默认隐藏「填充数据」模块、显示其余按钮；宿主可局部覆盖。 */
+   *  默认显示全部模块（含「填充数据」组）；宿主可局部传 `false` 关闭。 */
   uiConfig?: Partial<DesignerUIConfig>;
 }>();
 
@@ -147,19 +154,49 @@ const canRemoveSelected = computed(
     selectedNode.value?.type !== "grid-cell",
 );
 
-// ── 结构树全局折叠 / 展开（provide 下发信号，NodeTreeItem 经 inject 接收）──
-const treeControl: TreeControl = { token: ref(0), target: ref(true) };
+// ── 结构树全局折叠 / 展开 + 定位（provide 下发信号，NodeTreeItem 经 inject 接收）──
+const treeControl: TreeControl = {
+  token: ref(0),
+  target: ref(true),
+  focusId: ref<string | null>(null),
+  focusToken: ref(0),
+};
 provide(TreeControlKey, treeControl);
-/** 折叠全部：置 target=false 并自增 token，驱动所有节点收起。 */
+/**
+ * 折叠全部：置 target=false 并自增 token，驱动所有节点收起。
+ * 同时清 `focusId`：否则子节点被重新挂载时 `immediate` 的定位判断会拿旧焦点
+ * 把整条祖先链又展开回来（用户刚点的「折叠全部」等于失效）。
+ */
 function collapseAll(): void {
   treeControl.target.value = false;
+  treeControl.focusId.value = null;
   treeControl.token.value++;
 }
 /** 展开全部：置 target=true 并自增 token，驱动所有节点展开。 */
 function expandAll(): void {
   treeControl.target.value = true;
+  treeControl.focusId.value = null;
   treeControl.token.value++;
 }
+/**
+ * 左侧结构树定位（2026-09-11）：选中节点一变（画布点选 / 问题面板定位 / 树内互选）
+ * 就下发 focus 信号 —— 各 `NodeTreeItem` 自行展开祖先链（把目标行渲染出来），
+ * `PaletteSidebar` 负责就近滚动到可见。此处只发信号，不碰 DOM。
+ *
+ * `flush: "sync"` 是必需的，不是风格问题：默认 `pre` 会把回调推迟到下一轮 flush，
+ * 于是「挂载时自动选中首个页面」这个信号会在**用户随后的操作之后**才落地 ——
+ * 实测表现为「刚启动立刻点『折叠全部』，页面节点又被旧信号展开」，让折叠失效。
+ * 同步下发把它钉在选中发生的那一刻，之后的折叠/展开可以安心覆盖它。
+ */
+watch(
+  selectedNodeId,
+  (id) => {
+    treeControl.focusId.value = id;
+    if (!id) return;
+    treeControl.focusToken.value++;
+  },
+  { flush: "sync" },
+);
 
 // ── 结构编辑动作 ───────────────────────────────────────────
 const edits = useSchemaEdits({
@@ -230,7 +267,6 @@ const {
 // ── 填充数据（预览态） ─────────────────────────────────────
 const fillData = useFillData({
   canvasEl,
-  isPreview: () => previewMode.value,
   enterPreview: (data) => enterPreview(data),
 });
 const {
@@ -277,9 +313,12 @@ function redo(): void {
 /**
  * 打印：触发走渲染内核统一入口（`printForm`），呈现（`@page` 纸张 + `@media print` 样式）
  * 亦由渲染内核负责——两者同层，设计器不再各自 `window.print()`（D2）。
+ *
+ * 传入本设计器的画布作为**打印根**：只把其中的纸张（`.grid-form-paper`）序列化进同源 iframe
+ * 打印，宿主页面其余部分（工单页菜单 / 头部 / 其他区域）不进打印流。
  */
 function printDocument(): void {
-  printForm();
+  printForm({ root: canvasEl.value });
 }
 
 /** 载入一个注入的样例（B3：样例来自 props 注册表，设计器不依赖 dev 目录）。 */
@@ -386,6 +425,54 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
   window.removeEventListener("beforeunload", beforeUnload);
+});
+
+// ── 对外交付：schema 配置 / 表单数据（程序化契约见 export-api.ts）──
+/**
+ * 当前 schema 的**深拷贝**。刻意不返回内部引用：宿主拿到后想怎么改（加字段、裁节点）
+ * 都不该污染设计器的编辑状态；要让它生效就 `setSchema` 回灌。
+ */
+function getSchema(): FormSchemaV2 {
+  return JSON.parse(JSON.stringify(schema.value)) as FormSchemaV2;
+}
+
+/**
+ * 当前表单的**字段与值** `{ 字段名: 值 }`。
+ *
+ * 走 `collectFieldValues`（与渲染期同一份 DOM 遍历采集器），所以设计态 / 预览态
+ * 就地输入的内容都能拿到；没有配置任何字段时返回 `{}`。默认按「导出数据」的外发
+ * 口径脱敏（`maskHidden`），与工具栏「导出数据」按钮完全同口径。
+ */
+function getFormData(options?: CollectFieldValuesOptions): FormDataV2 {
+  return collectFormData(canvasEl.value, {
+    maskHidden: true,
+    ...options,
+  });
+}
+
+/** 载入一份 schema（对象或 JSON 文本）并重置历史与选中——宿主「编辑既有表单」的入口。 */
+function setSchema(next: FormSchemaV2 | string): void {
+  resetHistory(normalizeIncomingSchema(next));
+  clearSelection();
+}
+
+/**
+ * 导出 schema 文件：与工具栏「导出文件」**同一实现**（`useSchemaDocument.exportFile`，
+ * 内含 `serializeSchemaJson` 取值与控制台打印）。宿主经 ref 调用与点按钮完全等价。
+ */
+function exportSchemaFile(): void {
+  exportFile();
+}
+
+defineExpose<FormDesignerExposed>({
+  getSchema,
+  getFormData,
+  setSchema,
+  exportSchemaFile,
+  // 「导出数据」与工具栏同一实现（`useFillData.exportFillDataFile`，含 console 打印）
+  exportFillDataFile,
+  print: printDocument,
+  resetBlank,
 });
 </script>
 
@@ -503,8 +590,19 @@ onUnmounted(() => {
 <style scoped>
 .v2-designer {
   display: grid;
-  grid-template-rows: 48px 1fr 28px;
-  height: 100vh;
+  /* 中排用 minmax(0, 1fr)：`1fr` 的隐式最小尺寸是 auto，容器被压矮时会被内容顶住，
+     写成 minmax(0, 1fr) 才允许画布区真正收缩（与 __body 的 min-height: 0 配套）。 */
+  grid-template-rows: 48px minmax(0, 1fr) 28px;
+  /* 高度吃满宿主容器，**不写死 100vh**（2026-09-10 修）：
+     宿主若有页头 / 侧栏 / tab，100vh 会把组件撑出 wrapper，整页出现滚动条，
+     status-bar 与「纸张缩放条」被挤出可视区，必须滚到底才看得见。
+     前提：宿主容器链路必须有**确定高度**，三种接法任选其一 ——
+       ① flex 宿主：祖先链 `display:flex; flex-direction:column; min-height:0`，本组件自然撑满；
+       ② 固定高宿主：`.host { height: calc(100vh - <页头高>) }`；
+       ③ 兜底：任一祖先上设 `--v2-designer-height`（如 `calc(100vh - 56px)`），
+          组件拿不到确定高度时用它顶上。 */
+  height: var(--v2-designer-height, 100%);
+  min-height: 0;
   overflow: hidden;
   background: #f3f4f6;
 }
