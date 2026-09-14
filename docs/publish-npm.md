@@ -1,23 +1,23 @@
 # 发布为 npm 包 · 消费端接入指南
 
-本组件库以**公共 npm 包**形式交付，发布到 **npmjs.com**（包名 `@aikkk/ticket-designer`）。源码托管在 GitHub（[CluadWong/TicketDesigner](https://github.com/CluadWong/TicketDesigner)），`release` 分支为对外发布分支。
+本组件库以**公共 npm 包**形式交付，发布到 **npmjs.com**（包名 `ticket-designer`）。源码托管在 GitHub（[CluadWong/TicketDesigner](https://github.com/CluadWong/TicketDesigner)），`release` 分支为对外发布分支。
 
-> 本指南只覆盖公共 npmjs 发布（`@aikkk/ticket-designer`），由 `release` 分支经 `npm run release` 完成；`dev` 为内部开发分支，不参与 npm 发布。
+> 本指南只覆盖公共 npmjs 发布（`ticket-designer`），由 `release` 分支经 `npm run release` 完成；`dev` 为内部开发分支，不参与 npm 发布。
 
 ## 一、包结构（两个入口，按需引用）
 
 | 入口 | 内容 | 谁用 |
 |---|---|---|
-| `@aikkk/ticket-designer/renderer` | `FormRenderer` / `GridFormRenderer` / `printForm` / `collectFieldValues` / Schema 类型 | **消费端**：渲染、填写、打印 |
-| `@aikkk/ticket-designer/designer` | `FormDesigner` / `defaultDesignerUIConfig` / `buildBlankSchema` | 需要在宿主内编排模板时 |
-| `@aikkk/ticket-designer` | 上面两个的合集 | 不推荐生产使用（会把设计器一起打进产物） |
+| `ticket-designer/renderer` | `FormRenderer` / `GridFormRenderer` / `printForm` / `collectFieldValues` / Schema 类型 | **消费端**：渲染、填写、打印 |
+| `ticket-designer/designer` | `FormDesigner` / `defaultDesignerUIConfig` / `buildBlankSchema` | 需要在宿主内编排模板时 |
+| `ticket-designer` | 上面两个的合集 | 不推荐生产使用（会把设计器一起打进产物） |
 
 样式按入口分离，**别引错**：
 
 ```
-@aikkk/ticket-designer/renderer/style.css   → 渲染样式（.grid-form-paper / .layout-* / .paper-viewport）
-@aikkk/ticket-designer/designer/style.css   → 渲染样式 + 设计器样式（.v2-* 面板类），**自足，不要再额外引 renderer 的**
-@aikkk/ticket-designer/style.css            → 全量（根入口用，= renderer + designer）
+ticket-designer/renderer/style.css   → 渲染样式（.grid-form-paper / .layout-* / .paper-viewport）
+ticket-designer/designer/style.css   → 渲染样式 + 设计器样式（.v2-* 面板类），**自足，不要再额外引 renderer 的**
+ticket-designer/style.css            → 全量（根入口用，= renderer + designer）
 ```
 
 只做渲染/填写的页面**只引 renderer 的样式**，否则设计器的非 scoped 样式会洒进宿主全局。
@@ -43,24 +43,24 @@ npm run pack:check         # 上面两步 + npm pack --dry-run，发布前必跑
 
 ## 三、发布到 npmjs.com
 
-发布命令必须在**你本机**（已 `npm login` 到 npmjs，账号需拥有 `@aikkk` scope）执行。本 agent 沙箱无法代发。
+发布命令在**已 `npm login` 到 npmjs 的本机**执行。
 
 ```bash
 npm ci                                      # 或 npm install
 npm run build:lib && npm run build:types    # 产出 dist/
 npm run pack:check                          # 先校验产物（npm pack --dry-run）
-npm publish                                 # 发布（package.json 已配 publishConfig.access=public）
+npm publish                                 # 发布
 ```
 
 > 每个版本号只能发一次，重发会 409。改 bug 请升版本号（`npm version patch`）。
-> 若本机残留 `.npmrc` 把 `@aikkk` scope 指向了其他私有 registry，发布前务必删除它（或加 `registry=https://registry.npmjs.org/` 覆盖），否则会发错地方。
+> 若本机 `.npmrc` 把 `registry` 指向了其他私有源，发布前务必改用 `registry=https://registry.npmjs.org/` 覆盖，否则会发错地方。
 
 ## 四、消费端接入
 
 ### 1. 安装
 
 ```bash
-npm i @aikkk/ticket-designer
+npm i ticket-designer
 ```
 
 ### 2. `vite.config.ts` —— 必须加 dedupe
@@ -79,8 +79,8 @@ export default defineConfig({
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
-import { FormRenderer, type FormSchemaV2 } from '@aikkk/ticket-designer/renderer'
-import '@aikkk/ticket-designer/renderer/style.css'
+import { FormRenderer, type FormSchemaV2 } from 'ticket-designer/renderer'
+import 'ticket-designer/renderer/style.css'
 
 const schema = ref<FormSchemaV2>(/* 设计器导出的 JSON */)
 const data = ref<Record<string, string>>({})
@@ -120,7 +120,7 @@ async function submit() {
 npm run build:lib && npm link
 
 # 消费端项目
-npm link @aikkk/ticket-designer
+npm link ticket-designer
 ```
 
 改一次要重新 `npm run build:lib`。联调完记得 `npm unlink`。

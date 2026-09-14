@@ -1,5 +1,5 @@
 {
-  "name": "@aikkk/ticket-designer",
+  "name": "ticket-designer",
   "private": false,
   "version": "0.1.4",
   "type": "module",
@@ -66,8 +66,5 @@
   "homepage": "https://github.com/CluadWong/TicketDesigner",
   "bugs": {
     "url": "https://github.com/CluadWong/TicketDesigner/issues"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }
