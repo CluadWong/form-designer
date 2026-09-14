@@ -19,5 +19,20 @@ export type { DesignerUIConfig } from "./components/designer/config";
 // 空白模板构造（宿主「新建模板」时可复用）
 export { buildBlankSchema } from "./components/designer/composables/useSchemaDocument";
 
+// 交付 API：取 Schema 配置 JSON / 表单字段与值 JSON
+// （也可经 FormDesigner 实例的 ref 调用，见 FormDesignerExposed / README「宿主集成」）
+export {
+  collectFormData,
+  downloadJsonFile,
+  exportFileName,
+  FILL_DATA_EXPORT_PREFIX,
+  JSON_INDENT,
+  normalizeIncomingSchema,
+  SCHEMA_EXPORT_PREFIX,
+  serializeFormDataJson,
+  serializeSchemaJson,
+} from "./components/designer/export-api";
+export type { FormDesignerExposed } from "./components/designer/export-api";
+
 // 样例条目类型（宿主注入 samples 时用）
 export type { SampleEntry } from "./samples/types";

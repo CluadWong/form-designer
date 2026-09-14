@@ -12,8 +12,8 @@ export const en: Messages = {
   "toolbar.undo": "Undo",
   "toolbar.redo": "Redo",
   "toolbar.module.template": "Template",
-  "toolbar.saveTemplate": "Save",
-  "toolbar.loadTemplate": "Open",
+  "toolbar.saveTemplate": "Save Template",
+  "toolbar.loadTemplate": "Load Template",
   "toolbar.exportTemplate": "Export File",
   "toolbar.importTemplate": "Import File",
   "toolbar.module.fillData": "Fill Data",
@@ -26,9 +26,12 @@ export const en: Messages = {
   "toolbar.print": "Print",
   "toolbar.help": "Help",
   "toolbar.importFillDataTip": "Choose a fill-data JSON file and enter preview",
-  "toolbar.exportFillDataTip": "Fill in preview first, then export current values",
+  "toolbar.exportFillDataTip":
+    "Export the form's field-value JSON (design or preview; empty object when no fields)",
   "toolbar.loadFillDataTip": "Load locally saved fill data and enter preview",
-  "toolbar.saveFillDataTip": "Fill in preview first, then save locally",
-  "toolbar.previewTip": "See the actual filled form; you can input in preview and export as fill data",
+  "toolbar.saveFillDataTip":
+    "Save the form's field-value JSON to this browser (design or preview; empty object when no fields)",
+  "toolbar.previewTip":
+    "See the actual filled form; you can input in preview and export as fill data",
   "toolbar.helpTip": "View usage instructions",
 };

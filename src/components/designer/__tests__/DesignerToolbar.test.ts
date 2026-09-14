@@ -21,9 +21,9 @@ function groupTexts(wrapper: ReturnType<typeof mount>): string[] {
 }
 
 describe("DesignerToolbar 全局 UI 配置（2026-09-08）", () => {
-  it("默认配置：隐藏「填充数据」模块，其余模块均显示", () => {
+  it("默认配置：显示「填充数据」模块，其余模块均显示", () => {
     const texts = groupTexts(mountToolbar());
-    expect(texts.some((t) => t.includes("填充数据"))).toBe(false);
+    expect(texts.some((t) => t.includes("填充数据"))).toBe(true);
     expect(texts.some((t) => t.includes("模板"))).toBe(true);
     expect(texts.some((t) => t.includes("撤销"))).toBe(true);
     expect(texts.some((t) => t.includes("新建空白"))).toBe(true);
@@ -34,7 +34,7 @@ describe("DesignerToolbar 全局 UI 配置（2026-09-08）", () => {
     expect(tail).toContain("帮助");
   });
 
-  it("showFillDataModule=true：显示填充数据模块（含导入/导出/读取/保存数据）", () => {
+  it("showFillDataModule=true：显示填充数据模块（含保存/读取/导入/导出数据）", () => {
     const texts = groupTexts(mountToolbar({ showFillDataModule: true }));
     const fillGroup = texts.find((t) => t.includes("填充数据"));
     expect(fillGroup).toBeDefined();

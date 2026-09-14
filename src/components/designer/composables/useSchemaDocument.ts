@@ -16,6 +16,18 @@ import {
   serializeFormSchemaV2,
 } from "@/types";
 import type { FormSchemaV2 } from "@/types";
+import {
+  downloadJsonFile,
+  exportFileName,
+  SCHEMA_EXPORT_PREFIX,
+  serializeSchemaJson,
+} from "../export-api";
+
+/**
+ * 「导出文件」在控制台打印的标签。宿主联调时用它一眼认出设计器的输出，
+ * 也便于自动化脚本按前缀捕获（`console.log` 内容即 schema JSON 文本）。
+ */
+export const SCHEMA_LOG_LABEL = "[ticket-designer] schema 配置 JSON";
 
 export const SCHEMA_STORAGE_KEY = "ticket-designer-schema-v2";
 
@@ -83,7 +95,11 @@ export function useSchemaDocument(
 
   function commit(next: FormSchemaV2, tag?: string): void {
     const now = Date.now();
-    if (tag && tag === lastCommitTag && now - lastCommitTime < COALESCE_WINDOW_MS) {
+    if (
+      tag &&
+      tag === lastCommitTag &&
+      now - lastCommitTime < COALESCE_WINDOW_MS
+    ) {
       schema.value = next;
     } else {
       undoStack.value.push(schema.value);
@@ -127,10 +143,15 @@ export function useSchemaDocument(
 
   function saveToLocal(): void {
     try {
-      localStorage.setItem(SCHEMA_STORAGE_KEY, serializeFormSchemaV2(schema.value, true));
+      localStorage.setItem(
+        SCHEMA_STORAGE_KEY,
+        serializeFormSchemaV2(schema.value, true),
+      );
       dirty.value = false;
     } catch (error) {
-      alert(`保存失败：${error instanceof Error ? error.message : String(error)}`);
+      alert(
+        `保存失败：${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -144,22 +165,23 @@ export function useSchemaDocument(
       resetHistory(parseFormSchemaV2(text));
       options.onReset?.();
     } catch (error) {
-      alert(`读取失败：${error instanceof Error ? error.message : String(error)}`);
+      alert(
+        `读取失败：${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   function exportFile(): void {
     try {
-      const text = serializeFormSchemaV2(schema.value, true);
-      const blob = new Blob([text], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `ticket-schema-v2-${Date.now()}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      // 取值走交付 API `serializeSchemaJson`（与 `getSchema` 同源，纯序列化无副作用），
+      // 下载实现收口在 `export-api.ts`。控制台同步打印，便于联调直接抄走配置。
+      const json = serializeSchemaJson(schema.value);
+      console.log(SCHEMA_LOG_LABEL, json);
+      downloadJsonFile(exportFileName(SCHEMA_EXPORT_PREFIX), json);
     } catch (error) {
-      alert(`导出失败：${error instanceof Error ? error.message : String(error)}`);
+      alert(
+        `导出失败：${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -173,7 +195,9 @@ export function useSchemaDocument(
         resetHistory(parseFormSchemaV2(String(reader.result)));
         options.onReset?.();
       } catch (error) {
-        alert(`导入失败：${error instanceof Error ? error.message : String(error)}`);
+        alert(
+          `导入失败：${error instanceof Error ? error.message : String(error)}`,
+        );
       } finally {
         input.value = "";
       }

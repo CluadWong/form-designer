@@ -1,16 +1,46 @@
 {
   "name": "ticket-designer",
-  "private": true,
   "version": "0.1.4",
   "type": "module",
   "description": "固定布局表单设计器与渲染组件（Schema V2）：可视化编排版式 → 导出 Schema JSON → 渲染 / 填写 / 打印",
   "license": "MIT",
+  "author": "CluadWong",
+  "keywords": [
+    "vue",
+    "vue3",
+    "form",
+    "form-designer",
+    "form-renderer",
+    "schema",
+    "typescript",
+    "print",
+    "layout"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CluadWong/TicketDesigner.git"
+  },
+  "homepage": "https://github.com/CluadWong/TicketDesigner#readme",
+  "bugs": {
+    "url": "https://github.com/CluadWong/TicketDesigner/issues"
+  },
   "files": [
     "dist"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "//typesVersions": "宿主 tsconfig 若用 moduleResolution:\"node\"(node10) 会忽略 exports，子路径 ticket-designer/designer|renderer 的类型解析不到（TS2307）。此映射补上该回落路径；用 bundler/node16 的宿主走 exports，两者并存不冲突。",
+  "typesVersions": {
+    "*": {
+      "designer": [
+        "./dist/designer.d.ts"
+      ],
+      "renderer": [
+        "./dist/renderer.d.ts"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -34,20 +64,20 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "build:lib": "vite build --config vite.lib.config.ts",
+    "build:lib": "vite build --config vite.lib.config.ts --emptyOutDir",
+    "dev:lib": "npm run build:types && vite build --config vite.lib.config.ts --watch",
     "build:types": "vue-tsc -p tsconfig.lib.json --declaration --emitDeclarationOnly --outDir dist && node scripts/fix-dts-alias.mjs",
     "pack:check": "npm run build:lib && npm run build:types && npm pack --dry-run",
     "sync": "bash scripts/sync-public.sh",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run"
   },
   "peerDependencies": {
     "vue": "^3.5.0"
   },
   "dependencies": {
     "@panzoom/panzoom": "^4.6.2",
-    "dompurify": "^3.4.14"
+    "dompurify": "^3.4.14",
+    "vue-print-next": "^1.1.6"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.1.0",

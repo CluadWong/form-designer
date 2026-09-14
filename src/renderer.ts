@@ -20,8 +20,9 @@ export type { FormRendererOptions } from "./components/renderer-v2/FormRenderer.
 export { collectFieldValues } from "./components/renderer-v2/collectFieldValues";
 
 // ---- 打印：@page 注入 + 触发（D2：呈现与触发同归渲染内核）----
-export { printForm } from "./components/renderer-v2/print-form";
-export type { PrintHost } from "./components/renderer-v2/print-form";
+// 触发实现 = vue-print-next 局部打印（只打纸张，宿主页面其余部分不进打印流）。
+export { printForm, PRINT_PAPER_SELECTOR, PRINT_ROOT_SELECTOR } from "./components/renderer-v2/print-form";
+export type { PrintFormOptions } from "./components/renderer-v2/print-form";
 
 // ---- 纸张尺寸样式：@page 由 schema.paper 运行时注入 ----
 export {

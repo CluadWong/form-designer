@@ -211,10 +211,15 @@ Grid 根据 border 配置决定外框和内部线：
 
 ## 9. P 渲染
 
+容器**必须是 `<div class="layout-p">`，不能是 `<p>`**（2026-09-11）：`innerBorder` 会在容器内
+插入 `<div class="layout-p__line">`，而 `<p>` 的内容模型只允许 phrasing content，HTML 解析器
+遇到 `<div>` 会强制闭合 `<p>`——局部打印正是走「序列化 → 重新解析」，结构会被拆坏。详见 §19 末条。
+schema 层的节点类型名仍沿用历史命名 `"p"`，与 DOM 标签无关。
+
 ### static
 
 ```html
-<p data-node-id="label-unit">单位</p>
+<div class="layout-p" data-node-id="label-unit">单位</div>
 ```
 
 ### field
@@ -222,13 +227,13 @@ Grid 根据 border 配置决定外框和内部线：
 设计态：
 
 ```html
-<p data-node-id="field-unit" data-field="单位"></p>
+<div class="layout-p" data-node-id="field-unit" data-field="单位"></div>
 ```
 
 填写态：
 
 ```html
-<p contenteditable data-node-id="field-unit" data-field="单位"></p>
+<div class="layout-p" contenteditable data-node-id="field-unit" data-field="单位"></div>
 ```
 
 inputType=date/signature 可以使用专用内部控件，但外层仍保持 PNode 的 data-node-id/data-field 契约。
@@ -265,6 +270,9 @@ HTML 组件定位：仅用于复杂小模块，由开发人员配置一段 HTML 
 2. 写入前用 **DOMPurify** 做引擎级固定清洗：`FORBID_TAGS` 含 `script/iframe/object/embed`，`FORBID_ATTR` 含全部 `on*`，并剥离 `href/src/xlink:href` 中的 `javascript:` 与 `data:text/html`；v1 禁 `@import`。**清洗始终执行，无 per-node 信任开关。**
 3. 字段绑定：`{{field}}` 在挂载时解析为 shadow 内 `<span data-bind="field">` 占位；填值时引擎经 `host.shadowRoot` 对 `[data-bind]` 逐个 `textContent = data[field]` 原地更新，与 field P / Image 共用 in-place 填值模型（不重建节点）。
 4. 放入限制 overflow 的 Cell 容器，由 §12 做溢出检测。
+5. **打印时提升 Shadow DOM**：局部打印取内容靠克隆 + 序列化，而克隆**不带走 shadow tree**（DOM 规范行为），
+   故送印前把 shadow 里的非 `<style>` 子节点临时移到 host 上、打完移回，并把控件实时值固化进 attribute。
+   详见 §19 与 `print-form.ts` 头部注释。
 
 HTML 内部 DOM 不参与普通节点索引；其内部 contenteditable 不回写 FormData（`{{field}}` 绑定由引擎在原地更新）。
 
@@ -384,3 +392,33 @@ updateNode(schema, nodeId, patch)
 - 选择器常量与辅助函数集中在 `src/engine-v2/node-address.ts`（`NODE_ID_ATTR` / `LAYOUT_ID_ATTR` / `nodeIdSelector` / `layoutIdSelector`），消费侧应引用它们，避免多处硬编码属性名字符串而静默失效。
 - 地址属性是**契约而非实现细节**：改名须同步内核输出与表面层消费两侧，并回归 FormDesigner 拖拽/选中测试。
 - 选中高亮（`.is-design-selected`）由表面层 `designer/CanvasSurface.vue` 在渲染 DOM 上直接加/去类实现（A5），内核不再持有 `selectedNodeId`、不再输出 `.layout-node--selected`。
+
+## 19. 打印实现契约（2026-09-11 改为**局部打印**）
+
+**触发**：`printForm({ root })`（`src/components/renderer-v2/print-form.ts`），实现 = `vue-print-next`。
+无参调用自动取页面里第一个 `.grid-form-canvas`；组件侧 `FormRenderer.print()` 与设计器工具栏「打印」
+各自传**自己的**渲染根，多实例互不干扰。
+
+**只打纸张**：交给插件的是本次实例的 `.grid-form-paper`（用实例级 `data-v2-print-scope` 圈定，
+避免裸选择器把同页多个渲染实例串起来）。纸张上的 `width/height: Nmm` 是内联样式，随序列化保留；
+内核 `@media print` 的 `break-after: page` 决定每张纸出一页。**宿主页面其余部分不进打印流**，
+不再依赖 `@media print` 去逐条隐藏菜单 / 工具栏 / 其他区域。
+
+**`@page` 唯一真源仍是 `page-size-style.ts`**：**禁止**给插件传 `paperSize` / `orientation` / `customSize`。
+它拿到任一个就会自己再写一条 `@page`，且排在 head 里所有 `<style>` 之后（后写胜出），
+直接盖掉跟随 `schema.paper` 注入的尺寸（A3 会被打回 A4）。
+
+**Shadow DOM 与控件值**：见 §11 第 5 条——HTML 模块的 shadow 内容与 `input` / `textarea` 实时值
+都在送印前临时固化，打完还原。P 字段不受影响（contenteditable，值本就在文本节点里）。
+
+**`@media print` 定位降级为兜底**：各组（工具栏 / 侧栏 / 状态栏 / 帮助面板 / 画布 / 纸张 / 视口）
+的 `@media print` 规则保留——主路径已由 iframe 隔离承担，但这些样式仍会被一并复制进打印文档，
+保留不影响结果，且是插件行为变化时的缓冲。
+
+**字段容器必须能容纳块级子元素（不得用 `<p>`）**：局部打印是**序列化成 HTML 字符串**再
+`document.write` 进 iframe，浏览器会**重新解析**这段 HTML。字段容器因此**不得用 `<p>`**——
+`<p>` 的 HTML 内容模型只允许 phrasing content，而 `innerBorder` 的逐行渲染插入的是
+`<div class="layout-p__line">`，解析器遇 `<div>` 会强制闭合 `<p>`，把逐行 div 与后标签推出容器，
+表现为「屏幕一行、打印时前后标签各占一行」。这是 2026-09-11 的实际故障。
+推论：任何「主文档靠 DOM API 侥幸成立、序列化后会变」的结构都不可接受——导出 HTML / SSR /
+复制粘贴走的是同一条路。守卫：`renderer-v2/__tests__/FieldContainerHtmlRoundTrip.test.ts`。
