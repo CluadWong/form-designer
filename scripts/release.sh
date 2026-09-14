@@ -77,7 +77,7 @@ if [ $DO_PUSH -eq 1 ]; then
   # main 受「Require a pull request before merging」保护，禁止直接推送。
   # 改为开 PR(release → main) 并请求自动合并；无 gh 时给出手动建 PR 的链接。
   VER=$(node -p "require('./package.json').version")
-  PR_URL="https://github.com/CluadWong/TicketDesigner/compare/main...release"
+  PR_URL="https://github.com/CluadWong/form-designer/compare/main...release"
   if command -v gh >/dev/null 2>&1; then
     if gh pr view release --json number >/dev/null 2>&1; then
       info "release → main 的 PR 已存在，跳过创建"

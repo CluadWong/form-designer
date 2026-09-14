@@ -1,6 +1,6 @@
 # 发布为 npm 包 · 消费端接入指南
 
-本组件库以**公共 npm 包**形式交付，发布到 **npmjs.com**（包名 `ticket-designer`）。源码托管在 GitHub（[CluadWong/TicketDesigner](https://github.com/CluadWong/TicketDesigner)），`release` 分支为对外发布分支。
+本组件库以**公共 npm 包**形式交付，发布到 **npmjs.com**（包名 `ticket-designer`）。源码托管在 GitHub（[CluadWong/form-designer](https://github.com/CluadWong/form-designer)），`release` 分支为对外发布分支。
 
 > 本指南只覆盖公共 npmjs 发布（`ticket-designer`），由 `release` 分支经 `npm run release` 完成；`dev` 为内部开发分支，不参与 npm 发布。
 

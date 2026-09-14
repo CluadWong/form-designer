@@ -18,11 +18,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CluadWong/TicketDesigner.git"
+    "url": "git+https://github.com/CluadWong/form-designer.git"
   },
-  "homepage": "https://github.com/CluadWong/TicketDesigner",
+  "homepage": "https://github.com/CluadWong/form-designer",
   "bugs": {
-    "url": "https://github.com/CluadWong/TicketDesigner/issues"
+    "url": "https://github.com/CluadWong/form-designer/issues"
   },
   "files": [
     "dist"
