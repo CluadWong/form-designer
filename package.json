@@ -1,6 +1,6 @@
 {
   "name": "ticket-designer",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "固定布局表单设计器与渲染组件（Schema V2）：可视化编排版式 → 导出 Schema JSON → 渲染 / 填写 / 打印",
   "license": "MIT",
