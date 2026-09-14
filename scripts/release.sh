@@ -15,8 +15,8 @@
 #
 # 前置条件：
 #   - 当前在 release 分支、工作树干净
-#   - 已 `npm login` 且账号拥有 @aikkk scope
-#   - 本机无指向 10.8.0.102 的 .npmrc（否则 @aikkk 会被重定向到 GitLab）
+#   - 已 `npm login` 且账号对包名 ticket-designer 有发布权限
+#   - 本机 .npmrc 的 registry 指向 npmjs（否则会发到私有源）
 set -euo pipefail
 
 BUMP=patch
@@ -55,12 +55,13 @@ run npm run build:lib
 run npm run build:types
 
 if [ $DO_PUBLISH -eq 1 ]; then
-  info "3/4 发布到 npmjs（@aikkk/ticket-designer）"
+  info "3/4 发布到 npmjs（ticket-designer）"
   PUB=()
   [ -n "$OTP" ] && PUB+=(--otp "$OTP")
-  # 发布前再确认 scope 没被本机 .npmrc 重定向到内网 GitLab
-  if grep -q "10.8.0.102" .npmrc 2>/dev/null; then
-    echo "检测到 .npmrc 含 10.8.0.102，@aikkk 会被重定向到 GitLab，已中止" >&2
+  # 发布前确认 registry 指向公共 npmjs（防本机 .npmrc 把包发到私有源）
+  REG="$(npm config get registry 2>/dev/null || echo '')"
+  if [ "$REG" != "https://registry.npmjs.org/" ]; then
+    echo "registry 当前为 $REG，非公共 npmjs，已中止" >&2
     exit 1
   fi
   run npm publish "${PUB[@]}"
@@ -82,12 +83,12 @@ if [ $DO_PUSH -eq 1 ]; then
       info "release → main 的 PR 已存在，跳过创建"
     elif ! run gh pr create --base main --head release \
         --title "release: v$VER" \
-        --body "自动发布流程提交的版本 v$VER。包体已发至 npmjs（@aikkk/ticket-designer）。" \
+        --body "自动发布流程提交的版本 v$VER。包体已发至 npmjs（ticket-designer）。" \
         --auto-merge 2>/dev/null; then
       info "auto-merge 不可用，改用普通 PR（需手动或自动合并）"
       run gh pr create --base main --head release \
         --title "release: v$VER" \
-        --body "自动发布流程提交的版本 v$VER。包体已发至 npmjs（@aikkk/ticket-designer）。"
+        --body "自动发布流程提交的版本 v$VER。包体已发至 npmjs（ticket-designer）。"
     fi
   else
     echo "未检测到 gh CLI，请手动创建 PR 将 release 合并到 main：" >&2
