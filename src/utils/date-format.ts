@@ -1,14 +1,20 @@
 /**
- * 日期字段显示格式工具（P 字段 action="date" 的「format」属性配套）。
+ * 日期字段显示格式工具（字段「额外属性」`date-format` 的配套工具）。
  *
  * 格式串 token：`{YYYY}` 年 / `{MM}` 月 / `{DD}` 日 / `{hh}` 时 / `{mm}` 分 / `{ss}` 秒。
  * 例：`{YYYY}年{MM}月{DD} {hh}时{mm}分{ss}秒`。
  *
- * 仅作用于【填写回写】环节：宿主（消费页）在 date 选择器 change 时把原生 ISO 值
- * （`YYYY-MM-DD` 或 `YYYY-MM-DDTHH:mm[:ss]`）按 `actionParams.format` 套成中文串写进 data，
- * 票面直接显示该串；脱敏/采集/打印均不改此逻辑（按 data 原样）。无 format 时原样存储（向后兼容）。
+ * 仅作用于【填写回写】环节：宿主（消费页）在日期选择器 change 时把原生 ISO 值
+ * （`YYYY-MM-DD` 或 `YYYY-MM-DDTHH:mm[:ss]`）按字段的格式串套成中文串写进 data，
+ * 票面直接显示该串；脱敏/采集/打印均不改此逻辑（按 data 原样）。无格式串时原样存储（向后兼容）。
  *
- * 渲染内核不认识这些 token——它们属于宿主的「外部输入组件」职责（与 action 机制同轨）。
+ * 格式串存在字段的「额外属性」里，键名 **`date-format`**——这是宿主词表：宿主
+ * `useFcDesigner.resolveDateFormat` 读的正是标签属性 `date-format`（并兼容
+ * `data-date-format` / `dateFormat`）。旧 schema 的 `actionParams.format` 在读入时
+ * 由 `schema-v2-serialization.ts` 改键迁移过来。
+ *
+ * 渲染内核不认识这些 token——它们属于宿主的「外部输入组件」职责：字段的 `params` 会原样
+ * 落成标签上的 HTML 属性（见 `src/utils/node-params.ts`），宿主从属性自取后调用本工具。
  */
 
 export interface DateParts {

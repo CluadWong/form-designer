@@ -39,7 +39,6 @@ import {
 import type {
   BorderModeV2,
   EditorNodeV2,
-  FieldPNodeV2,
   FormNodeV2,
   FormSchemaV2,
   GridCellV2,
@@ -47,6 +46,7 @@ import type {
   GridRowV2,
   GridTrackV2,
   HeaderFooterV2,
+  NodeParamsV2,
   TableColumnV2,
   TextStyleV2,
 } from "@/types";
@@ -283,7 +283,7 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     commit(updateSchemaNodeV2(schema.value, selectedNodeId.value, updater), tag);
   }
 
-  // ── 字段 P（含外部组件 action） ──
+  // ── 字段 P（含点击触发开关） ──
   function updateSelectedText(event: Event): void {
     const value = (event.target as HTMLTextAreaElement).value;
     updateSelectedNode(
@@ -355,32 +355,97 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     );
   }
 
-  function updateSelectedAction(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as FieldPNodeV2["action"];
+  /**
+   * 点击触发开关（`interactive`）：内核只据此决定「填写态点击该字段要不要 emit
+   * `field-activate`」——**控件类型不进内核**，由 `params` 承载，宿主自行消费。
+   */
+  function updateSelectedInteractive(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
     updateSelectedNode(
       (node) =>
-        node.type === "p" && node.mode === "field" ? { ...node, action: value || undefined } : node,
-      selectedNodeId.value ? `action:${selectedNodeId.value}` : undefined,
+        node.type === "p" && node.mode === "field"
+          ? { ...node, interactive: checked || undefined }
+          : node,
+      selectedNodeId.value ? `interactive:${selectedNodeId.value}` : undefined,
     );
   }
 
-  /** 日期选择器（action=date）的「显示格式」：写入 actionParams.format。
-   *  格式串支持 {YYYY}{MM}{DD}{hh}{mm}{ss}，由宿主在填写回写时套用（见 preview/App.vue onAction）。 */
-  function updateSelectedDateFormat(event: Event): void {
-    const raw = (event.target as HTMLInputElement).value.trim();
+  // ── 通用「额外属性」（params，SchemaNodeBaseV2）：键值对 → 渲染时作为 HTML 属性插到节点标签 ──
+  // 内核不解释任何键；过滤规则见 `src/utils/node-params.ts`（面板对会被丢弃的键标红提示）。
+  /** 当前选中节点的 params 副本（缺省空表）。 */
+  function currentParams(): NodeParamsV2 {
+    const node = selectedNode.value;
+    return node && "params" in node ? { ...(node.params ?? {}) } : {};
+  }
+
+  /**
+   * 写回 params 全表。空表 → `undefined`（不把 `{}` 留在 schema 里，导出更干净；
+   * 与 prefix / width 等「空即 undefined」口径一致）。
+   *
+   * 用 `Object.assign` 而非对象展开：`EditorNodeV2` 是联合类型，展开联合的推断结果
+   * 可能丢失成员字段；`Object.assign({}, node, patch)` 的类型是 `EditorNodeV2 & patch`，
+   * 可安全赋回。
+   */
+  function writeParams(next: NodeParamsV2, tag: string): void {
+    const params = Object.keys(next).length ? next : undefined;
     updateSelectedNode(
-      (node) => {
-        if (node.type !== "p" || node.mode !== "field") return node;
-        const params: Record<string, string> = { ...(node.actionParams ?? {}) };
-        if (raw) params.format = raw;
-        else delete params.format;
-        return {
-          ...node,
-          actionParams: Object.keys(params).length ? params : undefined,
-        };
-      },
-      selectedNodeId.value ? `actionParams:${selectedNodeId.value}` : undefined,
+      (node) => Object.assign({}, node, { params }) as EditorNodeV2,
+      selectedNodeId.value ? `${tag}:${selectedNodeId.value}` : undefined,
     );
+  }
+
+  /** 生成不冲突的新键名（`param1` / `param2` …）：须为小写 ASCII，否则会被内核过滤。 */
+  function nextParamKey(params: NodeParamsV2): string {
+    let index = Object.keys(params).length + 1;
+    while (`param${index}` in params) index += 1;
+    return `param${index}`;
+  }
+
+  /** 新增一行属性（键自动取名、值留空，由用户填写）。 */
+  function addSelectedParam(): void {
+    const params = currentParams();
+    params[nextParamKey(params)] = "";
+    writeParams(params, "param");
+  }
+
+  /**
+   * 重命名属性键（`change` 提交，非逐键）。
+   * - 空键 / 与既有键重名 → **不提交**（记录里无法表达），输入框视觉回退到原键；
+   * - 名字合法但与内核黑名单冲突（如 `onclick`）→ **照常写入**，由面板标红提示
+   *   「渲染时会被丢弃」——比静默拒绝更利于用户理解规则。
+   */
+  function renameSelectedParam(oldKey: string, event: Event): void {
+    const newKey = (event.target as HTMLInputElement).value.trim();
+    if (newKey === oldKey) return;
+    const params = currentParams();
+    if (!(oldKey in params)) return;
+    if (!newKey || newKey in params) {
+      (event.target as HTMLInputElement).value = oldKey; // 未提交 → 组件不重渲染，手动回退显示
+      return;
+    }
+    const next: NodeParamsV2 = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (key === oldKey) next[newKey] = value;
+      else next[key] = value;
+    }
+    writeParams(next, "param");
+  }
+
+  /** 修改属性值（逐键提交，per-node tag 在 800ms 内合并为一个撤销步）。 */
+  function updateSelectedParamValue(key: string, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    const params = currentParams();
+    if (!(key in params)) return;
+    params[key] = value;
+    writeParams(params, "param");
+  }
+
+  /** 删除一行属性（独立撤销步，不与相邻的值编辑合并）。 */
+  function removeSelectedParam(key: string): void {
+    const params = currentParams();
+    if (!(key in params)) return;
+    delete params[key];
+    writeParams(params, "paramdel");
   }
 
   // ── Grid / Table 结构 ──
@@ -873,8 +938,11 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     updateSelectedWidth,
     updateSelectedDefault,
     updateSelectedInnerBorder,
-    updateSelectedAction,
-    updateSelectedDateFormat,
+    updateSelectedInteractive,
+    addSelectedParam,
+    renameSelectedParam,
+    updateSelectedParamValue,
+    removeSelectedParam,
     updateGridBorder,
     updateTableBorder,
     updateGridDimensions,

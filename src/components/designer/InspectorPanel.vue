@@ -18,6 +18,7 @@ import FieldPInspector from "./inspectors/FieldPInspector.vue";
 import HtmlInspector from "./inspectors/HtmlInspector.vue";
 import ImageInspector from "./inspectors/ImageInspector.vue";
 import TableInspector from "./inspectors/TableInspector.vue";
+import ParamsFields from "./inspectors/ParamsFields.vue";
 import IssuesPanel from "./inspectors/IssuesPanel.vue";
 // designer-ui.css 改由宿主 FormDesigner 统一引入（批次 4，2026-09-08）：
 // 工具栏/左栏壳层也依赖这些类，不应挂在右侧面板上引入。
@@ -125,6 +126,10 @@ const selectedLabel = computed(() => {
     <HtmlInspector v-else-if="node?.type === 'html'" :node="node" :api="api" />
     <ImageInspector v-else-if="node?.type === 'image'" :node="node" :api="api" />
     <TableInspector v-else-if="node?.type === 'table'" :node="node" :api="api" />
+
+    <!-- 通用「额外属性」（params）：挂在 SchemaNodeBaseV2 上，故**任何**可选中的节点都有；
+         键值对渲染时作为 HTML 属性插到该节点根标签上，内核不解释其含义。 -->
+    <ParamsFields v-if="node" :params="node.params" :api="api" />
 
     <IssuesPanel :issues="issues" @select="emit('selectIssue', $event)" />
   </aside>

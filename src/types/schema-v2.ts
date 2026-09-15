@@ -81,8 +81,24 @@ export interface TextStyleV2 {
   fontFamily?: string;
 }
 
+/**
+ * 通用「额外属性」（params）：键值对，设计器配置、渲染时**原样落到该节点根元素的 HTML 属性**上。
+ *
+ * 内核**不解释任何键**——「这些属性怎么消费」是宿主的职责（2026-09-15 用户拍板）：
+ * 宿主可在填写态扫描 `[data-field]` 或自定义属性（如 `action` / `date-validate`）自行接管
+ * 交互与跨字段校验。这是「内核只做表单设计、不碰业务」的落点：内核只负责把设计态写下的
+ * 属性透传到 DOM，不引入任何业务词表。
+ *
+ * 安全：渲染前统一经黑名单过滤（`on*` 事件、`data-*` 内核寻址、`class`/`style`/`id` 等保留属性、
+ * 以及非「小写字母开头 + 小写字母/数字/短横线」的属性名一律丢弃），实现见
+ * `src/utils/node-params.ts`（含单测）。空串值与空对象不写属性。
+ */
+export type NodeParamsV2 = Record<string, string>;
+
 export interface SchemaNodeBaseV2 {
   id: string;
+  /** 通用额外属性：渲染时作为 HTML 属性插入本节点根标签；内核不解释键（见 `NodeParamsV2`）。 */
+  params?: NodeParamsV2;
 }
 
 /**
@@ -104,11 +120,17 @@ export interface FieldPNodeV2 extends SchemaNodeBaseV2 {
   prefix?: string;
   /** Optional inline label rendered after the input area. */
   suffix?: string;
-  /** 外部组件触发类型（选项值）：由宿主弹窗调用、在回调里把数据回写 data 再渲染到票面上。
-   *  text=无（纯文本输入）、date=日期选择器、signature=签名板、upload=文件上传。 */
-  action?: "text" | "date" | "signature" | "upload";
-  /** 外部组件的额外参数（含义由 `action` 决定，如 date 的 `format`）。 */
-  actionParams?: Record<string, string>;
+  /**
+   * 可点击触发（原 `action` 闭枚举收敛出的 1 bit，2026-09-15 用户拍板）：为 `true` 时渲染内核在
+   * **填写态**由**点击字段元素本身** emit `field-activate`，把触发权交还宿主。
+   *
+   * 内核只持有这 1 bit（「要不要绑点击、发不发事件」），**不持有控件类型词表**——「是日期选择器
+   * 还是时间选择器」等开放集由 `params` 表达（如 `params.action = "datePicker"`），
+   * 内核原样透传、不认识其值。故新增宿主控件类型零内核改动。
+   *
+   * 缺省 / `false`：不触发（传统纸类表单的普通输入框，仅就地输入）。
+   */
+  interactive?: boolean;
   underline?: boolean;
   webUnderline?: boolean;
   printUnderline?: boolean;
@@ -149,21 +171,21 @@ export interface FieldRuleV2 {
 }
 
 /**
- * 专用控件触发事件契约（P9.1c）：字段 P 配置了 `action`（非 text）时，渲染内核在
- * **填写态**（canFill）由**点击字段元素本身**触发（表单不加任何额外按钮），经
- * `action-trigger` 事件把触发权交还宿主——**宿主负责召唤外部输入组件（弹窗/选择器）并在
- * 回调里回写 data**（与 data 同轨，回写后票面自动重渲染）。内核不做任何弹窗实现
- * （分层：内核不认识宿主 UI）。
+ * 字段触发事件契约：字段配置 `interactive: true` 时，渲染内核在**填写态**（canFill）由
+ * **点击字段元素本身**触发（表单不加任何额外按钮），经 `field-activate` 事件把触发权交还
+ * 宿主——**宿主负责召唤外部输入组件（弹窗/选择器）并在回调里回写 data**（与 data 同轨，
+ * 回写后票面自动重渲染）。
+ *
+ * 分层：内核不做任何弹窗实现，**也不解释 `params` 的键**（内核不认识宿主 UI 与业务约定）；
+ * 宿主从 `params` 自取所需（如 `params.action` 决定弹哪个选择器、`params.format` 决定显示格式）。
  */
-export interface FieldActionTriggerV2 {
+export interface FieldActivateV2 {
   /** 触发源字段节点 id。 */
   nodeId: string;
   /** 字段名（宿主回写 data 的键）。 */
   field: string;
-  /** 外部组件类型。 */
-  action: NonNullable<FieldPNodeV2["action"]>;
-  /** 外部组件额外参数（含义由 action 决定，如 date 的 format）。 */
-  actionParams?: Record<string, string>;
+  /** 该字段的额外属性（原样透传，含义由宿主约定）。 */
+  params?: NodeParamsV2;
 }
 
 export interface GridNodeV2 extends SchemaNodeBaseV2 {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, type ComponentPublicInstance } from "vue";
 import type {
-  FieldActionTriggerV2,
+  FieldActivateV2,
   FieldPermissionV2,
   FieldRuleV2,
   FormDataV2,
@@ -85,7 +85,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: "field-change", field: string, value: string): void;
   (e: "update:data", data: FormDataV2): void;
-  (e: "action", payload: FieldActionTriggerV2): void;
+  (e: "field-activate", payload: FieldActivateV2): void;
 }>();
 
 // 内部持有 data，使填写态输入可回写并被消费页 v-model:data 接管。
@@ -114,12 +114,13 @@ function onFieldChange(field: string, value: string): void {
 }
 
 /**
- * P9.1c 专用控件触发（弹窗事件示范）：内核在填写态对 action 字段发出触发事件，
- * 此处原样 re-emit 为 `action`——**弹窗/选择器由宿主实现**，宿主在回调里回写
- * data（v-model:data / props.data）后票面自动重渲染。
+ * 字段触发事件透传：内核在填写态对 `interactive` 字段（点击字段元素）发出 `field-activate`，
+ * 此处原样 re-emit —— **弹窗/选择器由宿主实现**，宿主从 `payload.params` 自取所需约定
+ * （如 `params.action` 决定弹哪个选择器），在回调里回写 data（`v-model:data` / `props.data`）
+ * 后票面自动重渲染。内核不认识这些约定。
  */
-function onAction(payload: FieldActionTriggerV2): void {
-  emit("action", payload);
+function onFieldActivate(payload: FieldActivateV2): void {
+  emit("field-activate", payload);
 }
 
 /** 内核实例引用（`$el` 即 `.grid-form-canvas`）：`printForm` 需要根元素才能圈定纸张。 */
@@ -172,7 +173,7 @@ defineExpose({ print, getFormData, validate });
       :field-permissions="options?.fieldPermissions"
       :bare="true"
       @field-change="onFieldChange"
-      @action-trigger="onAction"
+      @field-activate="onFieldActivate"
     />
   </PaperViewport>
   <GridFormRenderer
@@ -185,6 +186,6 @@ defineExpose({ print, getFormData, validate });
     :field-permissions="options?.fieldPermissions"
     :bare="options?.bare"
     @field-change="onFieldChange"
-    @action-trigger="onAction"
+    @field-activate="onFieldActivate"
   />
 </template>

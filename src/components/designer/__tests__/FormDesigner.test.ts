@@ -130,15 +130,18 @@ describe("FormDesigner V2 selection and deletion", () => {
       "is-design-selected",
     );
 
-    // 表格面板列出 2 列（location / content），各有删除按钮
-    expect(wrapper.findAll(".v2-col-table__row")).toHaveLength(3); // 1 表头 + 2 列行
-    const firstColDelete = wrapper.find(".v2-col-table__row .v2-inspector__delete--small");
+    // 表格面板列出 2 列（location / content），各有删除按钮。
+    // 注意：右侧面板底部还有通用的「额外属性」键值表（同为 .v2-col-table），
+    // 故这里用 data-table-columns 钩子限定到「列配置」表。
+    const colTable = wrapper.find('[data-table-columns="true"]');
+    expect(colTable.findAll(".v2-col-table__row")).toHaveLength(3); // 1 表头 + 2 列行
+    const firstColDelete = colTable.find(".v2-col-table__row .v2-inspector__delete--small");
     expect(firstColDelete.attributes("disabled")).toBeUndefined();
     await firstColDelete.trigger("click");
     await nextTick();
 
     // 删除后列数减一，渲染层表格只剩 1 列（对应派生字段一并移除）
-    expect(wrapper.findAll(".v2-col-table__row")).toHaveLength(2); // 1 表头 + 1 列行
+    expect(colTable.findAll(".v2-col-table__row")).toHaveLength(2); // 1 表头 + 1 列行
     expect(wrapper.findAll("thead th")).toHaveLength(1);
   });
 

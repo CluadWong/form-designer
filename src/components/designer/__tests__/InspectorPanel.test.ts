@@ -91,9 +91,17 @@ describe("InspectorPanel", () => {
   it("选中 Table：渲染列配置，点「+ 添加列」调用 api.addTableColumn", async () => {
     const table = createTableNodeV2();
     const { wrapper, api } = mountPanel({ node: table, nodeType: "table" });
-    expect(wrapper.find(".v2-col-table").exists()).toBe(true);
+    expect(wrapper.find('[data-table-columns="true"]').exists()).toBe(true);
     await wrapper.find(".v2-add-col").trigger("click");
     expect(api.addTableColumn).toHaveBeenCalledTimes(1);
+  });
+
+  it("通用「额外属性」表：任何选中节点都渲染（params 挂在 SchemaNodeBaseV2 上），点「+ 添加属性」调 api", async () => {
+    const grid = createGridNodeV2();
+    const { wrapper, api } = mountPanel({ node: grid, nodeType: "grid" });
+    expect(wrapper.find('[data-node-params="true"]').exists()).toBe(true);
+    await wrapper.find('[data-param-add="true"]').trigger("click");
+    expect(api.addSelectedParam).toHaveBeenCalledTimes(1);
   });
 
   it("选中 Page：分页开关双向绑定（update:paginate）", async () => {

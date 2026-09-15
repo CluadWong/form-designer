@@ -226,7 +226,6 @@ const {
   updateSelectedWidth,
   updateSelectedDefault,
   updateSelectedInnerBorder,
-  updateSelectedAction,
   updateGridBorder,
   updateTableBorder,
   updateGridDimensions,
