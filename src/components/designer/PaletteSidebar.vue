@@ -127,6 +127,19 @@ const emit = defineEmits<{
     >
       HTML 模块
     </button>
+    <!-- 表格归入基础组件（2026-09-15 用户拍板）：表格是可直接填写/采集的内容组件，
+         与「网格」这类纯布局容器不同类；基础组件统一可配置「额外属性」（params）。 -->
+    <button
+      class="v2-palette-item v2-palette-item--button"
+      type="button"
+      draggable="true"
+      data-palette="table"
+      :disabled="!editable"
+      @dragstart="emit('palette-drag', 'table', $event)"
+      @click="emit('add-node', 'table')"
+    >
+      表格
+    </button>
 
     <div class="v2-sidebar__group-title">布局组件</div>
     <button
@@ -139,17 +152,6 @@ const emit = defineEmits<{
       @click="emit('add-grid')"
     >
       网格
-    </button>
-    <button
-      class="v2-palette-item v2-palette-item--button"
-      type="button"
-      draggable="true"
-      data-palette="table"
-      :disabled="!editable"
-      @dragstart="emit('palette-drag', 'table', $event)"
-      @click="emit('add-node', 'table')"
-    >
-      表格
     </button>
 
     <div class="v2-sidebar__heading v2-sidebar__heading--tree v2-tree-head">

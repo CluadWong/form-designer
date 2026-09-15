@@ -1,5 +1,13 @@
 <script setup lang="ts">
-/** 字段 P：字段名 / 前后标签 / 外部组件 action / 文本样式 / 默认值 / 宽度 / 内部边框。 */
+/**
+ * 字段 P：字段名 / 前后标签 / 点击触发开关 / 文本样式 / 默认值 / 宽度 / 内部边框。
+ *
+ * 「输入方式」下拉与「日期格式」输入框已于 2026-09-15 移除——控件类型是**开放集**
+ * （date / time / date-time / 宿主自定义…），不该由内核闭枚举表达。字段改由面板底部的
+ * 通用「额外属性」（`ParamsFields`，挂在 InspectorPanel 上）承载，如
+ * `{ action: "datePicker", "date-format": "{YYYY}年{MM}月{DD}", "date-validate": "after:计划工作时间_1" }`；
+ * 内核只把它当属性透传到标签上，**不解释键**。
+ */
 import type { FieldPNodeV2 } from "@/types";
 import type { SchemaEdits } from "../composables/useSchemaEdits";
 import TextStyleFields from "./TextStyleFields.vue";
@@ -22,28 +30,15 @@ defineProps<{ node: FieldPNodeV2; api: SchemaEdits }>();
       <input :value="node.suffix ?? ''" @input="api.updateSelectedSuffix" />
     </label>
   </div>
-  <label class="v2-control">
-    <span>输入方式</span>
-    <select :value="node.action ?? 'text'" @change="api.updateSelectedAction">
-      <option value="text">无（纯文本输入）</option>
-      <option value="date">日期选择器</option>
-      <option value="signature">签名板</option>
-      <option value="upload">文件上传</option>
-    </select>
-  </label>
-  <label v-if="node.action === 'date'" class="v2-control v2-control--full">
-    <span>日期格式</span>
+  <label class="v2-control v2-control--toggle">
     <input
-      type="text"
-      placeholder="如 {YYYY}年{MM}月{DD} {hh}时{mm}分{ss}秒"
-      :value="node.actionParams?.format ?? ''"
-      @change="api.updateSelectedDateFormat"
+      type="checkbox"
+      data-field-interactive="true"
+      :checked="node.interactive ?? false"
+      @change="api.updateSelectedInteractive"
     />
+    <span>点击触发外部控件</span>
   </label>
-  <p v-if="node.action === 'date'" class="v2-hint">
-    留空则存原生日期（YYYY-MM-DD）；配置后填写值按格式显示，如
-    {{ "{" }}YYYY{{ "}" }}年{{ "{" }}MM{{ "}" }}月{{ "{" }}DD{{ "}" }}。
-  </p>
   <TextStyleFields :style="node.style" :api="api" />
   <label class="v2-control v2-control--full">
     <span>默认内容</span>

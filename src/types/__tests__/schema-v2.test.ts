@@ -364,3 +364,133 @@ describe("Schema V2 serialization", () => {
     expect(imageNode).toMatchObject({ type: "image", src: "data:image/png;base64,AAAA", field: "photo", width: 30, objectFit: "cover" });
   });
 });
+
+describe("旧字段触发配置迁移（action / actionParams → interactive / params）", () => {
+  /** 以「旧格式 JSON」形态构造 schema——新类型已无 `action` / `actionParams`，故经 unknown 传入。 */
+  function legacySchema(field: Record<string, unknown>): unknown {
+    return {
+      version: 2,
+      paper: { size: "A4" },
+      baseRowHeight: 8,
+      pages: [
+        {
+          id: "page-1",
+          type: "page",
+          mode: "fixed",
+          margin: { top: 10, right: 10, bottom: 10, left: 10 },
+          children: [
+            {
+              id: "grid-1",
+              type: "grid",
+              border: "all",
+              rows: [
+                {
+                  id: "row-1",
+                  type: "grid-row",
+                  height: 1,
+                  cells: [
+                    { id: "cell-1", type: "grid-cell", children: [] },
+                    {
+                      id: "cell-2",
+                      type: "grid-cell",
+                      children: [
+                        {
+                          id: "field-1",
+                          type: "p",
+                          mode: "field",
+                          field: "计划工作时间_开始",
+                          ...field,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  /** 读入并归一化后，取出那个字段节点。 */
+  function migratedField(field: Record<string, unknown>) {
+    const grid = normalizeFormSchemaV2(legacySchema(field)).pages[0].children[0];
+    if (grid.type !== "grid") throw new Error("fixture root is not a grid");
+    const node = grid.rows[0].cells[1].children[0];
+    if (node.type !== "p" || node.mode !== "field") throw new Error("fixture field is not a field p node");
+    return node;
+  }
+
+  it("action: date → params.action=\"datePicker\"（对齐宿主词表），并置 interactive", () => {
+    const node = migratedField({ action: "date" });
+    expect(node.interactive).toBe(true);
+    expect(node.params).toEqual({ action: "datePicker" });
+  });
+
+  it("signature / upload → params.action=\"uploadImg\"（签名扫件复用图片上传通道）", () => {
+    expect(migratedField({ action: "signature" }).params).toEqual({ action: "uploadImg" });
+    expect(migratedField({ action: "upload" }).params).toEqual({ action: "uploadImg" });
+  });
+
+  it("actionParams.format → params[\"date-format\"]（对齐宿主读取的属性名）", () => {
+    const node = migratedField({
+      action: "date",
+      actionParams: { format: "{YYYY}年{MM}月{DD}" },
+    });
+    expect(node.params).toEqual({
+      action: "datePicker",
+      "date-format": "{YYYY}年{MM}月{DD}",
+    });
+  });
+
+  it("actionParams 中的未登记键原样保留（不猜宿主词表）", () => {
+    const node = migratedField({
+      action: "date",
+      actionParams: { "date-validate": "after:计划工作时间_1" },
+    });
+    expect(node.params).toEqual({
+      action: "datePicker",
+      "date-validate": "after:计划工作时间_1",
+    });
+  });
+
+  it("action: text 或未配置 → 不置 interactive、不产生 params", () => {
+    const textNode = migratedField({ action: "text" });
+    expect(textNode.interactive).toBeUndefined();
+    expect(textNode.params).toBeUndefined();
+    const bareNode = migratedField({});
+    expect(bareNode.interactive).toBeUndefined();
+    expect(bareNode.params).toBeUndefined();
+  });
+
+  it("未登记的 action 值原样保留（不猜宿主词表）", () => {
+    const node = migratedField({ action: "someHostWidget" });
+    expect(node.interactive).toBe(true);
+    expect(node.params).toEqual({ action: "someHostWidget" });
+  });
+
+  it("已是新格式的 params 优先，不被旧 actionParams 覆盖", () => {
+    const node = migratedField({
+      action: "date",
+      actionParams: { format: "{YYYY}" },
+      params: { "date-format": "{YYYY}/{MM}/{DD}" },
+    });
+    expect(node.params).toEqual({
+      action: "datePicker",
+      "date-format": "{YYYY}/{MM}/{DD}",
+    });
+  });
+
+  it("导出不再写出 action / actionParams（只剩新形态）", () => {
+    const json = serializeFormSchemaV2(
+      normalizeFormSchemaV2(
+        legacySchema({ action: "date", actionParams: { format: "{YYYY}年{MM}月{DD}" } }),
+      ),
+    );
+    expect(json).not.toContain("actionParams");
+    expect(json).not.toContain('"action":"date"');
+    expect(json).toContain('"action":"datePicker"');
+    expect(json).toContain('"date-format":"{YYYY}年{MM}月{DD}"');
+  });
+});

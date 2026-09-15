@@ -236,9 +236,39 @@ schema 层的节点类型名仍沿用历史命名 `"p"`，与 DOM 标签无关�
 <div class="layout-p" contenteditable data-node-id="field-unit" data-field="单位"></div>
 ```
 
-inputType=date/signature 可以使用专用内部控件，但外层仍保持 PNode 的 data-node-id/data-field 契约。
+输入后更新外部 data。固定页面默认不因输入自动改变行高；内容超出时标记溢出。
 
-字段输入后更新外部 data。固定页面默认不因输入自动改变行高；内容超出时标记溢出。
+### 额外属性（params）与点击触发
+
+任何节点（`SchemaNodeBaseV2`）都可带 `params?: Record<string, string>`——设计器里的「额外属性」键值对，
+渲染时**原样插到该节点根元素的 HTML 属性**上（页面节点即纸张 `<main>`）：
+
+```html
+<div class="layout-p" data-node-id="field-plan-start" data-field="计划工作时间_开始" action="datePicker" date-validate="after:计划工作时间_1"></div>
+```
+
+- 内核**不解释任何键**——`action="datePicker"`、`date-validate="..."` 的语义完全归宿主；宿主在填写态自行扫描属性、接管交互与跨字段校验。这是「内核只做表单设计、不碰业务」的落点。
+- 渲染前统一过黑名单（`src/utils/node-params.ts`）：丢弃 `on*`（事件）、`data-*`（内核寻址）、保留名（`class`/`style`/`id`/`field`/`src`/`contenteditable`…），以及不匹配 `/^[a-z][a-z0-9_-]*$/` 的名字（含大写驼峰，如 `innerHTML`）；空串值不写属性。**这层过滤是必需的**——直接 `v-bind` 原始对象会把 `on*` 键绑成事件监听器，等于开一条脚本注入通道。
+
+字段另有 1 bit 的 `interactive?: boolean`（取代旧 `action` 闭枚举）：
+
+- 为 `true` 时，内核在**填写态**由**点击字段元素本身** emit `field-activate`，载荷 `{ nodeId, field, params }`，触发权交还宿主（宿主召唤选择器并在回调里回写 data）；表单上不加任何额外按钮。
+- 内核只持有「要不要绑点击、发不发事件」这 1 bit，**不持有控件类型词表**——`datePicker` / `date-time` / 宿主自定义属开放集，一律经 `params` 表达，故新增控件类型零内核改动。（唯一的词表出现在「读入旧数据」的迁移里，见下一段。）
+- 设计态 / 只读态 / 未配置（或 `false`）不触发；点击与就地输入并存，内核不改 contenteditable 语义。
+
+旧数据的 `action` / `actionParams` 在读入时迁移为 `interactive` + `params`（`src/types/schema-v2-serialization.ts` 的 `migrateLegacyFieldActivation`），导出只写新形态。迁移**顺带把作废的旧词表翻成宿主词表**，存量模板无需宿主改代码即可直接消费：
+
+| 旧 `action` | 迁移后 `params.action` | 说明 |
+|---|---|---|
+| `date` | `datePicker` | 日期/时间选择器 |
+| `upload` | `uploadImg` | 图片上传 |
+| `signature` | `uploadImg` | 签名扫件复用图片上传通道（宿主无独立签名分支） |
+| `text` / 未配置 | （不写） | 旧内核在 `text` 下本就不触发，故不置 `interactive` |
+| 其它 | 原样保留 | 不猜宿主词表，交给宿主自行处理 |
+
+键名同样对齐宿主：旧 `actionParams.format` → `params["date-format"]`（宿主 `useFcDesigner.resolveDateFormat` 读的就是标签属性 `date-format`）；未登记的键原样搬入。已是新格式的 `params` 优先，不会被旧值覆盖。
+
+> 这层词表翻译**只在读入旧数据时发生一次**，是给存量模板的过渡带；运行期内核仍不持有控件类型词表。
 
 ## 10. Table 渲染
 

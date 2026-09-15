@@ -4,7 +4,7 @@ import type { CSSProperties } from "vue";
 import {
   resolvePaperSizeV2,
   DEFAULT_BAND_HEIGHT_MM,
-  type FieldActionTriggerV2,
+  type FieldActivateV2,
   type FormSchemaV2,
   type FormDataV2,
   type FormNodeV2,
@@ -15,6 +15,7 @@ import {
 import GridSchemaNode from "./GridSchemaNode.vue";
 import { registerPageSizeStyle, setPageSizeStyle } from "./page-size-style";
 import { measureHeightMm } from "./measure-rows";
+import { resolveNodeParamAttrs } from "@/utils/node-params";
 import type { PhysicalPage } from "@/engine-v2/pagination";
 import { gridRowHeightMm, paginatePage, paginateSchema } from "@/engine-v2/pagination";
 
@@ -22,7 +23,7 @@ defineOptions({ name: "GridFormRenderer" });
 
 const emit = defineEmits<{
   (e: "field-change", field: string, value: string): void;
-  (e: "action-trigger", payload: FieldActionTriggerV2): void;
+  (e: "field-activate", payload: FieldActivateV2): void;
 }>();
 
 const props = withDefaults(
@@ -278,6 +279,15 @@ function pageSiblingSuppressBorders(children: FormNodeV2[], index: number): { to
   const prevBordered = !!prev && prev.type === "grid" && (prev.border === "all" || prev.border === "outer");
   return { top: prevBordered };
 }
+
+/**
+ * 逻辑页节点的额外属性（`params`）：`params` 一律落到**节点根元素**上，页面的根元素即纸张
+ * `<main>`。物理页由逻辑页切分而来，故按 `sourcePageId` 回查逻辑页取属性。
+ */
+function pageParamAttrs(sourcePageId: string): Record<string, string> {
+  const page = props.schema.pages.find((item) => item.id === sourcePageId);
+  return resolveNodeParamAttrs(page?.params);
+}
 </script>
 
 <template>
@@ -288,6 +298,7 @@ function pageSiblingSuppressBorders(children: FormNodeV2[], index: number): { to
       class="grid-form-paper"
       :style="paperStyle(pp.margin)"
       :data-node-id="pp.id"
+      v-bind="pageParamAttrs(pp.sourcePageId)"
     >
       <div
         v-if="bandEnabled(schema.paper.header)"
@@ -309,7 +320,7 @@ function pageSiblingSuppressBorders(children: FormNodeV2[], index: number): { to
         :field-permissions="props.fieldPermissions"
         :suppress-borders="suppressFor(pp, index, child.suppressBorders)"
         @field-change="(field, value) => emit('field-change', field, value)"
-        @action-trigger="(payload) => emit('action-trigger', payload)"
+        @field-activate="(payload) => emit('field-activate', payload)"
       />
       <div
         v-if="bandEnabled(schema.paper.footer)"

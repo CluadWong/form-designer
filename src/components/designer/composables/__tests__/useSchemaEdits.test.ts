@@ -97,6 +97,24 @@ function withTextInCell() {
   return { ...ctx, cellId, textId };
 }
 
+/** 构造「单元格内有一个字段 P」的场景，并选中该字段（供额外属性 / 触发开关测试）。 */
+function withFieldInCell() {
+  const ctx = setup(true);
+  const { doc, selection, edits } = ctx;
+  const grid = doc.schema.value.pages[0].children[0] as GridNodeV2;
+  const cellId = grid.rows[0].cells[0].id;
+  selection.selectNodeById(cellId);
+  edits.addNodeToSelectedCell("field");
+  const fieldId = findCell(doc, cellId).children[0].id;
+  selection.selectNodeById(fieldId);
+  return { ...ctx, cellId, fieldId };
+}
+
+/** 读取该格首个子节点（字段 P）。 */
+function fieldInCell(doc: SchemaDocument, cellId: string): FieldPNodeV2 {
+  return findCell(doc, cellId).children[0] as FieldPNodeV2;
+}
+
 /** 选中首个根 Grid（供 grid 级编辑动作测试）。 */
 function selectGridNode() {
   const ctx = setup(true);
@@ -464,24 +482,40 @@ describe("第38续回归：inspector 静默兜底清零（8 处统一改金标�
     expect(doc.schema.value.pages[0].margin.left).toBe(12);
   });
 
-  it("updateSelectedDateFormat：写入 actionParams.format；清空移除该键", () => {
-    const { doc, selection, edits } = setup(true);
-    const grid = doc.schema.value.pages[0].children[0] as GridNodeV2;
-    const cellId = grid.rows[0].cells[0].id;
-    selection.selectNodeById(cellId);
-    edits.addNodeToSelectedCell("field");
-    const fieldId = findCell(doc, cellId).children[0].id;
-    selection.selectNodeById(fieldId);
-    edits.updateSelectedDateFormat({
-      target: { value: "{YYYY}年{MM}月{DD}" },
+  it("节点额外属性：新增 / 改名 / 改值 / 删除；空表回退 undefined（导出干净）", () => {
+    const { doc, edits, cellId } = withFieldInCell();
+
+    // 新增：自动取不冲突的键名（param1），值留空待填
+    edits.addSelectedParam();
+    expect(fieldInCell(doc, cellId).params).toEqual({ param1: "" });
+
+    // 改名：值不动，插入顺序保持
+    edits.renameSelectedParam("param1", { target: { value: "action" } } as unknown as Event);
+    expect(fieldInCell(doc, cellId).params).toEqual({ action: "" });
+
+    // 改值（逐键提交）
+    edits.updateSelectedParamValue("action", {
+      target: { value: "datePicker" },
     } as unknown as Event);
-    const node = findCell(doc, cellId).children[0] as FieldPNodeV2;
-    expect(node.type).toBe("p");
-    expect(node.actionParams?.format).toBe("{YYYY}年{MM}月{DD}");
-    // 清空 → 移除 format 键（actionParams 空则整体移除）
-    edits.updateSelectedDateFormat({ target: { value: "  " } } as unknown as Event);
-    const node2 = findCell(doc, cellId).children[0] as FieldPNodeV2;
-    expect(node2.actionParams?.format).toBeUndefined();
+    expect(fieldInCell(doc, cellId).params).toEqual({ action: "datePicker" });
+
+    // 空键 / 重名 → 不提交（记录里无法表达），保留原键与值
+    const blankTarget = { value: "   " };
+    edits.renameSelectedParam("action", { target: blankTarget } as unknown as Event);
+    expect(fieldInCell(doc, cellId).params).toEqual({ action: "datePicker" });
+    expect(blankTarget.value).toBe("action"); // 输入框视觉回退到原键
+
+    // 删除最后一行 → params 整体回退 undefined（与 prefix / width 等「空即 undefined」一致）
+    edits.removeSelectedParam("action");
+    expect(fieldInCell(doc, cellId).params).toBeUndefined();
+  });
+
+  it("updateSelectedInteractive：勾选写 true，取消回退 undefined", () => {
+    const { doc, edits, cellId } = withFieldInCell();
+    edits.updateSelectedInteractive({ target: { checked: true } } as unknown as Event);
+    expect(fieldInCell(doc, cellId).interactive).toBe(true);
+    edits.updateSelectedInteractive({ target: { checked: false } } as unknown as Event);
+    expect(fieldInCell(doc, cellId).interactive).toBeUndefined();
   });
 
   it("updateSelectedCellRowHeight：合法写值；空/非法→undefined（且不写 NaN）", () => {

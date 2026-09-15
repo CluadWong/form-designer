@@ -3,11 +3,12 @@ import { computed, ref, watch, onMounted } from "vue";
 import type { CSSProperties } from "vue";
 import type {
   FormNodeV2,
-  FieldActionTriggerV2,
+  FieldActivateV2,
   FieldPermissionV2,
   GridCellV2,
   GridNodeV2,
   PNodeV2,
+  SchemaNodeBaseV2,
   TextNodeV2,
   TextStyleV2,
   TableColumnV2,
@@ -16,6 +17,7 @@ import type {
 } from "@/types";
 import HtmlBlock from "./HtmlBlock.vue";
 import { resolveGridGapV2 } from "@/types";
+import { resolveNodeParamAttrs } from "@/utils/node-params";
 import {
   bindTableRowCell,
   resolveCellBoxV2,
@@ -36,7 +38,7 @@ defineOptions({ name: "GridSchemaNodeV2" });
 
 const emit = defineEmits<{
   (e: "field-change", field: string, value: string): void;
-  (e: "action-trigger", payload: FieldActionTriggerV2): void;
+  (e: "field-activate", payload: FieldActivateV2): void;
 }>();
 
 const props = defineProps<{
@@ -327,20 +329,35 @@ const fieldPermission = computed<FieldPermissionV2>(() => {
 });
 
 /**
- * 专用控件触发（P9.1c，用户拍板：**表单不加任何额外元素**）：字段配置了 `action`
- * （非 text）时，**点击字段元素本身** emit `action-trigger`，把触发权交还宿主——
- * **宿主负责召唤外部输入组件（弹窗/选择器）并在回调里回写 data**（票面自动重渲染）；
- * 内核不做任何弹窗实现（分层：内核不认识宿主 UI）。设计态 / 只读态 / action=text
- * （或未配置）不触发。点击与就地输入并存：内核不改 contenteditable 语义。
+ * 节点额外属性（`params`）→ 可安全渲染的属性表。
+ *
+ * 内核**只负责透传**：把设计态写下的键值插入本节点根标签，**不解释任何键**
+ * （「action 是什么控件」「date-validate 怎么校验」都是宿主的约定）。
+ * 过滤规则见 `src/utils/node-params.ts`——`on*` 事件、`data-*` 内核寻址、
+ * `class`/`style`/`field`/`src` 等保留属性、以及非小写属性名一律丢弃。
+ */
+function nodeParamAttrs(node: SchemaNodeBaseV2): Record<string, string> {
+  return resolveNodeParamAttrs(node.params);
+}
+
+/**
+ * 字段触发（用户拍板：**表单不加任何额外元素**）：字段配置了 `interactive` 时，
+ * **点击字段元素本身** emit `field-activate`，把触发权交还宿主——**宿主负责召唤外部输入组件
+ * （弹窗/选择器）并在回调里回写 data**（票面自动重渲染）；内核不做任何弹窗实现，
+ * 也**不解释 `params` 的键**（分层：内核不认识宿主 UI 与业务约定）。
+ *
+ * 内核只持有「可点击触发」这 1 bit（`interactive`），控件类型是开放集、由 `params` 承载，
+ * 故宿主新增控件类型（time / date-time / …）零内核改动。
+ * 设计态 / 只读态 / `interactive` 未配置（或 false）不触发；点击与就地输入并存：内核不改
+ * contenteditable 语义。
  */
 function onFieldActivate(node: PNodeV2, event: MouseEvent): void {
   if (!canFill.value) return;
-  if (node.mode !== "field" || !node.action || node.action === "text") return;
-  emit("action-trigger", {
+  if (node.mode !== "field" || !node.interactive) return;
+  emit("field-activate", {
     nodeId: node.id,
     field: node.field,
-    action: node.action,
-    actionParams: node.actionParams,
+    params: node.params,
   });
 }
 
@@ -525,6 +542,7 @@ function onImgError(): void {
       },
     ]"
     :data-node-id="node.id"
+    v-bind="nodeParamAttrs(node)"
   >
     <div
       v-for="(row, rowIndex) in node.rows"
@@ -541,6 +559,7 @@ function onImgError(): void {
         :style="cellStyle(cell, node)"
         :data-layout-id="cell.id"
         :data-node-id="cell.id"
+        v-bind="nodeParamAttrs(cell)"
       >
         <template v-for="(child, childIndex) in cell.children" :key="child.id">
           <GridSchemaNode
@@ -557,9 +576,8 @@ function onImgError(): void {
               (field: string, value: string) =>
                 emit('field-change', field, value)
             "
-            @action-trigger="
-              (payload: FieldActionTriggerV2) =>
-                emit('action-trigger', payload)
+            @field-activate="
+              (payload: FieldActivateV2) => emit('field-activate', payload)
             "
           />
         </template>
@@ -573,6 +591,7 @@ function onImgError(): void {
     :class="{}"
     :style="textStyle(node)"
     :data-node-id="node.id"
+    v-bind="nodeParamAttrs(node)"
   >
     {{ node.text }}
   </div>
@@ -599,6 +618,7 @@ function onImgError(): void {
     "
     :data-field="node.field"
     :data-node-id="node.id"
+    v-bind="nodeParamAttrs(node)"
     @click="onFieldActivate(node, $event)"
     @blur="onFillBlur(node.field, $event)"
   >
@@ -660,6 +680,7 @@ function onImgError(): void {
     class="layout-table"
     :class="[`layout-table--${node.border ?? 'all'}`]"
     :data-node-id="node.id"
+    v-bind="nodeParamAttrs(node)"
   >
     <thead>
       <tr
@@ -711,9 +732,8 @@ function onImgError(): void {
                 (field: string, value: string) =>
                   emit('field-change', field, value)
               "
-              @action-trigger="
-                (payload: FieldActionTriggerV2) =>
-                  emit('action-trigger', payload)
+              @field-activate="
+                (payload: FieldActivateV2) => emit('field-activate', payload)
               "
             />
           </template>
@@ -728,6 +748,7 @@ function onImgError(): void {
     :data="data"
     :readonly="props.readonly"
     :field-permissions="props.fieldPermissions"
+    v-bind="nodeParamAttrs(node)"
     @field-change="(field: string, value: string) => emit('field-change', field, value)"
   />
 
@@ -737,6 +758,7 @@ function onImgError(): void {
     :class="{ 'layout-image--blank': imageBlank }"
     :data-node-id="node.id"
     :data-field="node.field"
+    v-bind="nodeParamAttrs(node)"
     :src="imageSrc"
     :alt="node.field ?? node.src ?? ''"
     :style="{
