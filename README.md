@@ -237,7 +237,7 @@ JS 与 CSS 若不是同一次构建的产物，哈希对不上，scoped 样式�
 
 ### 验证基线
 
-- `npx vitest run`：**403 passed（49 文件）**
+- `npx vitest run`：**427 passed（50 文件）**
 - `npx vue-tsc --noEmit`：无错误
 
 ## 文档
@@ -249,6 +249,7 @@ JS 与 CSS 若不是同一次构建的产物，哈希对不上，scoped 样式�
 | [docs/design-biz.md](./docs/design-biz.md) | 业务与交互设计 |
 | [docs/engine.md](./docs/engine.md) | 渲染引擎契约（索引/校验/渲染/尺寸/边框/打印） |
 | [docs/user-guide.md](./docs/user-guide.md) | 用户操作指南（与应用内「帮助」同源） |
+| [docs/lib-build.md](./docs/lib-build.md) | 库构建与产物契约（三个入口 / `exports` 映射 / CSS 三档归属 / chunk 单向依赖与环的排查） |
 
 ## 分支
 
