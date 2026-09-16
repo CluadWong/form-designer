@@ -126,8 +126,38 @@ function mergeDesignerCss(): Plugin {
   };
 }
 
+/**
+ * chunk 依赖单向守卫（2026-09-16 加）。
+ *
+ * 为什么需要：`manualChunks` 的兜底规则会把**库入口文件本身**也卷进分组。`src/designer.ts`
+ * 一旦落进 `renderer-core`，就产生反向边 `renderer-core → designer-ui`，与正向的
+ * `designer-ui → renderer-core` 成环。Rollup 对此**只打一条 warning**（`Circular chunk:
+ * designer-ui -> renderer-core -> designer-ui`），构建照样成功、产物照样能跑，但环会让 ESM
+ * 的求值顺序出现 TDZ —— 宿主侧表现为「一 import 设计器就报 Cannot access 'X' before
+ * initialization」，症状离病因极远，历史上只能靠宿主 `fdRuntime.ts` 惰性引用绕过。
+ * 所以这条不能只留 warning，必须在构建期硬失败。
+ * 完整契约（入口 / exports / CSS 三档归属 / 环的排查方法）见 `docs/lib-build.md`。
+ */
+function assertChunkDirection(): Plugin {
+  return {
+    name: "assert-chunk-direction",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      const core = bundle["chunks/renderer-core.js"];
+      if (!core || core.type !== "chunk") return;
+      if (core.imports.includes("chunks/designer-ui.js")) {
+        this.error(
+          "chunk 依赖成环：renderer-core 反向 import designer-ui —— 设计器入口文件被 " +
+            "manualChunks 误分到了 renderer-core（见本文件 manualChunks 注释）。" +
+            "该环会导致宿主 ESM 求值 TDZ，构建已中止。",
+        );
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [vue(), mergeDesignerCss()],
+  plugins: [vue(), mergeDesignerCss(), assertChunkDirection()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -161,12 +191,31 @@ export default defineConfig({
         // [name] 跟随入口/chunk：renderer-core.css / designer-ui.css 各归各的
         assetFileNames: "[name].[ext]",
         chunkFileNames: "chunks/[name].js",
-        // 固定 chunk 归属，让 CSS 文件名稳定且语义正确：
+        // 固定 chunk 归属，让 CSS 文件名稳定且语义正确（chunk 名是 exports 契约的一部分，别改）：
+        //   ./renderer/style.css → renderer-core.css、./designer/style.css → designer-ui.css
         // 不指定的话，renderer 的样式会跟着共享 chunk 被命名成 collectFieldValues.css
+        // 分配规则必须保证 chunk 依赖**单向**：designer-ui → renderer-core（设计器用渲染内核），
+        // 反向那条边不允许存在。
+        // 曾经的坑（2026-09-16 修）：兜底规则 `id.includes("/src/")` 会把**库入口文件本身**
+        // 也算进去 —— `src/designer.ts` 因此被塞进 renderer-core，而它 import 的正是
+        // FormDesigner.vue 等设计器模块，于是 renderer-core 反向 import designer-ui
+        // （产物里表现为 `chunks/renderer-core.js` 顶部的 `import "./designer-ui.js"`），
+        // 与正向依赖成环，Rollup 报：
+        //   `Circular chunk: designer-ui -> renderer-core -> designer-ui`
+        // 该环即宿主侧 TDZ 的根因（此前靠宿主 fdRuntime 惰性引用绕过），在这里治本。
+        // 因此**制造环的入口必须排除在兜底之外**（`return;` 交回 Rollup 默认分块，进各自入口
+        // chunk）——只有 `index.ts`（聚合两端）和 `designer.ts`（引设计器目录）需要排除。
+        // 注意别顺手把 `designer.ts` 改成归 "designer-ui"：含入口模块的 chunk 会改用入口名，
+        // `chunks/designer-ui.js` 直接消失、CSS 漂成 `designer.css`，同时命中 exports 契约
+        // （`./designer/style.css` → `dist/designer-ui.css`）与 mergeDesignerCss 的断言。
+        // `renderer.ts` 只依赖内核，留在兜底里无环 —— 挪走它反而会让 CSS 归属漂移，别动。
         manualChunks(id) {
-          if (id.includes("node_modules")) return;
-          if (id.includes("/src/components/designer/")) return "designer-ui";
-          if (id.includes("/src/")) return "renderer-core";
+          // Windows 下 Rollup 的 id 可能带反斜杠，归一化后再做路径匹配
+          const mod = id.replace(/\\/g, "/");
+          if (mod.includes("node_modules")) return;
+          if (/\/src\/(index|designer)\.ts$/.test(mod)) return;
+          if (mod.includes("/src/components/designer/")) return "designer-ui";
+          if (mod.includes("/src/")) return "renderer-core";
         },
       },
     },
