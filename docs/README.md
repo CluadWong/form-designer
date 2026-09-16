@@ -12,6 +12,7 @@
 | [engine.md](./engine.md) | 渲染引擎契约：运行时索引、Schema 校验、递归渲染、尺寸与边框算法、结构操作 | 设计变更时更新 |
 | [prd.md](./prd.md) | 表单打印纸张尺寸说明 | 稳定 |
 | [user-guide.md](./user-guide.md) | 面向最终用户的操作指南（与应用内「帮助」面板同源） | 文案变更时同步两处 |
+| [lib-build.md](./lib-build.md) | 库构建与产物契约：三个入口、`exports` 映射、CSS 三档归属、chunk 单向依赖与环的排查方法 | 构建设置变更时更新 |
 
 ## 二、约定
 
