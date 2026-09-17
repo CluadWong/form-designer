@@ -872,8 +872,11 @@ function onImgError(): void {
   align-items: center;
   box-sizing: border-box;
   color: #111827;
-  font-size: 13px;
-  line-height: 1.35;
+  /* 字号默认值来自页面属性的「基础字号」：`--v2-base-font-size` 由 `GridFormRenderer.paperStyle`
+     下发到纸张根（含打印序列化 DOM），未注入时回退 13px。`.layout-text` 同为 var(...)，
+     与分页估算 `resolveBaseFontSizeV2` 同源 —— 三处必须一致，否则「屏幕字号」与「分页算高」错配。 */
+  font-size: var(--v2-base-font-size, 13px);
+  line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   outline: none;
@@ -912,8 +915,8 @@ function onImgError(): void {
   align-items: center;
   box-sizing: border-box;
   color: #111827;
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: var(--v2-base-font-size, 13px);
+  line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   outline: none;
@@ -953,10 +956,10 @@ function onImgError(): void {
   display: inline-block;
   flex: 1 1 auto;
   min-width: 12mm;
-  /* 1.35em = .layout-p 的 line-height：空值时也要占满一整行。
+  /* 1.6em = .layout-p 的 line-height：空值时也要占满一整行。
      若只给 1em，空的块盒比行盒矮，行盒（含光标）会向下溢出，
      表现为「光标压在底部横线的下方」（见 .layout-p__value 注释）。 */
-  min-height: 1.35em;
+  min-height: 1.6em;
   outline: none;
 }
 
@@ -971,10 +974,10 @@ function onImgError(): void {
      于是 <div> 的内容盒塌缩成 0，只剩 1px 下边框——在单元格里（align-self:center）
      看起来就是「垂直居中的一条直线」；而光标所在的行盒仍按 line-height 从内容盒
      顶部向下撑开，于是光标落在横线下方。
-     给定一个行高（1.35em，与 .layout-p 的 line-height 一致）作为最小高度，
+     给定一个行高（1.6em，与 .layout-p 的 line-height 一致）作为最小高度，
      空字段也能占满一整行：光标在行内垂直居中、底部才是边框线（同普通 input）。
      有内容时以内容高度为准，min-height 仅作下限，不影响多行换行版式。 */
-  min-height: 1.35em;
+  min-height: 1.6em;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -988,7 +991,7 @@ function onImgError(): void {
    占满整行换行，`.layout-p--inner-border :deep(div)` 再为每个 div 画底边框（真实边框，
    打印必然显示，不依赖背景图形）。 */
 .layout-p__line {
-  min-height: 1.35em;
+  min-height: 1.6em;
   width: 100%;
   text-align: inherit;
   white-space: pre-wrap;
@@ -1001,7 +1004,7 @@ function onImgError(): void {
   display: block;
   width: 100%;
   outline: none;
-  min-height: 1.35em;
+  min-height: 1.6em;
 }
 
 .layout-p--underline {
@@ -1061,15 +1064,20 @@ function onImgError(): void {
   align-items: stretch;
   justify-content: center;
   box-sizing: border-box;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .layout-table__header {
   align-items: center;
+  /* 表头默认加粗（600）：`TableInspector` 的「粗细」在未设 `headerStyle.fontWeight`
+     时即按此显示「加粗」，改这里要同步面板默认，否则又会出现「显示常规、实际加粗」。 */
   font-weight: 600;
   text-align: center;
-  /* 表头字号默认 16px（未显式设置 headerStyle.fontSize 时回退到此，
-     与 TableInspector 输入框占位值 16 对齐；不以内联样式写入，保留回退语义）。 */
-  font-size: 16px;
+  /* 表头默认字号：随页面属性的「基础字号」按 16/13 等比缩放（变量由 `paperStyle` 下发），
+     与 `TableInspector` 面板显示的默认值同源（`resolveTableHeaderFontSizeV2`）。
+     未设 `headerStyle.fontSize` 时才生效；不以内联样式写入，保留回退语义。 */
+  font-size: var(--v2-table-header-font-size, 16px);
 }
 
 .layout-image {

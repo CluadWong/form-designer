@@ -234,7 +234,7 @@ JS 与 CSS 若不是同一次构建的产物，哈希对不上，scoped 样式�
 
 ### 验证基线
 
-- `npx vitest run`：**403 passed（49 文件）**
+- `npx vitest run`：**480 passed（60 文件）**
 - `npx vue-tsc --noEmit`：无错误
 
 ## 文档

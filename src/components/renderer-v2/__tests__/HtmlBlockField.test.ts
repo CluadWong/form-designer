@@ -84,6 +84,17 @@ describe("HTML 模块字段绑定（P9.2d 方案 A 原型）", () => {
     expect(shadow.querySelector('input[data-bind="签字"]')).toBeNull();
   });
 
+  it("设计态（无 data）：原生 [data-field] <p> contenteditable=true（可就地输入看交互，不回写）", () => {
+    const wrapper = mountHtml('<p contenteditable data-field="姓名"></p>');
+    const p = shadowOf(wrapper).querySelector('p[data-field="姓名"]') as HTMLElement;
+    expect(p).toBeTruthy();
+    expect(p.getAttribute("contenteditable")).toBe("true");
+    // 设计态编辑不应触发 field-change（占位不回写 schema，与 P 字段同口径）
+    p.textContent = "张三";
+    p.dispatchEvent(new Event("input"));
+    expect(wrapper.emitted("field-change")).toBeUndefined();
+  });
+
   it("采集穿透 Shadow DOM：读回填写态 input 值；HIDDEN 无 baseData 时省略", () => {
     const wrapper = mountHtml(
       '<table><tr><td>{{开工月}}</td><td>{{开工日}}</td></tr></table>',

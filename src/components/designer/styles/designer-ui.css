@@ -222,7 +222,7 @@
 
 .v2-col-table__row {
   display: grid;
-  grid-template-columns: 1fr 1fr 32px;
+  grid-template-columns: 1fr 1fr 88px 32px;
   align-items: center;
   gap: 0;
   border-bottom: 1px solid #f1f5f9;
@@ -271,6 +271,20 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   color: #475569;
+}
+
+.v2-col-table__input--title {
+  font-family: inherit;
+  font-size: 12px;
+  color: #1e293b;
+  line-height: 1.3;
+  resize: none;
+  overflow: hidden;
+}
+
+.v2-col-table__input--width {
+  text-align: center;
+  font-size: 11px;
 }
 
 /* 键值表里被过滤掉的键（如 `on*` / `data-*` / 保留属性）：红字提示而非静默丢弃 */

@@ -4,7 +4,7 @@ import type { TextNodeV2 } from "@/types";
 import type { SchemaEdits } from "../composables/useSchemaEdits";
 import TextStyleFields from "./TextStyleFields.vue";
 
-defineProps<{ node: TextNodeV2; api: SchemaEdits }>();
+defineProps<{ node: TextNodeV2; api: SchemaEdits; baseFontSize?: number }>();
 </script>
 
 <template>
@@ -17,5 +17,5 @@ defineProps<{ node: TextNodeV2; api: SchemaEdits }>();
       @input="api.updateSelectedText"
     ></textarea>
   </label>
-  <TextStyleFields :style="node.style" :api="api" />
+  <TextStyleFields :style="node.style" :base-font-size="baseFontSize" :api="api" />
 </template>

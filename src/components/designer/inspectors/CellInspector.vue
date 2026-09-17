@@ -2,6 +2,7 @@
 /** 单元格（grid-cell）：仅样式覆盖（padding / 行高 / 对齐）+ 合并拆分。 */
 import type { GridCellV2 } from "@/types";
 import type { SchemaEdits } from "../composables/useSchemaEdits";
+import { DEFAULT_CELL_PADDING, DEFAULT_CELL_ROW_HEIGHT } from "@/engine-v2/derivation";
 
 defineProps<{
   node: GridCellV2;
@@ -11,7 +12,11 @@ defineProps<{
     hasNextSibling: boolean;
     canSplit: boolean;
   } | null;
-  cellBox: { align?: string; verticalAlign?: string } | null;
+  /**
+   * 该格的**生效**盒模型（`resolveCellBoxV2`：cell 覆盖 → Grid 默认 → 引擎常量）。
+   * 面板据此显示内边距等生效默认，而非留空（`cell.padding` 未设时它由 Grid 默认决定）。
+   */
+  cellBox: { padding?: number; align?: string; verticalAlign?: string } | null;
   api: SchemaEdits;
 }>();
 </script>
@@ -50,22 +55,25 @@ defineProps<{
   <div class="v2-grid-dimensions">
     <label class="v2-control">
       <span>内边距(mm)</span>
+      <!-- 生效值优先取 cellBox（含 Grid 级默认与引擎常量），cellBox 缺失时才退回本格值。 -->
       <input
         type="number"
         min="0"
         step="1"
         data-cell-padding="true"
-        :value="node.padding ?? ''"
+        :value="cellBox?.padding ?? node.padding ?? DEFAULT_CELL_PADDING"
         @change="api.updateSelectedCellPadding"
       />
     </label>
     <label class="v2-control">
       <span>行高倍数</span>
+      <!-- 未设 cell.rowHeight 时行高由所在行 row.height 决定，1 即其下限（等价于未覆盖）。 -->
       <input
         type="number"
         min="0"
         step="1"
-        :value="node.rowHeight ?? ''"
+        data-cell-row-height="true"
+        :value="node.rowHeight ?? DEFAULT_CELL_ROW_HEIGHT"
         @change="api.updateSelectedCellRowHeight"
       />
     </label>

@@ -32,17 +32,18 @@ function makeSchema(paperSize: "A4" | "A3"): FormSchemaV2 {
 describe("打印纸张尺寸（@page 跟随 schema.paper）", () => {
   it("A4：注入 @page 210mm 297mm（纵向）", () => {
     const wrapper = mount(GridFormRenderer, { props: { schema: makeSchema("A4") } });
-    expect(currentPageSizeStyle()).toBe("@page { size: 210mm 297mm; margin: 0; }");
+    expect(currentPageSizeStyle()).toContain("@page { size: 210mm 297mm; margin: 0; }");
     expect(wrapper.find(".grid-form-paper").attributes("style")).toContain("width: 210mm");
-    expect(wrapper.find(".grid-form-paper").attributes("style")).toContain("height: 297mm");
+    // 打印纸张高度留 0.5mm 安全余量（297 − 0.5），避免「纸高 == 页高」取整溢出多出空白尾页。
+    expect(wrapper.find(".grid-form-paper").attributes("style")).toContain("height: 296.5mm");
     wrapper.unmount();
   });
 
   it("A3：注入 @page 420mm 297mm（横向），与纸张元素宽高一致", () => {
     const wrapper = mount(GridFormRenderer, { props: { schema: makeSchema("A3") } });
-    expect(currentPageSizeStyle()).toBe("@page { size: 420mm 297mm; margin: 0; }");
+    expect(currentPageSizeStyle()).toContain("@page { size: 420mm 297mm; margin: 0; }");
     expect(wrapper.find(".grid-form-paper").attributes("style")).toContain("width: 420mm");
-    expect(wrapper.find(".grid-form-paper").attributes("style")).toContain("height: 297mm");
+    expect(wrapper.find(".grid-form-paper").attributes("style")).toContain("height: 296.5mm");
     wrapper.unmount();
   });
 
@@ -50,7 +51,7 @@ describe("打印纸张尺寸（@page 跟随 schema.paper）", () => {
     const wrapper = mount(GridFormRenderer, { props: { schema: makeSchema("A4") } });
     expect(currentPageSizeStyle()).toContain("210mm 297mm");
     await wrapper.setProps({ schema: makeSchema("A3") });
-    expect(currentPageSizeStyle()).toBe("@page { size: 420mm 297mm; margin: 0; }");
+    expect(currentPageSizeStyle()).toContain("@page { size: 420mm 297mm; margin: 0; }");
     wrapper.unmount();
   });
 

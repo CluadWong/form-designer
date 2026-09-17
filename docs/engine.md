@@ -438,6 +438,17 @@ updateNode(schema, nodeId, patch)
 它拿到任一个就会自己再写一条 `@page`，且排在 head 里所有 `<style>` 之后（后写胜出），
 直接盖掉跟随 `schema.paper` 注入的尺寸（A3 会被打回 A4）。
 
+**纸张高度留安全余量 + 打印文档 `body` 边距归零（2026-09-17，修「打印多出空白尾页」）**：
+- 分页态纸张 `height` 取「整纸高 − 0.5mm」（`PRINT_PAPER_HEIGHT_EPSILON_MM`，`GridFormRenderer.paperStyle`）。
+  `@page { size: Wmm Hmm; margin: 0 }` 的页面内容区恰为整纸高，而 `297mm` 换算成 px 非整数（1122.52），
+  纸张 `height == 页高` 时会因取整溢出一缕到下一页 → 空白尾页（新建空白页也复现；实测把 `height` 调至
+  略小于 297mm 即消失）。余量大于任何取整误差、又远小于页底边距，只吃掉页底一点白边，
+  **不影响正文、不改分页页数**；设计态 `min-height` 分支不加余量（保持与整纸高一致便于对位）。
+- `page-size-style.ts` 注入的打印样式除 `@page {...; margin: 0}` 外，另加
+  `@media print { html, body { margin: 0 !important; padding: 0 !important } }`。插件会把主文档所有 `<style>`
+  复制进打印 iframe，但 iframe 的 `html/body` 仍带 UA 默认 `margin`（约 8px），会把纸张整体下推，底部溢出
+  同样产生空白尾页、并横向裁掉约 3mm。两条叠加可稳妥消除空白尾页（A3 / A4 通用）。
+
 **Shadow DOM 与控件值**：见 §11 第 5 条——HTML 模块的 shadow 内容与 `input` / `textarea` 实时值
 都在送印前临时固化，打完还原。P 字段不受影响（contenteditable，值本就在文本节点里）。
 

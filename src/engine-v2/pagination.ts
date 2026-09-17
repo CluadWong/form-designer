@@ -42,7 +42,13 @@ import type {
   ResolvedPaperSizeV2,
 } from "@/types";
 import { resolveGridGapV2, resolvePaperSizeV2 } from "@/types";
-import { resolveImageSourceV2, resolveTableRowCount } from "@/engine-v2/derivation";
+import {
+  DEFAULT_TEXT_FONT_SIZE_PX,
+  DEFAULT_TEXT_LINE_HEIGHT,
+  resolveBaseFontSizeV2,
+  resolveImageSourceV2,
+  resolveTableRowCount,
+} from "@/engine-v2/derivation";
 
 /** 1px（96DPI 下）换算成 mm，用于外框边框占用的高度。 */
 const ONE_PX_MM = 1 / (96 / 25.4); // ≈ 0.264583mm
@@ -111,10 +117,18 @@ export function gridFragmentHeightMm(
   return h;
 }
 
-/** Text 节点估算高度（mm）：按内容宽度估算每行字符数，逐段统计行数 × 行高。 */
-function textHeightMm(node: Extract<FormNodeV2, { type: "text" }>, contentWidthMm: number): number {
-  const fontSize = node.style?.fontSize ?? 13;
-  const lineHeight = node.style?.lineHeight ?? 1.35;
+/**
+ * Text 节点估算高度（mm）：按内容宽度估算每行字符数，逐段统计行数 × 行高。
+ * @param baseFontSize 全局基础字号（px）：节点未显式设 `style.fontSize` 时的字号基准，
+ *   与渲染层纸张上的 `--v2-base-font-size` 同源，保证「屏幕多大字、分页按多大字算高」。
+ */
+function textHeightMm(
+  node: Extract<FormNodeV2, { type: "text" }>,
+  contentWidthMm: number,
+  baseFontSize?: number,
+): number {
+  const fontSize = node.style?.fontSize ?? resolveBaseFontSizeV2({ baseFontSize });
+  const lineHeight = node.style?.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT;
   const lineHeightMm = (fontSize * lineHeight) / (96 / 25.4);
   const avgCharMm = Math.max(0.1, (fontSize * 0.6) / (96 / 25.4));
   const charsPerLine = Math.max(1, Math.floor(contentWidthMm / avgCharMm));
@@ -173,7 +187,7 @@ function atomicNodeHeightMm(
         ? 0
         : imageHeightMm(node, ctx.baseRowHeight);
     case "text":
-      return textHeightMm(node, ctx.contentWidthMm);
+      return textHeightMm(node, ctx.contentWidthMm, ctx.baseFontSize);
     case "table":
       return tableHeightMm(node, ctx.baseRowHeight, ctx.data);
     case "html":
@@ -189,6 +203,12 @@ function atomicNodeHeightMm(
 export interface PaginateContext {
   /** 表单基准行高（mm）。 */
   baseRowHeight: number;
+  /**
+   * 全局基础字号（px）：用于 Text 高度估算的字号基准（未显式设 `style.fontSize` 时）。
+   * 与渲染层纸张上的 `--v2-base-font-size` 同源（都由 `resolveBaseFontSizeV2` 解出）。
+   * 缺省 / 非法 → 引擎默认 13。
+   */
+  baseFontSize?: number;
   /** 正文内容区宽度（mm）= 纸张宽 − 左/右边距，用于 Text 折行估算。 */
   contentWidthMm: number;
   /** 正文可用高（mm）= 纸张高 − 上/下边距。 */
@@ -318,8 +338,17 @@ export function paginatePage(page: PageSchemaV2, opts: PaginateContext): Paginat
       push({ node: grid });
       return;
     }
-    // 放不下或有超高Table → 跨页逐行切分：首个片段先填满当前页剩余空间，余下行流转到后续物理页。
-    // （即便当前页已有内容，也优先把能塞下的前几行留在当前页，避免内容被整体推到下一页而留白。）
+    // ★ 短网格（整格高度 ≤ 单页可用高）且当前页已放不下 → 整格移到下一页，不逐行拆碎。
+    //   否则 splitGrid 会逐行填满当前页剩余空间、再在片段之间无条件 flush，把一个本可整页
+    //   放下的短网格拆成「首行留在页尾 / 余行被甩到更后一页」的断裂外观（分页异常）。
+    //   只有整格高于一页（fullH > bodyH）或含超高 Table 时，才需要跨页逐行切分。
+    if (!hasTallTables && fullH <= bodyH + 1e-6) {
+      if (curChildren.length > 0) flush();
+      push({ node: grid });
+      return;
+    }
+    // 整格高于一页 / 含超高Table → 跨页逐行切分：首个片段先填满当前页剩余空间，余下行流转到后续物理页。
+    // （即便当前页已有内容，也优先把能塞下的前几行留在当前页，避免长网格被整体推到下一页而留白。）
     splitGrid(grid);
   };
 
@@ -629,6 +658,8 @@ export function paginateSchema(
     const contentWidthMm = paper.widthMm - page.margin.left - page.margin.right;
     const r = paginatePage(page, {
       baseRowHeight: schema.baseRowHeight,
+      // 全局基础字号（页面属性配置）参与 Text 高度估算；未设时 resolve 回退 13。
+      baseFontSize: resolveBaseFontSizeV2(schema),
       bodyHeightMm,
       contentWidthMm,
       data: extra?.data ?? null,

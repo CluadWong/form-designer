@@ -12,7 +12,7 @@ import type { FieldPNodeV2 } from "@/types";
 import type { SchemaEdits } from "../composables/useSchemaEdits";
 import TextStyleFields from "./TextStyleFields.vue";
 
-defineProps<{ node: FieldPNodeV2; api: SchemaEdits }>();
+defineProps<{ node: FieldPNodeV2; api: SchemaEdits; baseFontSize?: number }>();
 </script>
 
 <template>
@@ -23,23 +23,22 @@ defineProps<{ node: FieldPNodeV2; api: SchemaEdits }>();
   <div class="v2-grid-dimensions">
     <label class="v2-control">
       <span>前标签（可选）</span>
-      <input :value="node.prefix ?? ''" @input="api.updateSelectedPrefix" />
+      <input
+        :value="node.prefix ?? ''"
+        placeholder="如「单位：」"
+        @input="api.updateSelectedPrefix"
+      />
     </label>
     <label class="v2-control">
       <span>后标签（可选）</span>
-      <input :value="node.suffix ?? ''" @input="api.updateSelectedSuffix" />
+      <input
+        :value="node.suffix ?? ''"
+        placeholder="如「元」"
+        @input="api.updateSelectedSuffix"
+      />
     </label>
   </div>
-  <label class="v2-control v2-control--toggle">
-    <input
-      type="checkbox"
-      data-field-interactive="true"
-      :checked="node.interactive ?? false"
-      @change="api.updateSelectedInteractive"
-    />
-    <span>点击触发外部控件</span>
-  </label>
-  <TextStyleFields :style="node.style" :api="api" />
+  <TextStyleFields :style="node.style" :base-font-size="baseFontSize" :api="api" />
   <label class="v2-control v2-control--full">
     <span>默认内容</span>
     <textarea
@@ -47,6 +46,7 @@ defineProps<{ node: FieldPNodeV2; api: SchemaEdits }>();
       rows="3"
       data-field-default="true"
       :value="node.default ?? ''"
+      placeholder="填写时的初始内容（可选）"
       @input="api.updateSelectedDefault"
     ></textarea>
   </label>
@@ -70,4 +70,13 @@ defineProps<{ node: FieldPNodeV2; api: SchemaEdits }>();
       />
     </label>
   </div>
+  <label class="v2-control v2-control--toggle">
+    <input
+      type="checkbox"
+      data-field-interactive="true"
+      :checked="node.interactive ?? false"
+      @change="api.updateSelectedInteractive"
+    />
+    <span>点击触发外部控件</span>
+  </label>
 </template>

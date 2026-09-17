@@ -351,6 +351,10 @@ export function validateFormSchemaV2(schema: FormSchemaV2): SchemaIssueV2[] {
   if (!isPositiveNumber(schema.baseRowHeight)) {
     issue(issues, "error", "INVALID_BASE_ROW_HEIGHT", undefined, ["baseRowHeight"], "基础行高必须是正数");
   }
+  // 全局基础字号为可选配置：存在即必须是正数（未设走引擎默认 13，不算错误）。
+  if (schema.baseFontSize !== undefined && !isPositiveNumber(schema.baseFontSize)) {
+    issue(issues, "error", "INVALID_BASE_FONT_SIZE", undefined, ["baseFontSize"], "基础字号必须是正数");
+  }
   const seenIds = new Set<string>();
   const fields = new Map<string, string>();
   const visit = (node: EditorNodeV2, path: Array<string | number>): void => {

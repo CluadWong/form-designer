@@ -18,6 +18,10 @@ import { measureHeightMm } from "./measure-rows";
 import { resolveNodeParamAttrs } from "@/utils/node-params";
 import type { PhysicalPage } from "@/engine-v2/pagination";
 import { gridRowHeightMm, paginatePage, paginateSchema } from "@/engine-v2/pagination";
+import {
+  resolveBaseFontSizeV2,
+  resolveTableHeaderFontSizeV2,
+} from "@/engine-v2/derivation";
 
 defineOptions({ name: "GridFormRenderer" });
 
@@ -85,29 +89,48 @@ watch(
 onUnmounted(registerPageSizeStyle());
 
 /**
+ * 打印纸张高度安全余量（mm）：分页态纸张 `height` 取「整纸高 − 本余量」而非整纸高。
+ *
+ * 原因：`@page { size: Wmm Hmm; margin: 0 }` 的页面内容区恰为整纸高，而纸张元素 `height: 297mm`
+ * 经浏览器 `mm→px`（96DPI）换算为 1122.52px（非整数），取整后纸张比页面高出一缕（<1px）⇒
+ * 溢出到下一页成为**空白尾页**（新建空白页也会出现）。留 0.5mm（≈1.9px）余量使纸张严格小于页高即可，
+ * 大于任何取整误差，可稳妥消除；且远小于 12mm 底边距——正文最大底部仅到 `12 + bodyHeightMm`，
+ * 余量只会吃掉页底一点白边，**不会裁到内容，也不改变分页结果（页数不变）**。
+ */
+const PRINT_PAPER_HEIGHT_EPSILON_MM = 0.5;
+
+/**
  * 纸张尺寸：
- * - **分页开启**（`height` 固定为整纸高）：分页引擎已保证每页内容 ≤ 正文可用高
- *   （`heightMm − margin.top − margin.bottom`），纸张恰好等于一张纸；配合 `box-sizing: border-box`，
- *   内容盒高度恰为正文可用高，与分页引擎的 `bodyHeightMm` 口径一致。
- * - **分页关闭**（设计态整页连续编辑）：改用 `min-height`。此时不做切分，内容可能远超一张纸；
- *   用 `min-height` 让纸张随内容长高，内容落在纸内（而非溢出纸外、跑到灰底上）。
+ * - **分页开启**（`height` 固定为「整纸高 − 安全余量」）：分页引擎保证每页内容 ≤ 正文可用高
+ *   （`heightMm − margin.top − margin.bottom`）；配合 `box-sizing: border-box`，内容盒高度与分页引擎的
+ *   `bodyHeightMm` 口径一致。高度特意略小于整纸高（见 {@link PRINT_PAPER_HEIGHT_EPSILON_MM}），
+ *   避免 `height == 页面高` 时因取整溢出一缕、打印多出空白尾页。
+ * - **分页关闭**（设计态整页连续编辑）：改用 `min-height`（不加余量，保持与整纸高一致便于编辑对位）。
+ *   此时不做切分，内容可能远超一张纸；用 `min-height` 让纸张随内容长高，内容落在纸内。
  *
  * 之所以分页开启用 `height` 而非 `min-height`：`min-height` 只设下限，会让单物理页被无限撑开、
- * 看不出「已超出一张纸」；而分页本就会把内容切走，固定高度恰为一张纸。
+ * 看不出「已超出一张纸」；而分页本就会把内容切走，固定高度即一张纸。
  *
  * `position: relative` 供页眉 / 页脚带绝对定位（驻留上/下边距区）。
  */
 function paperStyle(margin: EdgeInsetsV2): CSSProperties {
   const size = paperSize.value;
   const useFixed = props.paginate;
+  // 全局基础字号（页面属性里的「基础字号」）：以 CSS 变量下发到整张纸（含打印序列化的 DOM），
+  // 供 `.layout-p` / `.layout-text` / 表格表头这些「未显式设字号」的默认值消费（见 GridSchemaNode 的 var(...)）。
+  // 与分页估算同源（`resolveBaseFontSizeV2`）——否则会出现「屏幕上字号 16、分页按 13 算高」的错配。
+  const baseFontSize = resolveBaseFontSizeV2(props.schema);
   return {
     position: "relative",
     width: `${size.widthMm}mm`,
     ...(useFixed
-      ? { height: `${size.heightMm}mm` }
+      ? { height: `${size.heightMm - PRINT_PAPER_HEIGHT_EPSILON_MM}mm` }
       : { minHeight: `${size.heightMm}mm` }),
     padding: `${margin.top}mm ${margin.right}mm ${margin.bottom}mm ${margin.left}mm`,
-  };
+    "--v2-base-font-size": `${baseFontSize}px`,
+    // 表头默认字号按「表头 16 : 正文 13」的既有比例随基础字号缩放（基础字号 13 → 16，外观不变）。
+    "--v2-table-header-font-size": `${resolveTableHeaderFontSizeV2(baseFontSize)}px`,
+  } as CSSProperties;
 }
 
 /**
@@ -195,6 +218,16 @@ function correctPagination(): void {
   });
   measuredPages.value = result.pages;
 }
+
+/**
+ * 失效旧的测量校正：renderedPages 一旦变化（导入 / 重置 / 大改），**同步**清空 measuredPages，
+ * 让本次渲染先落到「确定性分页」版式上，correctPagination 才能测到【新 schema】的真实行高。
+ *
+ * 否则会出导入分页失效：导入（空白 → 大文档）时 measuredPages 残留上一文档版式，画布先渲染残留版式，
+ * correctPagination 测到的是旧 DOM 行高，再用错配的高度表回灌给新 schema → 回退确定性 → 仍 1 页，
+ * 新内容堆在一页溢出纸张底部（即「导入后分页没触发」）。
+ */
+watch(renderedPages, () => { measuredPages.value = null; }, { flush: "sync" });
 
 // 确定性分页结果渲染到 DOM 后，按真实测量高度校正一次（flush:'post' + nextTick 确保已绘制）。
 watch(renderedPages, () => nextTick(correctPagination), { flush: "post" });

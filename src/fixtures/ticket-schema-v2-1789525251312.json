@@ -1,0 +1,1191 @@
+{
+  "version": 2,
+  "paper": {
+    "size": "A4",
+    "header": {
+      "enabled": true,
+      "content": {
+        "center": "云南铝业股份有限公司 电气第二种工作票"
+      },
+      "style": {
+        "fontSize": 20,
+        "fontWeight": "bold"
+      },
+      "separator": false,
+      "height": 12
+    },
+    "footer": {
+      "enabled": true,
+      "content": {
+        "center": "{page} / {total}"
+      },
+      "separator": false,
+      "height": 12
+    }
+  },
+  "baseRowHeight": 8,
+  "pages": [
+    {
+      "id": "ticket-page-full",
+      "type": "page",
+      "mode": "fixed",
+      "margin": {
+        "top": 12,
+        "right": 12,
+        "bottom": 12,
+        "left": 12
+      },
+      "children": [
+        {
+          "id": "basic-unit-number-grid",
+          "type": "grid",
+          "border": "all",
+          "rows": [
+            {
+              "id": "basic-unit-number-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "unit-label-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "unit-label",
+                      "type": "text",
+                      "text": "单位",
+                      "style": {
+                        "align": "center"
+                      }
+                    }
+                  ],
+                  "width": 20
+                },
+                {
+                  "id": "unit-field-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "unit-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "单位",
+                      "underline": true
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "number-label-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "number-label",
+                      "type": "text",
+                      "text": "编号",
+                      "style": {
+                        "align": "center"
+                      }
+                    }
+                  ],
+                  "width": 20
+                },
+                {
+                  "id": "number-field-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "number-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "编号",
+                      "underline": true
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ],
+          "columns": [
+            20,
+            "1fr",
+            20,
+            "1fr"
+          ]
+        },
+        {
+          "id": "basic-owner-team-grid",
+          "type": "grid",
+          "border": "outer",
+          "rows": [
+            {
+              "id": "basic-owner-team-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "owner-field-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "owner-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人（监护人）",
+                      "underline": true,
+                      "prefix": "工作负责人（监护人）："
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "team-field-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "team-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "班组",
+                      "underline": true,
+                      "prefix": "班组："
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            "1fr"
+          ]
+        },
+        {
+          "id": "basic-members-grid",
+          "type": "grid",
+          "border": "outer",
+          "rows": [
+            {
+              "id": "members-label-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "members-label-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "members-label",
+                      "type": "text",
+                      "text": "工作班成员（不包括工作负责人）："
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "members-field-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "members-field-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "members-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作班成员",
+                      "underline": true
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "members-count-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "members-count-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "members-count-grid",
+                      "type": "grid",
+                      "border": "none",
+                      "rows": [
+                        {
+                          "id": "members-count-inner-row",
+                          "type": "grid-row",
+                          "height": 1,
+                          "cells": [
+                            {
+                              "id": "members-count-spacer-cell",
+                              "type": "grid-cell",
+                              "children": [
+                                {
+                                  "id": "p-mtwnucfr-sc2yj",
+                                  "type": "p",
+                                  "mode": "field",
+                                  "field": "工作班成员人数",
+                                  "underline": true,
+                                  "prefix": "共",
+                                  "suffix": "人",
+                                  "innerBorder": true
+                                }
+                              ],
+                              "width": "1fr",
+                              "flex": true,
+                              "align": "right"
+                            }
+                          ]
+                        }
+                      ],
+                      "columns": [
+                        "1fr"
+                      ]
+                    }
+                  ],
+                  "width": "1fr",
+                  "flex": true,
+                  "align": "right"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "station-grid",
+          "type": "grid",
+          "border": "all",
+          "rows": [
+            {
+              "id": "station-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "station-field-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "station-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "电站设备",
+                      "underline": true,
+                      "prefix": "工作的变、配电站名称及设备名称："
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "work-task-grid",
+          "type": "grid",
+          "border": "all",
+          "rows": [
+            {
+              "id": "work-task-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "work-task-label-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "work-task-label",
+                      "type": "text",
+                      "text": "工作任务",
+                      "style": {
+                        "align": "center"
+                      }
+                    }
+                  ],
+                  "width": 30
+                },
+                {
+                  "id": "work-task-table-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "work-task-table",
+                      "type": "table",
+                      "field": "工作任务",
+                      "columns": [
+                        {
+                          "key": "工作地点",
+                          "title": "工作地点或地段",
+                          "width": "1fr"
+                        },
+                        {
+                          "key": "工作内容",
+                          "title": "工作内容",
+                          "width": "1fr"
+                        }
+                      ],
+                      "minRows": 4,
+                      "rowTemplate": [
+                        {
+                          "id": "work-task-loc-tpl",
+                          "type": "table-cell-template",
+                          "columnKey": "工作地点",
+                          "children": [
+                            {
+                              "id": "work-task-loc-p",
+                              "type": "p",
+                              "mode": "field",
+                              "field": "",
+                              "underline": true
+                            }
+                          ]
+                        },
+                        {
+                          "id": "work-task-content-tpl",
+                          "type": "table-cell-template",
+                          "columnKey": "工作内容",
+                          "children": [
+                            {
+                              "id": "work-task-content-p",
+                              "type": "p",
+                              "mode": "field",
+                              "field": "",
+                              "underline": true
+                            }
+                          ]
+                        }
+                      ],
+                      "border": "inner"
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "schedule-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "schedule-label-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "schedule-label",
+                      "type": "text",
+                      "text": "计划工作时间",
+                      "style": {
+                        "align": "center"
+                      }
+                    }
+                  ],
+                  "width": 30
+                },
+                {
+                  "id": "schedule-fields-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "schedule-grid",
+                      "type": "grid",
+                      "border": "none",
+                      "rows": [
+                        {
+                          "id": "schedule-inner-row",
+                          "type": "grid-row",
+                          "height": 1,
+                          "cells": [
+                            {
+                              "id": "schedule-from-cell",
+                              "type": "grid-cell",
+                              "children": [
+                                {
+                                  "id": "schedule-from",
+                                  "type": "p",
+                                  "mode": "field",
+                                  "field": "计划工作时间_开始",
+                                  "underline": true,
+                                  "default": "      年    月    日      时    分",
+                                  "prefix": "自",
+                                  "interactive": true,
+                                  "params": {
+                                    "action": "datePicker"
+                                  }
+                                }
+                              ],
+                              "width": "1fr"
+                            },
+                            {
+                              "id": "schedule-to-cell",
+                              "type": "grid-cell",
+                              "children": [
+                                {
+                                  "id": "schedule-to",
+                                  "type": "p",
+                                  "mode": "field",
+                                  "field": "计划工作时间_截止",
+                                  "underline": true,
+                                  "default": "      年    月    日      时    分",
+                                  "prefix": "至",
+                                  "interactive": true,
+                                  "params": {
+                                    "action": "datePicker",
+                                    "date-validate": "after:计划工作时间_开始"
+                                  }
+                                }
+                              ],
+                              "width": "1fr"
+                            }
+                          ]
+                        }
+                      ],
+                      "columns": [
+                        "1fr",
+                        "1fr"
+                      ]
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ],
+          "columns": [
+            30,
+            "1fr"
+          ]
+        },
+        {
+          "id": "condition-grid",
+          "type": "grid",
+          "border": "outer",
+          "rows": [
+            {
+              "id": "condition-label-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "condition-label-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "condition-label",
+                      "type": "text",
+                      "text": "工作条件（停电或不停电，或邻近及保留带电设备名称）：\n"
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "condition-field-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "condition-field-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "condition-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作条件",
+                      "underline": true
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "safety-grid",
+          "type": "grid",
+          "border": "outer",
+          "rows": [
+            {
+              "id": "notice-label-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "notice-label-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "notice-label",
+                      "type": "text",
+                      "text": "注意事项（安全措施）："
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "notice-field-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "notice-field-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "notice-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "安全措施",
+                      "underline": true
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "notice-remark-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "notice-remark-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "notice-remark-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "安措备注",
+                      "underline": true,
+                      "prefix": "备注："
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "issuer-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "issuer-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "issuer-grid",
+                      "type": "grid",
+                      "border": "none",
+                      "rows": [
+                        {
+                          "id": "issuer-inner-row",
+                          "type": "grid-row",
+                          "height": 1,
+                          "cells": [
+                            {
+                              "id": "issuer-sign-cell",
+                              "type": "grid-cell",
+                              "children": [
+                                {
+                                  "id": "issuer-sign-field",
+                                  "type": "p",
+                                  "mode": "field",
+                                  "field": "工作票签发人签名",
+                                  "underline": true,
+                                  "prefix": "工作票签发人签名：",
+                                  "interactive": true,
+                                  "params": {
+                                    "action": "uploadImg"
+                                  }
+                                }
+                              ],
+                              "width": "1fr"
+                            },
+                            {
+                              "id": "issue-date-cell",
+                              "type": "grid-cell",
+                              "children": [
+                                {
+                                  "id": "issue-date-field",
+                                  "type": "p",
+                                  "mode": "field",
+                                  "field": "签发日期",
+                                  "underline": true,
+                                  "default": "      年    月    日      时    分",
+                                  "prefix": "签发日期：",
+                                  "interactive": true,
+                                  "params": {
+                                    "action": "datePicker"
+                                  }
+                                }
+                              ],
+                              "width": "1fr"
+                            }
+                          ]
+                        }
+                      ],
+                      "columns": [
+                        "1fr",
+                        "1fr"
+                      ]
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "supplement-grid",
+          "type": "grid",
+          "border": "outer",
+          "rows": [
+            {
+              "id": "supplement-label-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "supplement-label-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "supplement-label",
+                      "type": "text",
+                      "text": "补充安全措施："
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "supplement-field-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "supplement-field-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "supplement-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "补充安全措施",
+                      "underline": true
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr"
+          ]
+        },
+        {
+          "id": "confirm-grid",
+          "type": "grid",
+          "border": "outer",
+          "rows": [
+            {
+              "id": "confirm-header-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "confirm-header-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "confirm-header",
+                      "type": "text",
+                      "text": "确认本工作票上述各项内容："
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "confirm-header-spacer-cell",
+                  "type": "grid-cell",
+                  "children": [],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "confirm-sign-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "confirm-owner-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "confirm-owner-sign",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人签名",
+                      "underline": true,
+                      "prefix": "工作负责人签名：",
+                      "interactive": true,
+                      "params": {
+                        "action": "uploadImg"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "confirm-permitter-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "confirm-permitter-sign",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作许可人签名",
+                      "underline": true,
+                      "prefix": "工作许可人签名：",
+                      "interactive": true,
+                      "params": {
+                        "action": "uploadImg"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "permit-time-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "permit-time-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "permit-time-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "许可工作时间",
+                      "underline": true,
+                      "default": "      年    月    日      时    分",
+                      "prefix": "许可工作时间：",
+                      "interactive": true,
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "permit-time-spacer-cell",
+                  "type": "grid-cell",
+                  "children": [],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            "1fr"
+          ]
+        },
+        {
+          "id": "confirm-task-grid",
+          "type": "grid",
+          "border": "outer",
+          "rows": [
+            {
+              "id": "confirm-task-label-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "confirm-task-label-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "confirm-task-label",
+                      "type": "text",
+                      "text": "确认工作负责人布置的工作任务和安全措施："
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "confirm-task-sign-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "confirm-task-sign-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "confirm-task-sign",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作班成员签名",
+                      "underline": true,
+                      "prefix": "工作班成员签名："
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "extension-grid",
+          "type": "grid",
+          "border": "outer",
+          "rows": [
+            {
+              "id": "extension-header-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "extension-header-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "extension-header",
+                      "type": "text",
+                      "text": "工作票延期："
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "extension-header-spacer-cell",
+                  "type": "grid-cell",
+                  "children": [],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "extension-expire-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "extension-expire-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "extension-expire-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "有效期延长到",
+                      "underline": true,
+                      "default": "      年    月    日      时    分",
+                      "prefix": "有效期延长到：",
+                      "interactive": true,
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "extension-expire-spacer-cell",
+                  "type": "grid-cell",
+                  "children": [],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "extension-owner-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "extension-owner-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "extension-owner-sign",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "延期工作负责人签名",
+                      "underline": true,
+                      "prefix": "工作负责人签名：",
+                      "interactive": true,
+                      "params": {
+                        "action": "uploadImg"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "extension-owner-date-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "extension-owner-date",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "延期工作负责人签名日期",
+                      "underline": true,
+                      "default": "      年    月    日      时    分",
+                      "prefix": "日期：",
+                      "interactive": true,
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "extension-permitter-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "extension-permitter-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "extension-permitter-sign",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "延期工作许可人签名",
+                      "underline": true,
+                      "prefix": "工作许可人签名：",
+                      "interactive": true,
+                      "params": {
+                        "action": "uploadImg"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "extension-permitter-date-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "extension-permitter-date",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "延期工作许可人签名日期",
+                      "underline": true,
+                      "default": "      年    月    日      时    分",
+                      "prefix": "日期：",
+                      "interactive": true,
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            "1fr"
+          ]
+        },
+        {
+          "id": "completion-grid",
+          "type": "grid",
+          "border": "outer",
+          "rows": [
+            {
+              "id": "completion-header-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "completion-header-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "completion-header",
+                      "type": "text",
+                      "text": "工作票终结："
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "completion-header-spacer-cell",
+                  "type": "grid-cell",
+                  "children": [],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "completion-end-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "completion-end-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "completion-end-field",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作票终结日期",
+                      "underline": true,
+                      "default": "      年    月    日      时    分",
+                      "prefix": "全部工作于",
+                      "suffix": "结束，工作人员已全部撤离，材料工具已清理完毕。",
+                      "width": "45mm",
+                      "interactive": true,
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "width": "1fr",
+                  "colspan": 2
+                }
+              ]
+            },
+            {
+              "id": "completion-owner-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "completion-owner-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "completion-owner-sign",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人签名-终结",
+                      "underline": true,
+                      "prefix": "工作负责人签名：",
+                      "interactive": true,
+                      "params": {
+                        "action": "uploadImg"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "completion-owner-date-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "completion-owner-date",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人签名-终结日期",
+                      "underline": true,
+                      "default": "      年    月    日      时    分",
+                      "prefix": "日期：",
+                      "interactive": true,
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            },
+            {
+              "id": "completion-permitter-row",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "completion-permitter-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "completion-permitter-sign",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作许可人签名-终结",
+                      "underline": true,
+                      "prefix": "工作许可人签名：",
+                      "interactive": true,
+                      "params": {
+                        "action": "uploadImg"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                },
+                {
+                  "id": "completion-permitter-date-cell",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "completion-permitter-date",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作许可人签名-终结日期",
+                      "underline": true,
+                      "default": "      年    月    日      时    分",
+                      "prefix": "日期：",
+                      "interactive": true,
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "width": "1fr"
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            "1fr"
+          ]
+        }
+      ]
+    }
+  ]
+}

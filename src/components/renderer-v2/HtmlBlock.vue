@@ -83,7 +83,12 @@ function applyFieldState(root: ShadowRoot): void {
     const field = el.getAttribute("data-field");
     if (!field) return;
     const perm = fieldPermission(field);
-    const editable = canFill() && perm === "EDIT";
+    const editable =
+      perm === "HIDDEN"
+        ? false
+        : canFill()
+          ? perm === "EDIT" // 填写态：仅 EDIT 字段可写
+          : true; // 设计态：统一可就地输入（占位/看交互，不回写 schema，与 P 字段同口径）
     if (perm === "HIDDEN") {
       el.textContent = "***";
       el.setAttribute("data-masked", "");
@@ -95,7 +100,7 @@ function applyFieldState(root: ShadowRoot): void {
       const text = value == null ? "" : String(value);
       if (el.textContent !== text) el.textContent = text;
     }
-    // contenteditable 由引擎统一闸门控制（设计态/只读一律 false），覆盖片段硬编码值
+    // contenteditable 由引擎统一闸门控制（填写态随权限、设计态恒为可编辑占位），覆盖片段硬编码值
     el.setAttribute("contenteditable", editable ? "true" : "false");
   });
 }
@@ -138,6 +143,9 @@ function fill(): void {
 function wireInputs(): void {
   const root = host.value?.shadowRoot;
   if (!root) return;
+  // 设计态（data 为 null）不接输入事件：原生 [data-field] 此刻 contenteditable=true 仅作占位，
+  // 编辑不回写 schema（与 P 字段设计态同口径）；仅填写态（canFill）时回写 field-change。
+  if (!canFill()) return;
   root
     .querySelectorAll<HTMLInputElement>("input[data-bind]:not([readonly])")
     .forEach((input) => {

@@ -2,6 +2,7 @@
 /** Grid 配置：行列数 / 列宽 / 边框 / 单元格默认 / 间距。 */
 import type { GridNodeV2 } from "@/types";
 import type { SchemaEdits } from "../composables/useSchemaEdits";
+import { DEFAULT_CELL_PADDING } from "@/engine-v2/derivation";
 
 defineProps<{ node: GridNodeV2; api: SchemaEdits }>();
 </script>
@@ -64,7 +65,7 @@ defineProps<{ node: GridNodeV2; api: SchemaEdits }>();
         min="0"
         step="1"
         data-grid="gap"
-        :value="node.gap ?? ''"
+        :value="node.gap ?? 0"
         @change="api.updateGridGap"
       />
     </label>
@@ -75,7 +76,7 @@ defineProps<{ node: GridNodeV2; api: SchemaEdits }>();
         min="0"
         step="1"
         data-cell-default="padding"
-        :value="node.cellPadding ?? ''"
+        :value="node.cellPadding ?? DEFAULT_CELL_PADDING"
         @change="api.updateGridCellDefault('cellPadding', $event)"
       />
     </label>

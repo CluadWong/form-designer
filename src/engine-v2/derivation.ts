@@ -8,6 +8,8 @@ import type {
   ImageNodeV2,
   TableNodeV2,
 } from "@/types";
+// 字号区间常量住类型层（schema 约束），引擎与设计器面板共用，保持 types ← engine 的依赖方向。
+import { FONT_SIZE_MAX_PX, FONT_SIZE_MIN_PX } from "@/types";
 
 /**
  * 渲染期领域逻辑（B4 归 engine）。
@@ -50,9 +52,61 @@ export function resolveImageSourceV2(
   return node.src && node.src !== "" ? node.src : null;
 }
 
-const DEFAULT_CELL_PADDING = 0;
-const DEFAULT_CELL_ALIGN: "left" | "center" | "right" = "center";
-const DEFAULT_CELL_VERTICAL_ALIGN: "top" | "middle" | "bottom" = "middle";
+/**
+ * 文本 / 字段的默认字号（px）与行高倍数：schema 未设时的引擎 + CSS 默认，设计器面板据此显示生效值。
+ * 单一真源——`GridSchemaNode.vue` 的 `.layout-p` / `.layout-text` CSS 与 `pagination.ts`
+ * 的高度估算都必须与这两个值保持一致（CSS 无法 import，改动时三处同改）。
+ */
+export const DEFAULT_TEXT_FONT_SIZE_PX = 13;
+export const DEFAULT_TEXT_LINE_HEIGHT = 1.6;
+/**
+ * 表格表头默认字号（px）：对应 `.layout-table__header` 的 CSS 默认，
+ * 也是「表头相对正文」的比例基准（`DEFAULT_TABLE_HEADER_FONT_SIZE_PX / DEFAULT_TEXT_FONT_SIZE_PX`）。
+ */
+export const DEFAULT_TABLE_HEADER_FONT_SIZE_PX = 16;
+
+/** 字号是否为可用的正数（面板输入 / schema 值共用的判定）。 */
+function isValidFontSize(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+/**
+ * 解析**全局基础字号**（px）：页面属性配置的全局默认字号，作用于所有未显式设
+ * `style.fontSize` 的文字。未设 / 非法时回退引擎默认 13 —— 即「不写 = 不变」。
+ *
+ * 渲染层（纸张上的 CSS 变量）与分页估算（`pagination.textHeightMm`）必须共用本函数，
+ * 否则「屏幕上看到多大字、分页就按多大字算高」不成立，会出现多页空白 / 内容溢出。
+ */
+export function resolveBaseFontSizeV2(schema: Pick<FormSchemaV2, "baseFontSize">): number {
+  const value = schema.baseFontSize;
+  if (!isValidFontSize(value)) return DEFAULT_TEXT_FONT_SIZE_PX;
+  return Math.max(FONT_SIZE_MIN_PX, Math.min(FONT_SIZE_MAX_PX, value));
+}
+
+/**
+ * 表头默认字号（px）= 基础字号 × (16 / 13)，取整。
+ *
+ * 表头是「比正文大一号」的既有观感（CSS 默认 16 vs 正文 13）。全局基础字号调整时按同一
+ * 比例缩放，改大字号后表头不会反而比正文小。基础字号 = 13（默认）时结果恰为 16 —— 与旧外观一致。
+ * 面板显示与渲染共用本函数，保证「面板所见 = 实际生效」。
+ */
+export function resolveTableHeaderFontSizeV2(baseFontSize: number): number {
+  const base = isValidFontSize(baseFontSize) ? baseFontSize : DEFAULT_TEXT_FONT_SIZE_PX;
+  return Math.round((base * DEFAULT_TABLE_HEADER_FONT_SIZE_PX) / DEFAULT_TEXT_FONT_SIZE_PX);
+}
+
+/** 单元格默认内边距（mm）：schema 未设时的引擎默认，设计器面板据此显示生效值。 */
+export const DEFAULT_CELL_PADDING = 0;
+/**
+ * 单元格默认行高倍数（相对基准行高）：`cell.rowHeight` 未设时行高由所在行的
+ * `row.height` 决定，故 1 为其下限（等价于「未覆盖」，见 `pagination.gridRowHeightMm`）。
+ * 面板显示此值而非留空。
+ */
+export const DEFAULT_CELL_ROW_HEIGHT = 1;
+/** 单元格默认水平对齐：schema 未设时的引擎默认。 */
+export const DEFAULT_CELL_ALIGN: "left" | "center" | "right" = "center";
+/** 单元格默认垂直对齐：schema 未设时的引擎默认。 */
+export const DEFAULT_CELL_VERTICAL_ALIGN: "top" | "middle" | "bottom" = "middle";
 
 /** 解析单元格的内边距 / 对齐：cell 覆盖优先，否则继承 Grid 默认，再否则取引擎常量。 */
 export function resolveCellBoxV2(

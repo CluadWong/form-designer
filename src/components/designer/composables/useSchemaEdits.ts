@@ -8,6 +8,7 @@
  */
 import { computed, type ComputedRef } from "vue";
 import {
+  FONT_SIZE_MIN_PX,
   addTableColumnV2,
   appendNodeToCellV2,
   cloneNodeWithFreshIdsV2,
@@ -27,6 +28,7 @@ import {
   setGridColumnWidthV2,
   splitGridCellV2,
   updateBaseRowHeightV2,
+  updateBaseFontSizeV2,
   updateGridBorderV2,
   updateGridCellDefaultsV2,
   updateGridGapV2,
@@ -52,6 +54,7 @@ import type {
 } from "@/types";
 import type { SchemaDocument } from "./useSchemaDocument";
 import type { NodeSelection } from "./useNodeSelection";
+import { resolveBaseFontSizeV2 } from "@/engine-v2/derivation";
 
 export type NodeKind = "text" | "field" | "table" | "html" | "image" | "grid";
 
@@ -798,9 +801,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   // ── 页面级：行高 / 纸张 ──
   function updateBaseRowHeight(event: Event): void {
     const raw = Number((event.target as HTMLInputElement).value);
-    // 空/非法 → 不提交，保留现状（不静默兜底成 8）；有效正整数才写入
-    if (!Number.isFinite(raw) || raw < 1) return;
-    commit(updateBaseRowHeightV2(schema.value, Math.floor(raw)));
+    // 空/非法 → 不提交，保留现状（不静默兜底成 8）；有效正数才写入
+    if (!Number.isFinite(raw) || raw < 0.1) return;
+    // 支持 0.1mm 粒度：保留 1 位小数（下游行高换算 / CSS mm 均为浮点安全）
+    commit(updateBaseRowHeightV2(schema.value, Math.round(raw * 10) / 10));
   }
 
   function updatePaperSize(event: Event): void {
@@ -824,6 +828,34 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   const paperMarginLeft: ComputedRef<number> = computed(
     () => schema.value.pages[0]?.margin.left ?? 12,
   );
+
+  /**
+   * 全局基础字号（px）：页面属性里的「基础字号」，未设时回退引擎默认 13。
+   * 面板用它作为「未显式设字号」的显示默认值（正文样式 / 表头），与渲染层 CSS 变量同源，
+   * 保证「面板所见 = 画布生效 = 分页估算」三者一致。
+   */
+  const baseFontSize: ComputedRef<number> = computed(() =>
+    resolveBaseFontSizeV2(schema.value),
+  );
+
+  /**
+   * 基础字号（px）：空 / 非数字 / 低于下限 → 不提交（不静默兜底成 13，也不写入非法值），
+   * 并把输入框回写为当前生效值；有效值经 `updateBaseFontSizeV2` 取整钳制
+   * （下界即 `FONT_SIZE_MIN_PX`，故钳制只对上界生效）。
+   *
+   * 面板绑定 `@change`（失焦 / 回车提交），与其余数值输入一致。非法支需要手工回写 DOM：
+   * 提交被跳过时组件不会重渲染，受控的 `:value` 也就不会被 patch，输入框会残留用户敲的
+   * 非法字符（显示 "2" 而实际生效 13），与「面板所见 = 画布生效」的契约冲突。
+   */
+  function updateBaseFontSize(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const raw = Number(input.value);
+    if (!Number.isFinite(raw) || raw < FONT_SIZE_MIN_PX) {
+      input.value = String(baseFontSize.value);
+      return;
+    }
+    commit(updateBaseFontSizeV2(schema.value, raw));
+  }
 
   /** 单边边距（mm）：只更新指定边，其余边保持现状（不联动四边）。
    *  空/非法 → 不提交，保留现状（不静默兜底成 0）。 */
@@ -977,6 +1009,8 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     updateSelectedImageSize,
     updateSelectedImageFit,
     updateBaseRowHeight,
+    baseFontSize,
+    updateBaseFontSize,
     updatePaperSize,
     paperMarginTop,
     paperMarginRight,

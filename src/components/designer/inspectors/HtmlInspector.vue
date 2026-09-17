@@ -13,6 +13,7 @@ defineProps<{ node: HtmlNodeV2; api: SchemaEdits }>();
       class="v2-textarea"
       rows="6"
       :value="node.html"
+      placeholder="如 &lt;p&gt;客户签字：&lt;/p&gt;（可用字段占位符）"
       @input="api.updateSelectedHtml"
     ></textarea>
   </label>
@@ -22,6 +23,7 @@ defineProps<{ node: HtmlNodeV2; api: SchemaEdits }>();
       class="v2-textarea"
       rows="4"
       :value="node.css ?? ''"
+      placeholder="如 .box { border: 1px solid #333; }"
       @input="api.updateSelectedCss"
     ></textarea>
   </label>
