@@ -201,6 +201,13 @@ export function normalizeFormSchemaV2(input: unknown): FormSchemaV2 {
       ...(footer ? { footer } : {}),
     },
     baseRowHeight: (source.baseRowHeight ?? 8) as number,
+    // 全局基础字号（可选配置）：仅当来源是有效正数才保留 —— 刻意**不补默认值**，
+    // 未设过该项的 schema 导出后不新增键（「不写 = 不变」，见 FormSchemaV2.baseFontSize 注释）。
+    ...(typeof source.baseFontSize === "number" &&
+    Number.isFinite(source.baseFontSize) &&
+    source.baseFontSize > 0
+      ? { baseFontSize: source.baseFontSize }
+      : {}),
     pages: source.pages.map(value => {
       const page = asRecord(value, "Page");
       requiredString(page.id, "Page id");

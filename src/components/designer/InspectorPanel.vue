@@ -36,7 +36,7 @@ const props = withDefaults(
       hasNextSibling: boolean;
       canSplit: boolean;
     } | null;
-    cellBox: { align?: string; verticalAlign?: string } | null;
+    cellBox: { padding?: number; align?: string; verticalAlign?: string } | null;
     issues: SchemaIssueV2[];
     api: SchemaEdits;
     paperSize: "A4" | "A3";
@@ -70,6 +70,13 @@ const pageMargins = computed(() => {
 
 /** 分页开关（仅设计态生效）：双向绑定到宿主的 `paginate`。 */
 const paginate = defineModel<boolean>("paginate", { required: true });
+
+/**
+ * 全局基础字号（px，已 resolve）：页面属性里的「基础字号」，即全局默认字号。
+ * 由宿主 api 的 computed 解出（未设 → 引擎默认 13），透传给各 Inspector 作为
+ * 「未显式设字号」的默认显示值 —— 保证面板所见 = 画布生效 = 分页估算。
+ */
+const baseFontSize = computed(() => props.api.baseFontSize.value);
 
 const emit = defineEmits<{ selectIssue: [issue: SchemaIssueV2] }>();
 
@@ -105,6 +112,7 @@ const selectedLabel = computed(() => {
       v-model:paginate="paginate"
       :paper-size="paperSize"
       :base-row-height="baseRowHeight"
+      :base-font-size="baseFontSize"
       :paper-margin-top="pageMargins.top"
       :paper-margin-right="pageMargins.right"
       :paper-margin-bottom="pageMargins.bottom"
@@ -114,8 +122,18 @@ const selectedLabel = computed(() => {
       :api="api"
     />
     <GridInspector v-else-if="node?.type === 'grid'" :node="node" :api="api" />
-    <TextInspector v-else-if="node?.type === 'text'" :node="node" :api="api" />
-    <FieldPInspector v-else-if="node?.type === 'p'" :node="node" :api="api" />
+    <TextInspector
+      v-else-if="node?.type === 'text'"
+      :node="node"
+      :base-font-size="baseFontSize"
+      :api="api"
+    />
+    <FieldPInspector
+      v-else-if="node?.type === 'p'"
+      :node="node"
+      :base-font-size="baseFontSize"
+      :api="api"
+    />
     <CellInspector
       v-else-if="node?.type === 'grid-cell'"
       :node="node"
@@ -125,7 +143,12 @@ const selectedLabel = computed(() => {
     />
     <HtmlInspector v-else-if="node?.type === 'html'" :node="node" :api="api" />
     <ImageInspector v-else-if="node?.type === 'image'" :node="node" :api="api" />
-    <TableInspector v-else-if="node?.type === 'table'" :node="node" :api="api" />
+    <TableInspector
+      v-else-if="node?.type === 'table'"
+      :node="node"
+      :base-font-size="baseFontSize"
+      :api="api"
+    />
 
     <!-- 通用「额外属性」（params）：挂在 SchemaNodeBaseV2 上，故**任何**可选中的节点都有；
          键值对渲染时作为 HTML 属性插到该节点根标签上，内核不解释其含义。 -->

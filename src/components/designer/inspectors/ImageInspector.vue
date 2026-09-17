@@ -10,7 +10,11 @@ defineProps<{ node: ImageNodeV2; api: SchemaEdits }>();
   <div class="v2-grid-dimensions">
     <label class="v2-control v2-control--full">
       <span>字段名</span>
-      <input :value="node.field ?? ''" @input="api.updateSelectedImageField" />
+      <input
+        :value="node.field ?? ''"
+        placeholder="绑定数据字段（可选）"
+        @input="api.updateSelectedImageField"
+      />
     </label>
     <label class="v2-control v2-control--full">
       <span>图片地址</span>
@@ -28,6 +32,7 @@ defineProps<{ node: ImageNodeV2; api: SchemaEdits }>();
         type="number"
         min="0"
         :value="node.width ?? ''"
+        placeholder="如 40"
         @change="api.updateSelectedImageSize('width', $event)"
       />
     </label>
@@ -37,6 +42,7 @@ defineProps<{ node: ImageNodeV2; api: SchemaEdits }>();
         type="number"
         min="0"
         :value="node.height ?? ''"
+        placeholder="如 40"
         @change="api.updateSelectedImageSize('height', $event)"
       />
     </label>

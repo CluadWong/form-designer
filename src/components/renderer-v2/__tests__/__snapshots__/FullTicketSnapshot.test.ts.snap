@@ -2,7 +2,7 @@
 
 exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基线一致 1`] = `
 "<div data-v-d627bc46="" class="grid-form-canvas">
-  <main data-v-d627bc46="" class="grid-form-paper" style="position: relative; width: 210mm; height: 297mm; padding: 10mm 10mm 10mm 10mm;" data-node-id="ticket-page-full">
+  <main data-v-d627bc46="" class="grid-form-paper" style="position: relative; width: 210mm; height: 296.5mm; padding: 10mm 10mm 10mm 10mm; --v2-base-font-size: 13px; --v2-table-header-font-size: 16px;" data-node-id="ticket-page-full">
     <!--v-if-->
     <div data-v-af1345cc="" data-v-d627bc46="" class="layout-grid layout-grid--none" data-node-id="title-grid">
       <div data-v-af1345cc="" class="layout-grid__row" style="grid-template-columns: 1fr; min-height: 8mm;" data-layout-id="title-row">

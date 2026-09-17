@@ -308,7 +308,12 @@ export type EditorNodeV2 = SchemaNodeV2 | LayoutNodeV2;
 export function isSelectableSchemaNodeV2(
   node: EditorNodeV2 | undefined,
 ): node is SchemaNodeV2 {
-  return Boolean(node && node.type !== "grid-row" && node.type !== "grid-cell" && node.type !== "table-cell-template");
+  return Boolean(
+    node &&
+    node.type !== "grid-row" &&
+    node.type !== "grid-cell" &&
+    node.type !== "table-cell-template",
+  );
 }
 
 export interface PageSchemaV2 extends SchemaNodeBaseV2 {
@@ -322,15 +327,32 @@ export interface FormSchemaV2 {
   version: 2;
   paper: PaperConfigV2;
   baseRowHeight: number;
+  /**
+   * 全局基础字号（px，可选）：页面属性里设置后即成为**全局默认字号** ——
+   * 作用于所有未显式设 `style.fontSize` 的文字（正文 / 字段 / 表格内容），
+   * 表格表头默认值按其与正文的既有比例等比放大（见 `resolveTableHeaderFontSizeV2`）。
+   *
+   * 刻意**不落默认值**（缺省 = 引擎常量 13，与 `useSchemaEdits` 的「空/非法→undefined」契约一致）：
+   * 未写过此项的 schema 导出后不新增键，旧模板导入后外观零变化。
+   */
+  baseFontSize?: number;
   pages: PageSchemaV2[];
 }
 
 /** 纸张边长（mm）：short=短边，long=长边。渲染纸张、打印 `@page size`、溢出校验共用同一份，
  *  避免各处硬编码「A4 = 210×297」（历史上 `@page` 写死 A4，导致选 A3 时打印被裁）。 */
-export const PAPER_SIDE_MM: Record<PaperSizeV2, { short: number; long: number }> = {
+export const PAPER_SIDE_MM: Record<
+  PaperSizeV2,
+  { short: number; long: number }
+> = {
   A4: { short: 210, long: 297 },
   A3: { short: 297, long: 420 },
 };
+
+/** 字号合法区间（px）：面板可设范围，同时也是 `baseFontSize` 的钳制范围。
+ *  定义在类型层（而非 engine）以保持依赖方向 types ← engine：引擎与面板共用同一区间。 */
+export const FONT_SIZE_MIN_PX = 6;
+export const FONT_SIZE_MAX_PX = 72;
 
 export interface ResolvedPaperSizeV2 {
   size: PaperSizeV2;

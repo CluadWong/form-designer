@@ -14,6 +14,7 @@ import type {
   HtmlNodeV2,
   ImageNodeV2,
 } from "./schema-v2";
+import { FONT_SIZE_MAX_PX, FONT_SIZE_MIN_PX } from "./schema-v2";
 import { buildEditorNodeIndexV2 } from "./schema-v2-index";
 
 export function createSchemaNodeIdV2(prefix: string): string {
@@ -403,12 +404,29 @@ export function updateTableColumnV2(
   });
 }
 
-/** Updates the global base row height (mm). Clamped to 1–99. */
+/** Updates the global base row height (mm). Clamped to 0.1–99, 保留 0.1mm 粒度（1 位小数）。 */
 export function updateBaseRowHeightV2(
   schema: FormSchemaV2,
   baseRowHeight: number,
 ): FormSchemaV2 {
-  return { ...schema, baseRowHeight: Math.max(1, Math.min(99, Math.floor(baseRowHeight))) };
+  const rounded = Math.round(baseRowHeight * 10) / 10;
+  return { ...schema, baseRowHeight: Math.max(0.1, Math.min(99, rounded)) };
+}
+
+/**
+ * Updates the global base font size (px) — 页面属性里的「基础字号」，即全局默认字号。
+ * 取整并钳制到 6–72；写入 `schema.baseFontSize`（渲染层经 CSS 变量、分页估算经
+ * `resolveBaseFontSizeV2` 共用同一值）。
+ */
+export function updateBaseFontSizeV2(
+  schema: FormSchemaV2,
+  baseFontSize: number,
+): FormSchemaV2 {
+  const rounded = Math.round(baseFontSize);
+  return {
+    ...schema,
+    baseFontSize: Math.max(FONT_SIZE_MIN_PX, Math.min(FONT_SIZE_MAX_PX, rounded)),
+  };
 }
 
 /** Updates the paper size (方向自 P11-3 起由纸张尺寸派生，不再单独维护 orientation). */

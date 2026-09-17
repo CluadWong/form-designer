@@ -9,6 +9,11 @@
  * 注入到 `document.head` 的单例 `<style>`，纸张切换时更新、最后一个使用者释放后移除。
  * 这样设计器与消费页（`<FormRenderer>`）打印都跟随 Schema，无需各写一遍。
  *
+ * 同一条注入还会补一条 `@media print { html, body { margin: 0 } }`（见 `setPageSizeStyle`）：
+ * vue-print-next 把主文档所有 `<style>` 复制到打印 iframe，但 iframe 的 `body` 仍带浏览器
+ * UA 默认 `margin`（约 8px），会把纸张整体下推/右推 8px——底部 8px 溢出到新的一页变成空白尾页，
+ * 横向还会裁掉左右各约 3mm。仅 `@page { margin: 0 }` 清不掉 body 自身边距，故必须在此一并清零。
+ *
  * 说明：写具体毫米值（`420mm 297mm`）而非 `A3 landscape`——后者在各浏览器
  * 对「关键字 + 方向」的组合支持不一致，指定物理尺寸最稳且与纸张元素完全对齐。
  */
@@ -38,7 +43,12 @@ function ensureStyleEl(): HTMLStyleElement | null {
 export function setPageSizeStyle(widthMm: number, heightMm: number): void {
   const el = ensureStyleEl();
   if (!el) return;
-  el.textContent = `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }`;
+  // `@page { margin: 0 }` 只清掉页面级边距；打印 iframe 的 `html/body` 仍带 UA 默认
+  // `margin`（约 8px），会把纸张整体下推 8px → 底部溢出生成空白尾页、横向裁掉约 3mm。
+  // 一并清零（仅 `@media print` 生效，不影响屏幕设计态），并加 `!important` 压过任何全局 reset。
+  el.textContent =
+    `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }\n` +
+    `@media print { html, body { margin: 0 !important; padding: 0 !important; } }`;
 }
 
 /**
@@ -57,7 +67,7 @@ export function registerPageSizeStyle(): () => void {
   };
 }
 
-/** 当前注入的 `@page` 文本（测试 / 调试用）；未注入时返回空串。 */
+/** 当前注入的打印页样式文本（`@page` + 打印 `html/body` 边距重置，见 `setPageSizeStyle`）；未注入时返回空串。 */
 export function currentPageSizeStyle(): string {
   return styleEl?.textContent ?? "";
 }

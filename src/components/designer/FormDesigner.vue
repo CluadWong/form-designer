@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, provide, onMounted, onUnmounted } from "vue";
+import { computed, ref, watch, provide, onMounted, onUnmounted, nextTick } from "vue";
 import CanvasSurface from "./CanvasSurface.vue";
 import PaperViewport from "@/components/renderer-v2/PaperViewport.vue";
 import { PALETTE_DRAG_MIME } from "@/engine-v2/node-address";
@@ -315,9 +315,23 @@ function redo(): void {
  *
  * 传入本设计器的画布作为**打印根**：只把其中的纸张（`.grid-form-paper`）序列化进同源 iframe
  * 打印，宿主页面其余部分（工单页菜单 / 头部 / 其他区域）不进打印流。
+ *
+ * ⚠️ 打印必须强制分页：屏幕可能为「连续编辑视图」（`paginate` 关闭，便于整页编辑），
+ * 但若直接打印那张单张、超高的纸，内容会溢出 `@page` 尺寸、多出空白尾页（即「纸越来越高、不分页、
+ * 打印多一页空白」的根因）。故打印前临时把分页打开，等 `printForm` 同步完成纸张序列化后再还原，
+ * 屏幕编辑态不受影响。
  */
-function printDocument(): void {
+async function printDocument(): Promise<void> {
+  const wasPaginating = paginate.value;
+  if (!wasPaginating) {
+    paginate.value = true;
+    await nextTick();
+    await nextTick();
+  }
   printForm({ root: canvasEl.value });
+  if (!wasPaginating) {
+    paginate.value = false;
+  }
 }
 
 /** 载入一个注入的样例（B3：样例来自 props 注册表，设计器不依赖 dev 目录）。 */
