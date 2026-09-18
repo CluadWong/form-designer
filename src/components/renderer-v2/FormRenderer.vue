@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, type ComponentPublicInstance } from "vue";
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from "vue";
 import type {
   FieldActivateV2,
   FieldPermissionV2,
@@ -127,6 +127,22 @@ function onFieldActivate(payload: FieldActivateV2): void {
 const rendererRef = ref<ComponentPublicInstance | null>(null);
 
 /**
+ * 纸张视口实例引用：`schema` 变化（换表单 / 换纸张方向）时重新「适应宽度 + 对齐」。
+ *
+ * 视口实例不随 `schema` 重建（`v-if` 只看 `options.zoom`），而 fit / 对齐只在**挂载时**执行一次
+ * ⇒ 同一消费页里切换到另一张表单时，会沿用上一张的 scale / 平移量，落点错乱（A4↔A3 切换尤其明显）。
+ * 故在此 watch `schema` 显式重排；视口内部还会在内容尺寸（分页校正后）变化时再自愈一次。
+ */
+const viewportRef = ref<{ fitWidth?: () => void } | null>(null);
+
+watch(
+  () => props.schema,
+  () => {
+    nextTick(() => viewportRef.value?.fitWidth?.());
+  },
+);
+
+/**
  * D2：向消费页暴露打印能力，使「触发」与「呈现」同归渲染层。
  * 消费页 `ref.value.print()` 即可打印，无需自己 `window.print()`、也无需关心
  * `@page` 纸张注入（由本组件持有内核渲染实例在挂载期完成）。
@@ -163,7 +179,7 @@ defineExpose({ print, getFormData, validate });
 </script>
 
 <template>
-  <PaperViewport v-if="options?.zoom" :fit-on-mount="options?.fitOnMount ?? false">
+  <PaperViewport ref="viewportRef" v-if="options?.zoom" :fit-on-mount="options?.fitOnMount ?? false">
     <GridFormRenderer
       ref="rendererRef"
       :schema="schema"

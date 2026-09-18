@@ -20,7 +20,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="单位" data-node-id="unit-field">
             <!--v-if-->
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
@@ -33,7 +38,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="编号" data-node-id="number-field">
             <!--v-if-->
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
@@ -46,14 +56,24 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="owner-field-cell" data-node-id="owner-field-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作负责人（监护人）" data-node-id="owner-field"><span data-v-af1345cc="" class="layout-p__label">工作负责人（监护人）：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人（监护人）"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人（监护人）"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="team-field-cell" data-node-id="team-field-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="班组" data-node-id="team-field"><span data-v-af1345cc="" class="layout-p__label">班组：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="班组"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="班组"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
@@ -70,7 +90,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作班成员" data-node-id="members-field">
             <!--v-if-->
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
@@ -85,7 +110,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
               <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="members-count-field-cell" data-node-id="members-count-field-cell">
                 <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite layout-p--inner-border" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作班成员人数" data-node-id="members-count-field"><span data-v-af1345cc="" class="layout-p__label">共</span>
                   <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作班成员人数"><div data-v-af1345cc="" class="layout-p__line"></div></span><span data-v-af1345cc="" class="layout-p__label">人</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作班成员人数"><div data-v-af1345cc="" class="layout-p__line"></div></span><span data-v-af1345cc="" class="layout-p__label">人</span>
                 </div>
               </div>
             </div>
@@ -98,7 +128,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="station-field-cell" data-node-id="station-field-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="电站设备" data-node-id="station-field"><span data-v-af1345cc="" class="layout-p__label">工作的变、配电站名称及设备名称：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="电站设备"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="电站设备"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
@@ -123,7 +158,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
                   <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作地点_1" data-node-id="work-task-loc-p">
                     <!--v-if-->
                     <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
@@ -133,7 +173,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
                   <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作内容_1" data-node-id="work-task-content-p">
                     <!--v-if-->
                     <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
@@ -145,7 +190,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
                   <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作地点_2" data-node-id="work-task-loc-p">
                     <!--v-if-->
                     <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
@@ -155,7 +205,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
                   <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作内容_2" data-node-id="work-task-content-p">
                     <!--v-if-->
                     <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
@@ -167,7 +222,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
                   <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作地点_3" data-node-id="work-task-loc-p">
                     <!--v-if-->
                     <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
@@ -177,7 +237,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
                   <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作内容_3" data-node-id="work-task-content-p">
                     <!--v-if-->
                     <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
@@ -189,7 +254,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
                   <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作地点_4" data-node-id="work-task-loc-p">
                     <!--v-if-->
                     <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
@@ -199,7 +269,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
                   <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作内容_4" data-node-id="work-task-content-p">
                     <!--v-if-->
                     <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
@@ -220,14 +295,24 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
               <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="schedule-from-cell" data-node-id="schedule-from-cell">
                 <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="计划工作时间_开始" data-node-id="schedule-from" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">自</span>
                   <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="计划工作时间_开始">      年    月    日      时    分</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="计划工作时间_开始"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
                   <!--v-if-->
                 </div>
               </div>
               <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="schedule-to-cell" data-node-id="schedule-to-cell">
                 <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="计划工作时间_截止" data-node-id="schedule-to" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">至</span>
                   <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="计划工作时间_截止">      年    月    日      时    分</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="计划工作时间_截止"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
                   <!--v-if-->
                 </div>
               </div>
@@ -248,7 +333,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="工作条件" data-node-id="condition-field">
             <!--v-if-->
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
@@ -267,7 +357,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="安全措施" data-node-id="notice-field">
             <!--v-if-->
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
@@ -278,7 +373,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="notice-remark-cell" data-node-id="notice-remark-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="安措备注" data-node-id="notice-remark-field"><span data-v-af1345cc="" class="layout-p__label">备注：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="安措备注"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="安措备注"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
@@ -290,14 +390,24 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
               <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="issuer-sign-cell" data-node-id="issuer-sign-cell">
                 <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作票签发人签名" data-node-id="issuer-sign-field" action="uploadImg"><span data-v-af1345cc="" class="layout-p__label">工作票签发人签名：</span>
                   <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作票签发人签名"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作票签发人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
                   <!--v-if-->
                 </div>
               </div>
               <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="issue-date-cell" data-node-id="issue-date-cell">
                 <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="签发日期" data-node-id="issue-date-field" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">签发日期：</span>
                   <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="签发日期">      年    月    日      时    分</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="签发日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
                   <!--v-if-->
                 </div>
               </div>
@@ -317,7 +427,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--underline" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" contenteditable="true" data-field="补充安全措施" data-node-id="supplement-field">
             <!--v-if-->
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
@@ -328,7 +443,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="supplement-remark-cell" data-node-id="supplement-remark-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="补充安措备注" data-node-id="supplement-remark-field"><span data-v-af1345cc="" class="layout-p__label">备注：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="补充安措备注"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="补充安措备注"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
@@ -345,14 +465,24 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="confirm-owner-cell" data-node-id="confirm-owner-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作负责人签名" data-node-id="confirm-owner-sign" action="uploadImg"><span data-v-af1345cc="" class="layout-p__label">工作负责人签名：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人签名"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="confirm-permitter-cell" data-node-id="confirm-permitter-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作许可人签名" data-node-id="confirm-permitter-sign" action="uploadImg"><span data-v-af1345cc="" class="layout-p__label">工作许可人签名：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作许可人签名"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作许可人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
@@ -361,7 +491,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="permit-time-cell" data-node-id="permit-time-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="许可工作时间" data-node-id="permit-time-field" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">许可工作时间：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="许可工作时间">      年    月    日      时    分</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="许可工作时间"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
             <!--v-if-->
           </div>
         </div>
@@ -378,7 +513,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="confirm-task-sign-cell" data-node-id="confirm-task-sign-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作班成员签名" data-node-id="confirm-task-sign"><span data-v-af1345cc="" class="layout-p__label">工作班成员签名：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作班成员签名"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作班成员签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
@@ -395,7 +535,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="extension-expire-cell" data-node-id="extension-expire-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="有效期延长到" data-node-id="extension-expire-field" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">有效期延长到：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="有效期延长到">      年    月    日      时    分</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="有效期延长到"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
             <!--v-if-->
           </div>
         </div>
@@ -405,14 +550,24 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="extension-owner-cell" data-node-id="extension-owner-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="延期工作负责人签名" data-node-id="extension-owner-sign" action="uploadImg"><span data-v-af1345cc="" class="layout-p__label">工作负责人签名：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作负责人签名"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作负责人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="extension-owner-date-cell" data-node-id="extension-owner-date-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="延期工作负责人签名日期" data-node-id="extension-owner-date" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">日期：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作负责人签名日期">      年    月    日      时    分</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作负责人签名日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
             <!--v-if-->
           </div>
         </div>
@@ -421,14 +576,24 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="extension-permitter-cell" data-node-id="extension-permitter-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="延期工作许可人签名" data-node-id="extension-permitter-sign" action="uploadImg"><span data-v-af1345cc="" class="layout-p__label">工作许可人签名：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作许可人签名"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作许可人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="extension-permitter-date-cell" data-node-id="extension-permitter-date-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="延期工作许可人签名日期" data-node-id="extension-permitter-date" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">日期：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作许可人签名日期">      年    月    日      时    分</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作许可人签名日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
             <!--v-if-->
           </div>
         </div>
@@ -445,7 +610,12 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="grid-column: span 2; padding: 0mm; align-items: center; justify-content: center;" data-layout-id="completion-end-cell" data-node-id="completion-end-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作票终结日期" data-node-id="completion-end-field" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">全部工作于</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作票终结日期">      年    月    日      时    分</span><span data-v-af1345cc="" class="layout-p__label">结束，工作人员已全部撤离，材料工具已清理完毕。</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作票终结日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span><span data-v-af1345cc="" class="layout-p__label">结束，工作人员已全部撤离，材料工具已清理完毕。</span>
           </div>
         </div>
       </div>
@@ -453,14 +623,24 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="completion-owner-cell" data-node-id="completion-owner-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作负责人签名-终结" data-node-id="completion-owner-sign" action="uploadImg"><span data-v-af1345cc="" class="layout-p__label">工作负责人签名：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人签名-终结"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人签名-终结"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="completion-owner-date-cell" data-node-id="completion-owner-date-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作负责人签名-终结日期" data-node-id="completion-owner-date" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">日期：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人签名-终结日期">      年    月    日      时    分</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人签名-终结日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
             <!--v-if-->
           </div>
         </div>
@@ -469,14 +649,24 @@ exports[`完整工作票渲染基线（P11-2 快照） > DOM 结构快照与基�
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="completion-permitter-cell" data-node-id="completion-permitter-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作许可人签名-终结" data-node-id="completion-permitter-sign" action="uploadImg"><span data-v-af1345cc="" class="layout-p__label">工作许可人签名：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作许可人签名-终结"></span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作许可人签名-终结"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="completion-permitter-date-cell" data-node-id="completion-permitter-date-cell">
           <div data-v-af1345cc="" class="layout-p layout-p--field layout-p--composite" style="justify-content: flex-start; align-items: center; white-space: pre-wrap;" data-field="工作许可人签名-终结日期" data-node-id="completion-permitter-date" action="datePicker"><span data-v-af1345cc="" class="layout-p__label">日期：</span>
             <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作许可人签名-终结日期">      年    月    日      时    分</span>
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作许可人签名-终结日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
             <!--v-if-->
           </div>
         </div>

@@ -625,7 +625,12 @@ function onImgError(): void {
     <span v-if="node.prefix" class="layout-p__label">{{ node.prefix }}</span>
 
     <!-- 复合字段（有前/后标签）：可输入区统一为 .layout-p__input，
-         设计/预览/填写共用同一结构，仅 contenteditable 差异。 -->
+         设计/预览/填写共用同一结构，仅 contenteditable 差异。
+         ⚠️ 值必须由**元素**（.layout-p__value）承载，不可写成
+         `<template v-else>{{ displayValue(node) }}</template>`：`<template>` 分支在
+         contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+         插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
+         显示翻倍（输入 `11` 变 `1111`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
     <span
       v-if="isCompositeField(node)"
       class="layout-p__input"
@@ -650,7 +655,7 @@ function onImgError(): void {
         >
           {{ line }}
         </div></template
-      ><template v-else>{{ displayValue(node) }}</template></span
+      ><span v-else class="layout-p__value">{{ displayValue(node) }}</span></span
     >
 
     <!-- 非复合字段：innerBorder 时逐行渲染（v-once 静态 + 填写态 DOM 重建）。 -->
@@ -980,6 +985,18 @@ function onImgError(): void {
   min-height: 1.6em;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* 复合字段（`.layout-p__input` 内）的值载体：必须**铺满**可输入区。
+   内联元素的盒宽为 0（空值时），点在 min-width:12mm 可输入区里、值元素之外时，
+   光标落在外层 contenteditable 上、键入文本成为**外层**的直接文本子节点 ——
+   失焦写回后与内层值节点并存 ⇒ 显示翻倍（同 .layout-p__input 注释里的 Fragment 坑）。
+   display:block + width:100% 让值元素覆盖整个可输入区，光标与键入恒落在其内部。
+   仅改盒类型/宽度，不影响外层 min-width:12mm 与版式（内置元素原为内联、宽度即文本宽）。 */
+.layout-p__input > .layout-p__value {
+  display: block;
+  width: 100%;
+  min-height: 1.6em;
 }
 
 /* 字段 P 已统一渲染为可编辑 <div>（预览 / 填写态与设计态同结构，行高一致），
