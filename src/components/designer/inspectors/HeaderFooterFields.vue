@@ -3,7 +3,8 @@
  * 页眉 / 页脚配置字段（header / footer 共用一份模板，靠 `kind` 选取对应更新动作）。
  *
  * MVP 范围：开关 / 左中右三栏文本（含 `{page}` `{total}` 占位符）/ 带高 /
- * 字号 / 粗细 / 颜色 / 分隔线。字段绑定 `{field:key}`、logo、首页不同均不在本轮。
+ * 字号 / 粗细 / 颜色 / 分隔线 / 每页重复开关（关闭=仅首页显示）。
+ * 字段绑定 `{field:key}`、logo、首页不同内容均不在本轮。
  */
 import { computed } from "vue";
 import { DEFAULT_BAND_HEIGHT_MM, type HeaderFooterV2 } from "@/types";
@@ -39,6 +40,11 @@ const onSeparator = computed(() =>
   props.kind === "header"
     ? props.api.updatePaperHeaderSeparator
     : props.api.updatePaperFooterSeparator,
+);
+const onRepeat = computed(() =>
+  props.kind === "header"
+    ? props.api.updatePaperHeaderRepeatOnEveryPage
+    : props.api.updatePaperFooterRepeatOnEveryPage,
 );
 const onFontSize = computed(() =>
   props.kind === "header"
@@ -155,6 +161,14 @@ const active = computed(() => props.band?.enabled === true);
         @change="onSeparator"
       />
       <span>分隔线</span>
+    </label>
+    <label class="v2-control v2-control--toggle">
+      <input
+        type="checkbox"
+        :checked="band?.repeatOnEveryPage !== false"
+        @change="onRepeat"
+      />
+      <span>每页重复（关闭则仅首页显示）</span>
     </label>
   </template>
 </template>

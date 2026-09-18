@@ -11,7 +11,8 @@ import type { FormSchemaV2, HeaderFooterV2 } from "@/types";
 /**
  * 页眉 / 页脚（paper 级全局配置）：
  * - 未启用时不渲染任何带；
- * - **每个物理页各渲染一份**（这是「每页重复」的实现方式，打印同理）；
+ * - **默认每个物理页各渲染一份**（「每页重复」，打印同理）；
+ *   `repeatOnEveryPage: false` 时收敛为仅第 1 张物理页；
  * - `{page}` / `{total}` 按物理页序解析；
  * - 带高 / 文本样式 / 分隔线来自配置。
  */
@@ -58,6 +59,34 @@ describe("页眉 / 页脚渲染", () => {
     );
     expect(wrapper.findAll(".grid-form-band--header")).toHaveLength(3);
     expect(wrapper.findAll(".grid-form-band--footer")).toHaveLength(3);
+  });
+
+  it("repeatOnEveryPage=false：仅第 1 张物理页渲染一条带", () => {
+    const wrapper = render(
+      schemaWithPages(3, {
+        header: { enabled: true, repeatOnEveryPage: false, content: { left: "云铝" } },
+        footer: {
+          enabled: true,
+          repeatOnEveryPage: false,
+          content: { center: "第 {page} 页 / 共 {total} 页" },
+        },
+      }),
+    );
+    expect(wrapper.findAll(".grid-form-band--header")).toHaveLength(1);
+    expect(wrapper.findAll(".grid-form-band--footer")).toHaveLength(1);
+    // 仅首页那条：{page} 解析为 1，{total} 仍为物理页总数 3
+    expect(
+      wrapper.find(".grid-form-band--footer .grid-form-band__zone--center").text(),
+    ).toBe("第 1 页 / 共 3 页");
+    // 首张物理页确实带带子
+    expect(wrapper.findAll(".grid-form-paper")[0].find(".grid-form-band").exists()).toBe(true);
+  });
+
+  it("repeatOnEveryPage=true（显式）：仍每页重复", () => {
+    const wrapper = render(
+      schemaWithPages(3, { header: { enabled: true, repeatOnEveryPage: true } }),
+    );
+    expect(wrapper.findAll(".grid-form-band--header")).toHaveLength(3);
   });
 
   it("占位符 {page} / {total} 按物理页序解析", () => {

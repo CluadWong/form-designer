@@ -912,6 +912,11 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
       patch({ enabled: (event.target as HTMLInputElement).checked });
     }
 
+    /** 每页重复：显式写 true/false（未设即 `true`，等价「每页重复」）。 */
+    function repeatOnEveryPage(event: Event): void {
+      patch({ repeatOnEveryPage: (event.target as HTMLInputElement).checked });
+    }
+
     function height(event: Event): void {
       const raw = Number((event.target as HTMLInputElement).value);
       patch({ height: Number.isFinite(raw) && raw > 0 ? raw : undefined });
@@ -942,7 +947,7 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
       style({ color: value || undefined });
     }
 
-    return { patch, content, enabled, height, separator, style, fontSize, fontWeight, color };
+    return { patch, content, enabled, repeatOnEveryPage, height, separator, style, fontSize, fontWeight, color };
   }
 
   const headerUpdaters = makeHeaderFooterUpdaters("header");
@@ -1020,6 +1025,7 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     updatePaperHeader: headerUpdaters.patch,
     updatePaperHeaderContent: headerUpdaters.content,
     updatePaperHeaderEnabled: headerUpdaters.enabled,
+    updatePaperHeaderRepeatOnEveryPage: headerUpdaters.repeatOnEveryPage,
     updatePaperHeaderHeight: headerUpdaters.height,
     updatePaperHeaderSeparator: headerUpdaters.separator,
     updatePaperHeaderFontSize: headerUpdaters.fontSize,
@@ -1028,6 +1034,7 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     updatePaperFooter: footerUpdaters.patch,
     updatePaperFooterContent: footerUpdaters.content,
     updatePaperFooterEnabled: footerUpdaters.enabled,
+    updatePaperFooterRepeatOnEveryPage: footerUpdaters.repeatOnEveryPage,
     updatePaperFooterHeight: footerUpdaters.height,
     updatePaperFooterSeparator: footerUpdaters.separator,
     updatePaperFooterFontSize: footerUpdaters.fontSize,

@@ -236,14 +236,23 @@ onMounted(() => nextTick(correctPagination));
 /** 最终渲染的物理页：浏览器里经真实高度校正，否则用确定性分页（测试 / SSR 回退）。 */
 const displayedPages = computed<PhysicalPage[]>(() => measuredPages.value ?? renderedPages.value);
 
-// ── 页眉 / 页脚（paper 级全局配置，随每个物理页重复渲染，含打印）──────────
+// ── 页眉 / 页脚（paper 级全局配置，默认随每个物理页重复渲染，含打印）──────────
 /**
  * 页眉/页脚是**纸张装饰**，不是 SchemaNode：不参与选中 / 拖拽 / 结构树，只能经
- * Inspector 编辑。因渲染层对每个物理页各画一条带，故天然「每页重复」。
+ * Inspector 编辑。因渲染层对每个物理页各画一条带，故天然「每页重复」；
+ * `repeatOnEveryPage === false` 时收敛为「仅首页」（见 `bandVisibleOn`）。
  */
 /** 仅 `enabled === true` 时渲染（未设即关闭，不静默兜底）。 */
 function bandEnabled(band: HeaderFooterV2 | undefined): boolean {
   return band?.enabled === true;
+}
+
+/**
+ * 该物理页是否应渲染此带：`enabled` 为前提；`repeatOnEveryPage !== false` 时每页都渲染，
+ * 否则仅 `pageIdx === 0`（全文档第 1 张物理页）。
+ */
+function bandVisibleOn(pageIdx: number, band: HeaderFooterV2 | undefined): boolean {
+  return bandEnabled(band) && (band?.repeatOnEveryPage !== false || pageIdx === 0);
 }
 
 /** 带高（mm）：未设 / 非法回退 `DEFAULT_BAND_HEIGHT_MM`。 */
@@ -326,7 +335,7 @@ function pageParamAttrs(sourcePageId: string): Record<string, string> {
 <template>
   <div class="grid-form-canvas" :class="{ 'grid-form-canvas--bare': bare }">
     <main
-      v-for="pp in displayedPages"
+      v-for="(pp, pageIdx) in displayedPages"
       :key="pp.id"
       class="grid-form-paper"
       :style="paperStyle(pp.margin)"
@@ -334,7 +343,7 @@ function pageParamAttrs(sourcePageId: string): Record<string, string> {
       v-bind="pageParamAttrs(pp.sourcePageId)"
     >
       <div
-        v-if="bandEnabled(schema.paper.header)"
+        v-if="bandVisibleOn(pageIdx, schema.paper.header)"
         class="grid-form-band grid-form-band--header"
         :style="bandStyle(schema.paper.header, pp.margin, 'top')"
       >
@@ -356,7 +365,7 @@ function pageParamAttrs(sourcePageId: string): Record<string, string> {
         @field-activate="(payload) => emit('field-activate', payload)"
       />
       <div
-        v-if="bandEnabled(schema.paper.footer)"
+        v-if="bandVisibleOn(pageIdx, schema.paper.footer)"
         class="grid-form-band grid-form-band--footer"
         :style="bandStyle(schema.paper.footer, pp.margin, 'bottom')"
       >
