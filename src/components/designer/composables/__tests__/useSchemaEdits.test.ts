@@ -353,6 +353,17 @@ describe("页眉 / 页脚配置（paper 级，作用于所有物理页）", () =
     expect(doc.schema.value.paper.header?.enabled).toBe(false);
   });
 
+  it("每页重复开关：写入 paper.header/footer.repeatOnEveryPage（显式布尔）", () => {
+    const { doc, edits } = setup(true);
+    edits.updatePaperHeaderRepeatOnEveryPage({ target: { checked: false } } as unknown as Event);
+    edits.updatePaperFooterRepeatOnEveryPage({ target: { checked: false } } as unknown as Event);
+    expect(doc.schema.value.paper.header?.repeatOnEveryPage).toBe(false);
+    expect(doc.schema.value.paper.footer?.repeatOnEveryPage).toBe(false);
+    // 显式回写 true（未设亦等价 true，但开关回写具体值）
+    edits.updatePaperHeaderRepeatOnEveryPage({ target: { checked: true } } as unknown as Event);
+    expect(doc.schema.value.paper.header?.repeatOnEveryPage).toBe(true);
+  });
+
   it("三栏文本：写入对应栏，空串移除该栏（不写空字符串）", () => {
     const { doc, edits } = setup(true);
     edits.updatePaperHeaderContent("left", { target: { value: "云铝" } } as unknown as Event);

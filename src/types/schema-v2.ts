@@ -22,13 +22,18 @@ export interface HeaderFooterContentV2 {
 /**
  * 页眉 / 页脚配置。
  *
- * 驻留纸张**上/下边距区**，随每个物理页重复渲染（渲染层每个物理页各画一条带，
- * 故天然每页重复、打印同理）；属于纸张装饰，**不进入 SchemaNode 树**（不参与
- * 选中 / 拖拽 / 结构树，只能经 Inspector 编辑）。
+ * 驻留纸张**上/下边距区**，默认随每个物理页重复渲染（渲染层每个物理页各画一条带，
+ * 故天然每页重复、打印同理）；可由 `repeatOnEveryPage` 关掉重复、改为仅首页显示。
+ * 属于纸张装饰，**不进入 SchemaNode 树**（不参与选中 / 拖拽 / 结构树，只能经 Inspector 编辑）。
  */
 export interface HeaderFooterV2 {
   /** 开关：仅 `true` 时渲染，未设即关闭。 */
   enabled?: boolean;
+  /**
+   * 是否在**每个物理页**重复显示。未设即 `true`（每页重复，兼容存量模板）；
+   * 设为 `false` 时仅在**全文档第 1 张物理页**显示（多逻辑页亦取全局首页）。
+   */
+  repeatOnEveryPage?: boolean;
   content?: HeaderFooterContentV2;
   /** 带高（mm）；未设/非法回退 `DEFAULT_BAND_HEIGHT_MM`（10）。大于纸张边距会压到正文，由 Inspector 提示。 */
   height?: number;

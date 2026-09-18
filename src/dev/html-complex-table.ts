@@ -24,7 +24,6 @@ import type {
 const SIGN_TABLE_CSS = `
 .sign-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
 .sign-table th, .sign-table td { border: 1px solid #333; text-align: center; padding: 2px 4px; }
-.sign-table th { font-weight: bold; background: #f3f4f6; }
 .sign-table td { height: 22px; }
 .sign-table input { width: 100%; height: 100%; border: none; text-align: center; font: inherit;
   background: transparent; outline: none; box-sizing: border-box; }
@@ -35,7 +34,11 @@ const SIGN_TABLE_CSS = `
 const SIGN_TABLE_NATIVE_CSS = `
 .sign-table-natural { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
 .sign-table-natural th, .sign-table-natural td { border: 1px solid #333; text-align: center; padding: 2px 4px; }
-.sign-table-natural th { font-weight: bold; background: #f3f4f6; }
+.sign-table-natural th:first-child, .sign-table-natural td:first-child { border-left: none; }
+.sign-table-natural th:last-child, .sign-table-natural td:last-child { border-right: none; }
+.sign-table-natural tr:first-child th, .sign-table-natural tr:first-child td { border-top: none; }
+.sign-table-natural tr:last-child th, .sign-table-natural tr:last-child td { border-bottom: none; }
+.sign-table-natural thead tr:nth-child(2) th { border-bottom: 1px solid #333; }
 .sign-table-natural td { height: 22px; vertical-align: middle; }
 .sign-table-natural td > p[data-field] { width: 100%; height: 100%; margin: 0; border: none;
   text-align: center; font: inherit; outline: none; box-sizing: border-box; }
