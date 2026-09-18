@@ -65,8 +65,13 @@ run git fetch public release || warn "  远端尚无 release 分支，跳过"
 info "2/7 切到 release"
 run git checkout release
 
-# release 侧权威的 package.json 先备份（合并后按字段恢复发布身份）
-REL_PKG="$(mktemp)"
+# release 侧权威的 package.json 先备份（合并后按字段恢复发布身份）。
+#
+# **不要用 mktemp**：MSYS 下它返回 /tmp/tmp.XXX，该路径会原样传给原生 node
+# （scripts/merge-package-json.mjs），被解析成 E:\tmp\... 而 ENOENT。set -e 下脚本
+# 会停在 release 分支 —— 未验证、未提交、未切回 dev（2026-09-16 实测）。
+# 改用 node 自己求出的系统临时目录，并转成正斜杠形式：bash 的 cp 与原生 node 都能解析。
+REL_PKG="$(node -p 'require("path").join(require("os").tmpdir(), "td-sync-rel-package.json").replace(/\\/g, "/")')"
 if [ $DRY -eq 0 ]; then cp package.json "$REL_PKG"; fi
 # 记录合并前 release 的位置。**不能用 release@{1}** —— git checkout 会往分支 reflog
 # 写一条同值条目，合并后 release@{1} 可能落到更早一代，把上一代的发布资产恢复出来
