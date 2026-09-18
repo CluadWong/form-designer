@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import GridSchemaNode from "@/components/renderer-v2/GridSchemaNode.vue";
+import GridFormRenderer from "@/components/renderer-v2/GridFormRenderer.vue";
+import { makeYunlvSecondTicketFullSchema } from "@/dev/yunlv-second-ticket-full";
 
 const fieldNode = {
   id: "unit",
@@ -143,5 +145,69 @@ describe("GridSchemaNode 填写态数据回写（P9.1b / G15 / 十续）", () =>
     await wrapper.trigger("input");
 
     expect(wrapper.emitted("field-change")).toBeFalsy();
+  });
+});
+
+/**
+ * 结构不变量（回归守卫）：**contenteditable 宿主内承载值的必须是元素**，不能是裸文本节点。
+ *
+ * 复合字段的值曾写成 `<template v-else>{{ displayValue(node) }}</template>`——`<template>`
+ * 分支在 contenteditable 宿主内落成 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
+ * 插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，显示翻倍
+ * （输入 `11` 显示 `1111`）。jsdom 没有真实键入/光标，测不出「浏览器往哪插」，
+ * 故此处锁的是**成因侧的结构**：值一律由元素（`.layout-p__value`）承载，
+ * 宿主不得有非空裸文本子节点。真机复现/修复验证见 `%TEMP%\fd-fill-probe`。
+ */
+function nonEmptyDirectText(el: Element): string[] {
+  return Array.from(el.childNodes)
+    .filter((n) => n.nodeType === 3 && (n.nodeValue ?? "").trim() !== "")
+    .map((n) => n.nodeValue ?? "");
+}
+
+describe("contenteditable 宿主结构不变量：值必须由元素承载（防键入文本翻倍）", () => {
+  it("复合字段：值落在 .layout-p__value 元素内，可输入区无裸文本子节点", () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: { node: compositeNode, baseRowHeight: 8, data: { 工作班成员人数: "8" } },
+    });
+
+    const input = wrapper.find(".layout-p__input");
+    expect(input.attributes("contenteditable")).toBe("true");
+    const value = input.find(".layout-p__value");
+    expect(value.exists()).toBe(true);
+    expect(value.text()).toBe("8");
+    expect(nonEmptyDirectText(input.element)).toEqual([]);
+    expect(input.element.textContent).toBe("8");
+  });
+
+  it("复合字段：空值与「数据晚于挂载到达」同样落在元素内", async () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: { node: compositeNode, baseRowHeight: 8, data: {} },
+    });
+
+    expect(wrapper.find(".layout-p__input .layout-p__value").exists()).toBe(true);
+    await wrapper.setProps({ data: { 工作班成员人数: "12" } });
+    expect(wrapper.find(".layout-p__input .layout-p__value").text()).toBe("12");
+    expect(nonEmptyDirectText(wrapper.find(".layout-p__input").element)).toEqual([]);
+  });
+
+  it("填写态整票：所有 contenteditable 宿主都无裸文本子节点（值一律由元素承载）", () => {
+    const wrapper = mount(GridFormRenderer, {
+      props: {
+        schema: makeYunlvSecondTicketFullSchema(),
+        mode: "preview",
+        data: {},
+        readonly: false,
+      },
+    });
+
+    const hosts = wrapper.findAll('[contenteditable="true"]');
+    expect(hosts.length).toBeGreaterThan(0);
+    const offenders = hosts
+      .filter((h) => nonEmptyDirectText(h.element).length > 0)
+      .map(
+        (h) =>
+          `${h.element.tagName}.${h.element.className} = ${JSON.stringify(nonEmptyDirectText(h.element))}`,
+      );
+    expect(offenders).toEqual([]);
   });
 });

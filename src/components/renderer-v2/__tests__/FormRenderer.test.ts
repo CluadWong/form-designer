@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { flushPromises, mount } from "@vue/test-utils";
 import FormRenderer from "@/components/renderer-v2/FormRenderer.vue";
 import { makeYunlvSecondTicketFirstFiveRowsSchema } from "@/dev/yunlv-second-ticket-first-five-rows";
 import demoData from "@/dev/demoData";
 import { parseTolerantFormSchemaV2 } from "@/types";
+import { __getLastOptions, __getPz, __resetPzRegistry } from "@/test-utils/panzoom-stub";
 
 /**
  * 打印改走 vue-print-next（2026-09-11）：本文件只需断言「消费页拿得到 print() 且它能
@@ -29,6 +30,14 @@ vi.mock("vue-print-next", () => ({
  * FormRenderer 自身不再持有 preview/fill 模式（永远是消费态、对内传固定非设计 mode）。
  */
 const sampleSchema = makeYunlvSecondTicketFirstFiveRowsSchema();
+
+beforeEach(() => {
+  __resetPzRegistry();
+});
+
+/** stub 的 `pan` 由 `vi.fn` 生成，对外类型是普通函数签名 → 断言调用次数需取 `.mock`。 */
+const panCallCount = (): number =>
+  (__getPz().pan as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
 
 describe("FormRenderer（G8 公共入口）", () => {
   it("默认（readonly 默认 true）：携带数据回显，字段只读不可编辑", () => {
@@ -153,6 +162,28 @@ describe("FormRenderer（G8 公共入口）", () => {
     // 只把本次实例的纸张交给插件（实例作用域选择器，避免同页多个 FormRenderer 串打）。
     const options = printCtorSpy.mock.calls[0][0] as { el: string };
     expect(options.el).toMatch(/^\[data-v2-print-scope="\d+"\]$/);
+  });
+
+  it("切换 schema（换表单）：视口不重建但重新适应宽度 + 对齐（回归：A4↔A3 切换落点错乱）", async () => {
+    const wrapper = mount(FormRenderer, {
+      props: { schema: sampleSchema, options: { zoom: true, fitOnMount: true } },
+    });
+    // 挂载期**不再同步 pan**：「适应宽度 + 对齐」的结果写进 panzoom 起始值（构造器会把
+    // pan(startX, startY) 延后到 setTimeout，任何挂载期同步 pan 都会被它覆盖）。
+    expect(panCallCount()).toBe(0);
+    expect(__getLastOptions()).toMatchObject({ startScale: 1 });
+
+    // 先放行挂载期那次延后的 pan（构造器自身 + 一次兜底重排），再取基线，
+    // 否则切换引发的重排会与它混淆、断言失去意义。
+    await new Promise((r) => setTimeout(r, 0));
+    const panBefore = panCallCount();
+
+    // 换一张表单：schema 引用变化（视口实例不重建，仅 prop 更新）
+    await wrapper.setProps({ schema: JSON.parse(JSON.stringify(sampleSchema)) });
+    await flushPromises();
+
+    // 视口不重建也要重排：fitWidth → zoom + 对齐（pan 再次被调用）
+    expect(panCallCount()).toBeGreaterThan(panBefore);
   });
 });
 
