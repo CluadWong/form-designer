@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "paper": {
+    "size": "A4"
+  },
+  "baseRowHeight": 8,
+  "pages": [
+    {
+      "id": "page-muduok9b-o2h6m",
+      "type": "page",
+      "mode": "fixed",
+      "margin": {
+        "top": 12,
+        "right": 12,
+        "bottom": 12,
+        "left": 12
+      },
+      "children": [
+        {
+          "id": "grid-muduok9b-er4v3",
+          "type": "grid",
+          "border": "all",
+          "rows": [
+            {
+              "id": "row-muduok9b-wex42",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-muduok9b-0h7e0",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "html-muduongp-wksfe",
+                      "type": "html",
+                      "html": "<table class=\"sign-table-natural\">\n  <thead>\n    <tr>\n      <th colspan=\"4\">收工时间</th>\n      <th rowspan=\"2\">工作负责人</th>\n      <th rowspan=\"2\">工作许可人</th>\n      <th colspan=\"4\">开工时间</th>\n      <th rowspan=\"2\">工作负责人</th>\n      <th rowspan=\"2\">工作许可人</th>\n    </tr>\n    <tr>\n      <th>月</th><th>日</th><th>时</th><th>分</th>\n      <th>月</th><th>日</th><th>时</th><th>分</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n    <td><p contenteditable data-field=\"收工月1\"></p></td>\n    <td><p contenteditable data-field=\"收工日1\"></p></td>\n    <td><p contenteditable data-field=\"收工时1\"></p></td>\n    <td><p contenteditable data-field=\"收工分1\"></p></td>\n    <td><p contenteditable data-field=\"收工负责人1\"></p></td>\n    <td><p contenteditable data-field=\"收工许可人1\"></p></td>\n    <td><p contenteditable data-field=\"开工月1\"></p></td>\n    <td><p contenteditable data-field=\"开工日1\"></p></td>\n    <td><p contenteditable data-field=\"开工时1\"></p></td>\n    <td><p contenteditable data-field=\"开工分1\"></p></td>\n    <td><p contenteditable data-field=\"开工负责人1\"></p></td>\n    <td><p contenteditable data-field=\"开工许可人1\"></p></td>\n  </tr>\n  <tr>\n    <td><p contenteditable data-field=\"收工月2\"></p></td>\n    <td><p contenteditable data-field=\"收工日2\"></p></td>\n    <td><p contenteditable data-field=\"收工时2\"></p></td>\n    <td><p contenteditable data-field=\"收工分2\"></p></td>\n    <td><p contenteditable data-field=\"收工负责人2\"></p></td>\n    <td><p contenteditable data-field=\"收工许可人2\"></p></td>\n    <td><p contenteditable data-field=\"开工月2\"></p></td>\n    <td><p contenteditable data-field=\"开工日2\"></p></td>\n    <td><p contenteditable data-field=\"开工时2\"></p></td>\n    <td><p contenteditable data-field=\"开工分2\"></p></td>\n    <td><p contenteditable data-field=\"开工负责人2\"></p></td>\n    <td><p contenteditable data-field=\"开工许可人2\"></p></td>\n  </tr>\n  <tr>\n    <td><p contenteditable data-field=\"收工月3\"></p></td>\n    <td><p contenteditable data-field=\"收工日3\"></p></td>\n    <td><p contenteditable data-field=\"收工时3\"></p></td>\n    <td><p contenteditable data-field=\"收工分3\"></p></td>\n    <td><p contenteditable data-field=\"收工负责人3\"></p></td>\n    <td><p contenteditable data-field=\"收工许可人3\"></p></td>\n    <td><p contenteditable data-field=\"开工月3\"></p></td>\n    <td><p contenteditable data-field=\"开工日3\"></p></td>\n    <td><p contenteditable data-field=\"开工时3\"></p></td>\n    <td><p contenteditable data-field=\"开工分3\"></p></td>\n    <td><p contenteditable data-field=\"开工负责人3\"></p></td>\n    <td><p contenteditable data-field=\"开工许可人3\"></p></td>\n  </tr>\n  </tbody>\n</table>",
+                      "css": ".sign-table-natural { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }\n.sign-table-natural th, .sign-table-natural td { border: 1px solid #333; text-align: center; padding: 2px 4px; }\n.sign-table-natural th:first-child, .sign-table-natural td:first-child { border-left: none; }\n.sign-table-natural th:last-child, .sign-table-natural td:last-child { border-right: none; }\n.sign-table-natural tr:first-child th, .sign-table-natural tr:first-child td { border-top: none; }\n.sign-table-natural tr:last-child th, .sign-table-natural tr:last-child td { border-bottom: none; }\n.sign-table-natural thead tr:nth-child(2) th { border-bottom: 1px solid #333; }\n.sign-table-natural th { font-weight: 500; }\n.sign-table-natural td { height: 22px; vertical-align: middle; }\n.sign-table-natural td > p[data-field] { width: 100%; height: 100%; margin: 0; border: none;\n  text-align: center; font: inherit; outline: none; box-sizing: border-box; }\n.sign-table-natural td > p[data-field][contenteditable=\"true\"] { cursor: text; }\n.sign-table-natural td > p[data-field][data-masked] { color: #475569; }"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

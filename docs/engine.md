@@ -298,13 +298,15 @@ HTML 组件定位：仅用于复杂小模块，由开发人员配置一段 HTML 
 
 1. 渲染时 `host.attachShadow({ mode: 'open' })`，将 `<style>${css}</style>${html}` 一次性写入 shadow root。CSS 仅作用本块、不污染表单样式（不采用选择器前缀化方案）。
 2. 写入前用 **DOMPurify** 做引擎级固定清洗：`FORBID_TAGS` 含 `script/iframe/object/embed`，`FORBID_ATTR` 含全部 `on*`，并剥离 `href/src/xlink:href` 中的 `javascript:` 与 `data:text/html`；v1 禁 `@import`。**清洗始终执行，无 per-node 信任开关。**
-3. 字段绑定：`{{field}}` 在挂载时解析为 shadow 内 `<span data-bind="field">` 占位；填值时引擎经 `host.shadowRoot` 对 `[data-bind]` 逐个 `textContent = data[field]` 原地更新，与 field P / Image 共用 in-place 填值模型（不重建节点）。
-4. 放入限制 overflow 的 Cell 容器，由 §12 做溢出检测。
-5. **打印时提升 Shadow DOM**：局部打印取内容靠克隆 + 序列化，而克隆**不带走 shadow tree**（DOM 规范行为），
+3. 字段绑定两条约定（P9.2d 方案 A）：`{{field}}` 在挂载时替换为绑定元素——设计态（`data == null`）为占位 `<span data-bind="field">`（设计器靠它选中片段），非设计态**一律 `<input data-bind="field">`**（不可写时加 `readonly`，**值仍进 DOM**）；作者直接写的原生 `<p contenteditable data-field="field">` 由 `applyFieldState` 按同一闸门设可编辑性与回填。填值/回填均原位更新（in-place），不重建节点；输入中（该元素是 shadow 内 `activeElement`）跳过回填，避免把光标顶走。
+4. **可编辑性只有一道闸门**：`readonly` 为真 ⇒ 全字段降级为「只读回显」（语义等价全字段 READ：值进 DOM、可采集，但改不动），**不是**设计态；设计态由 `data == null` 单独承载（可就地输入看交互、不回写 schema，与 P 字段 `canFill || isDesign` 同口径）。`readonly` 参与 HtmlBlock 的重建依赖——漏掉它会出现「只读切到填写态后仍然打不了字」（输入事件没绑上）。
+5. 放入限制 overflow 的 Cell 容器，由 §12 做溢出检测。
+6. **打印时提升 Shadow DOM**：局部打印取内容靠克隆 + 序列化，而克隆**不带走 shadow tree**（DOM 规范行为），
    故送印前把 shadow 里的非 `<style>` 子节点临时移到 host 上、打完移回，并把控件实时值固化进 attribute。
    详见 §19 与 `print-form.ts` 头部注释。
 
-HTML 内部 DOM 不参与普通节点索引；其内部 contenteditable 不回写 FormData（`{{field}}` 绑定由引擎在原地更新）。
+HTML 内部 DOM 不参与普通节点索引；其内字段值**只在失焦时经 `field-change` 交还宿主一次**（不逐键回写，
+见 §21.1），并可按 §20 的两条路径采集。
 
 **Image**：`src` 同时接收 URL 与 base64（`data:image/...;base64,...`）；field 模式填值时 `imgEl.src = data[field] ?? src`，URL/base64 原样透传；保留 onerror 占位（见 §4.2 `IMAGE_LOAD_FAILED`）。
 
@@ -449,7 +451,7 @@ updateNode(schema, nodeId, patch)
   复制进打印 iframe，但 iframe 的 `html/body` 仍带 UA 默认 `margin`（约 8px），会把纸张整体下推，底部溢出
   同样产生空白尾页、并横向裁掉约 3mm。两条叠加可稳妥消除空白尾页（A3 / A4 通用）。
 
-**Shadow DOM 与控件值**：见 §11 第 5 条——HTML 模块的 shadow 内容与 `input` / `textarea` 实时值
+**Shadow DOM 与控件值**：见 §11 第 6 条——HTML 模块的 shadow 内容与 `input` / `textarea` 实时值
 都在送印前临时固化，打完还原。P 字段不受影响（contenteditable，值本就在文本节点里）。
 
 **`@media print` 定位降级为兜底**：各组（工具栏 / 侧栏 / 状态栏 / 帮助面板 / 画布 / 纸张 / 视口）
@@ -463,3 +465,77 @@ updateNode(schema, nodeId, patch)
 表现为「屏幕一行、打印时前后标签各占一行」。这是 2026-09-11 的实际故障。
 推论：任何「主文档靠 DOM API 侥幸成立、序列化后会变」的结构都不可接受——导出 HTML / SSR /
 复制粘贴走的是同一条路。守卫：`renderer-v2/__tests__/FieldContainerHtmlRoundTrip.test.ts`。
+
+## 20. HTML 模块的字段与取值契约（2026-09-23）
+
+HTML 模块把字段名写在片段里（`data-field="x"` 或 `{{x}}`），既不是 P 节点、也不参与表格派生 ——
+**三处口径必须同源**，任一处漏掉都会静默丢字段（页面能填，但权限 / 必填 / 保存里找不到它）：
+
+| 环节 | 实现 | 口径 |
+|---|---|---|
+| 渲染 | `HtmlBlock.vue` | `{{field}}` → `<input data-bind>`（设计态为占位 span）；原生 `data-field` → 就地设 `contenteditable` 与回填 |
+| 字段清单 | `collectSchemaFields`（`engine-v2/derivation.ts`） | 收片段内 `data-field` / `{{field}}`，记为 `kind: "html-field"`（提取器 `collectHtmlFields`） |
+| 取值 | `collectFieldValues`（`renderer-v2/collectFieldValues.ts`） | 穿透 `shadowRoot` 采集 `[data-bind]`（input 值）/ `[data-field]`（文本） |
+
+- HTML 内字段名由作者写死，**不参与**表格的 `列key_行号` 派生（即便该 HTML 节点位于表格模板内，多行渲染也不改名）。
+- 字段名正则两侧必须一致：`/\{\{\s*([\p{L}\p{N}_.$-]+)\s*\}\}/gu` —— 中文等 CJK 字段名靠 `\p{L}` + `u` 标志，`[\w]` 不含中文。
+- `collectSchemaFields` 结果按 key 同名去重（保留首次）：同一 P 字段被复制、表格模板内多个 P 共用一列、
+  HTML 片段在表格多行重复渲染都会产生重名，字段清单是集合而非出现次数列表。
+- **两条取数路径**（宿主按需选）：`FormRenderer.getFormData()` 返回响应式数据（只含被改动过的键，适合「只存用户填了什么」）；
+  `collectFieldValues(root)` 遍历渲染 DOM（含全部绑定键，未填为空串，适合「导出完整表单」）。
+- **只读回显不留空白**：`readonly` 态下值照常写进 DOM（`<input readonly>` / 文本节点），故查阅模式能看到值、
+  也能被采集（保存 → 查阅 → 复制成新单不丢值）；用户改不动。
+- 守卫：`HtmlBlockField.test.ts`（只读回显 / readonly 切换 / 焦点保护 / 注入幂等 / 取值口径）、
+  `engine-v2/__tests__/html-fields.test.ts`（清单枚举）、
+  `HtmlComplexExport.test.ts`（设计器真实导出 JSON 的端到端：清单 → 输入 → 取数 → 只读回显）。
+
+## 21. HTML 模块的输入回写口径与「注入幂等」（2026-09-23）
+
+### 21.1 逐键不回写，失焦回写一次（与 P 字段同口径）
+
+| | P 字段（`GridSchemaNode`） | HTML 模块（`HtmlBlock`） |
+|---|---|---|
+| 输入过程中 | 不回写 | **不回写** |
+| 离开字段 | `@blur` → `onFillBlur` → `field-change` | `focusout` → `onShadowFocusOut` → `field-change` |
+| 保存时全量取值 | `collectFieldValues(root)` | `collectFieldValues(root)` |
+
+- **为什么不能逐键回写**：使用方（`FormRenderer` / 宿主）每键重建响应式 `data` ⇒
+  `GridFormRenderer.renderedPages`（依赖 `data`）每键重算分页 + 整树重渲染。大表单每键一次全量重排，
+  且是「输入掉焦点」的放大器。`HtmlBlock` 自 2026-09-23 起从「逐键 emit」改为「失焦 emit 一次」。
+- 取值出口不受影响：**保存口径走 `collectFieldValues`**（DOM 即真相源，未失焦也能取到实时值）；
+  失焦事件只服务 `v-model:data` / 草稿自动保存这类增量消费。
+- 监听用 **`focusout`（冒泡）而不是 `blur`（不冒泡）**：监听挂在 `shadowRoot` 上做**事件委托**，
+  子树重建后无需重挂（旧实现每次 `inject()` 都 `querySelectorAll` 逐个 `addEventListener`，
+  重建即失效、且重复注入会重复挂）。
+- 可写判定在**事件时**做（`resolveWritableTarget`）：只认 `<input data-bind>` 非 readonly 与
+  `[data-field][contenteditable="true"]` 两类；设计态（`data == null`）经 `canFill()` 闸门挡掉。
+
+### 21.2 注入必须幂等（「敲 1 个字符就掉焦点」的根因）
+
+`inject()` 会 `shadowRoot.innerHTML = buildMarkup()`；**重建会把正在输入的 `<p contenteditable>`
+整体换掉，焦点随元素一起消失**（表现：敲第一个字符后光标没了、后续按键全丢）。
+真实 Chromium 实测（`preview.html?schema=sign-table`，36 格原生 `data-field`）：
+
+| 逐键对聚焦元素做的动作 | 结果 |
+|---|---|
+| 重复写同值 `contenteditable` 属性 | 焦点保持 |
+| 重复写同值 `textContent` | 焦点保持 |
+| **重写 `shadowRoot.innerHTML`** | **焦点丢失 + 元素脱链 + 后续按键全丢** |
+
+而 `inject()` 是 `[node.html, node.css, fieldPermissions, readonly]` 的 watch 回调 ——
+**这些 prop 的对象身份在真实浏览器里会因分页重算而每次输入都变一次**（`renderedPages` 依赖 `data`，
+分页产出的是新节点对象），且 getter 返回**新数组**、`Object.is` 恒不相等 ⇒ 回调每次都跑。
+**故此处的把关点必须放在回调内部，而不是 watch 的触发条件**：
+
+1. **注入前比较标记串（唯一防线）**：`const markup = buildMarkup(); if (markup !== lastMarkup) { ...重写... }`
+   —— 重建由「结构真的变了」把关，与 prop 身份完全解耦；未重建分支仍必须执行 `syncData()`，
+   否则 `readonly` 切换不会同步（原生 `[data-field]` 的 `contenteditable` 不在标记串里）。
+2. **不要为此把 watch 改成数组 sources**（`watch([() => node.html, …], inject)` 会逐项比较、真变了才跑）：
+   `fieldPermissions` 可能是**同一个对象被原地改**（键值变化、引用不变），逐项比较会漏掉 ⇒ 权限不生效。
+   回调「每次都跑」是**有意保留**的 —— 真正开销在 `syncData()` 的 DOM 遍历，而**输入期间 `data` 不变化**
+   （不逐键 emit）⇒ 输入时这个 watch 根本不触发，代价为零。
+
+- 守卫：`HtmlBlockField.test.ts` 「注入幂等（掉焦点防线）」两条（等值新 node 不重建 / `html` 真变仍重建）
+  + `HtmlComplexExport.test.ts` 端到端一条（失焦回写触发 data 变化后单元格元素身份不变）。
+- 反向验证 6/6：无条件重建 / 比较恒等 / 逐键回写 / 监听用不冒泡的 `blur` / 可写判定不查
+  `contenteditable` / 去掉设计态闸门 —— 逐个破坏都变红。

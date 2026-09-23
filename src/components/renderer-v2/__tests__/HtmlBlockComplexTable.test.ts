@@ -12,7 +12,7 @@ import {
 /**
  * P9.2d 方案 A 端到端：截图里的复杂签名时间表（双层 colspan 表头 + 3 行数据），
  * 用 HTML 模块渲染，验证中文字段名、多行、权限混合（EDIT/READ/HIDDEN）下
- * 填写态渲染 + field-change 回写 + 采集穿透 Shadow DOM 全部正确。
+ * 填写态渲染 + 失焦 field-change 回写一次（逐键不回写） + 采集穿透 Shadow DOM 全部正确。
  */
 describe("HTML 模块复杂签名时间表（P9.2d 方案 A 端到端）", () => {
   function render() {
@@ -66,12 +66,12 @@ describe("HTML 模块复杂签名时间表（P9.2d 方案 A 端到端）", () =>
     expect(editInput.hasAttribute("readonly")).toBe(false);
   });
 
-  it("填写回写：输入事件经 field-change 上抛", () => {
+  it("填写回写：失焦经 field-change 上抛一次（逐键不回写）", () => {
     const wrapper = render();
     const s = shadow(wrapper);
     const m1 = s.querySelector<HTMLInputElement>('input[data-bind="收工月1"]')!;
     m1.value = "12";
-    m1.dispatchEvent(new Event("input"));
+    m1.dispatchEvent(new Event("focusout", { bubbles: true }));
     expect(wrapper.emitted("field-change")).toEqual([["收工月1", "12"]]);
   });
 
@@ -134,12 +134,12 @@ describe("HTML 模块复杂表（原生 data-field 变体）", () => {
     expect(masked.getAttribute("contenteditable")).toBe("false");
   });
 
-  it("填写回写：contenteditable <p> 输入事件经 field-change 上抛", () => {
+  it("填写回写：contenteditable <p> 失焦经 field-change 上抛一次（逐键不回写）", () => {
     const wrapper = render();
     const s = shadow(wrapper);
     const m1 = s.querySelector<HTMLElement>('p[data-field="收工月1"]')!;
     m1.textContent = "12";
-    m1.dispatchEvent(new Event("input"));
+    m1.dispatchEvent(new Event("focusout", { bubbles: true }));
     expect(wrapper.emitted("field-change")).toEqual([["收工月1", "12"]]);
   });
 

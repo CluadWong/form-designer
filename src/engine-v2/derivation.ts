@@ -203,10 +203,38 @@ export function resolveTableRowCount(
 
 export interface SchemaFieldInfo {
   key: string;
-  kind: "field" | "table-field";
+  kind: "field" | "table-field" | "html-field";
   tableField?: string;
   row?: number;
   label?: string;
+}
+
+/**
+ * 从 HTML 片段的 markup 里提取字段名（HTML 模块支持的两种绑定约定，与渲染/采集口径同源）：
+ * - 原生 `data-field="字段名"`（含单引号写法）：作者控 markup，如 `<p contenteditable data-field="收工月1">`；
+ * - `{{字段名}}` 占位：引擎在非设计态把它替换为 `<input data-bind>`。
+ *
+ * 按出现顺序返回、同名去重。字段名正则与 `HtmlBlock.withBindings` 保持一致
+ * （`\p{L}\p{N}` 带 u 标志，覆盖中文等 Unicode 字母）——两处不同步会出现
+ * 「页面能填、字段清单里却没有」的静默漏项（权限 / 必填 / 保存都会跟着漏）。
+ */
+export function collectHtmlFields(html: string | null | undefined): string[] {
+  if (!html) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string | undefined): void => {
+    const key = (raw ?? "").trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(key);
+  };
+  for (const match of html.matchAll(/data-field\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    push(match[1] ?? match[2]);
+  }
+  for (const match of html.matchAll(/\{\{\s*([\p{L}\p{N}_.$-]+)\s*\}\}/gu)) {
+    push(match[1]);
+  }
+  return out;
 }
 
 /**
@@ -216,7 +244,10 @@ export interface SchemaFieldInfo {
  * - 普通字段 P（不在表格内）→ 直接取 `node.field`；
  * - 表格 → 对每列 × `resolveTableRowCount(node, data)` 行，按 `template.columnKey` 配对模板单元格，
  *   生成派生字段 `列key_行号`（kind=table-field）；模板内（含嵌套 Grid）的字段 P 同样绑定到该 `列key_行号`；
- * - 嵌套 Grid / 嵌套 Table 递归处理（嵌套 Table 独立派生自身列字段）。
+ * - HTML 模块 → 取片段内 `data-field` / `{{field}}` 绑定的字段（kind=html-field，见 `collectHtmlFields`）；
+ *   这类字段名由作者写死，**不参与** `列key_行号` 派生（即便节点位于表格模板内）；
+ * - 嵌套 Grid / 嵌套 Table 递归处理（嵌套 Table 独立派生自身列字段）；
+ * - 结果按 key 同名去重（保留首次），字段清单是一份集合而非出现次数列表。
  */
 export function collectSchemaFields(
   schema: FormSchemaV2,
@@ -234,6 +265,12 @@ export function collectSchemaFields(
         });
       } else if (node.field) {
         out.push({ key: node.field, kind: "field" });
+      }
+      return;
+    }
+    if (node.type === "html") {
+      for (const key of collectHtmlFields(node.html)) {
+        out.push({ key, kind: "html-field" });
       }
       return;
     }
@@ -265,7 +302,15 @@ export function collectSchemaFields(
       visit(child);
     }
   }
-  return out;
+  // 同名去重（保留首次出现）：字段清单回答的是「这张表有哪些字段」，是一份集合。
+  // 重复来源：同一 P 字段被复制到多处、同一表格模板单元格内有多个 P（派生名相同）、
+  // HTML 片段在表格多行里各渲染一次（其字段名与行号无关，天然重复）。
+  const seen = new Set<string>();
+  return out.filter((info) => {
+    if (seen.has(info.key)) return false;
+    seen.add(info.key);
+    return true;
+  });
 }
 
 // ---------------------------------------------------------------------------
