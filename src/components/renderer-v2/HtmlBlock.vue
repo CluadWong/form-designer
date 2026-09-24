@@ -127,6 +127,12 @@ function applyFieldState(root: ShadowRoot): void {
       el.setAttribute("contenteditable", "false");
       return;
     }
+    // ⚠️ 必须显式摘掉脱敏标记（2026-09-24）：HIDDEN → EDIT/READ 切换时片段**不重建**
+    // （`data-masked` 只由本函数事后添加、不在 markup 串里 ⇒ markup 未变 ⇒ 走「未重建」分支），
+    // 残留的 `data-masked` 会让 `collectFieldValues` 把该字段判为脱敏、**不从 DOM 取值**
+    // ⇒ 票面显示正常但保存/采集为空（实测：`collectFieldValues` 返回 `{}`）。
+    // 同理需撤销 HIDDEN 分支写死的 `***` 假值 —— 下方回填会按 data 覆写。
+    el.removeAttribute("data-masked");
     // 回填与可编辑性**正交**：只读回显同样要把值写进 DOM，否则只读票面全是空格子。
     // 焦点在本元素时跳过重写，避免外部 data 变化（如宿主逐键回写、重置）把光标顶位。
     if (props.data && !isShadowActive(root, el)) {
