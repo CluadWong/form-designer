@@ -77,15 +77,42 @@ function asProgrammatic(run: () => void): void {
 const scaleText = computed(() => `${Math.round(scale.value * 100)}%`);
 
 /**
- * 给表单控件与「可拖拽节点」打 `panzoom-exclude` 标记（isExcluded 会向上查祖先），
- * 使这些元素上的指针手势不触发平移——字段可编辑/选中、设计态可拖拽节点，其余区域照常平移。
- * 同时把表单控件的 `user-select` 恢复为 `text`（抵消 panzoom 对整体的 `user-select:none`）。
+ * 「可编辑控件」选择器：`panzoom-exclude` 打标与 `user-select` 恢复共用同一份口径。
+ *
+ * ⚠️ 不能只写 `[contenteditable]`（2026-09-24）：属性选择器匹配的是「属性存在」，
+ * `contenteditable="false"` 同样命中 —— 于是只读字段、脱敏 span 会被误当成输入区排除掉平移，
+ * 且「关闭可编辑后标记应随之清除」的 reconcile 逻辑会失效（永远命中）。故显式排除 `="false"`。
  */
-const EXCLUDE_SELECTOR =
-  "input, textarea, select, [contenteditable], [draggable='true']";
+const EDITABLE_SELECTOR =
+  'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+/**
+ * 需要打 `panzoom-exclude` 标记（isExcluded 会向上查祖先）的元素：可编辑控件 + 设计态可拖拽节点。
+ * 这些元素上的指针手势不触发平移——字段可编辑/选中、设计态可拖拽节点，其余区域照常平移。
+ */
+const EXCLUDE_SELECTOR = `${EDITABLE_SELECTOR}, [draggable='true']`;
+/**
+ * 收集需要打 `panzoom-exclude` 的元素 = 选择器命中项 + **含可编辑控件的 Shadow 宿主**。
+ *
+ * ⚠️ 必须**穿透 Shadow DOM**（2026-09-24）：HTML 模块内的表单控件长在 shadow root 里，
+ * `querySelectorAll` 穿不过影子边界；而 panzoom 判定 exclude 时看到的 `event.target` 是
+ * **宿主元素**（事件跨 shadow 边界被重定向，`closest` 同样止步于边界）—— 故只给 shadow 内的
+ * 元素打标毫无作用，**必须把宿主一并打标**。漏掉它的症状：预览/填写态下 panzoom 吞掉 HTML
+ * 模块内的 `mousedown` ⇒ 字段点不进去、键盘打不出字。设计态因宿主本身带 `draggable="true"`、
+ * 已被本选择器命中，所以该缺陷只在预览态暴露，容易被误判成「HTML 里的表单不能输入」。
+ */
+function collectExcludeTargets(root: HTMLElement): HTMLElement[] {
+  const targets = Array.from(root.querySelectorAll<HTMLElement>(EXCLUDE_SELECTOR));
+  root.querySelectorAll<HTMLElement>("*").forEach((el) => {
+    if (el.shadowRoot?.querySelector(EXCLUDE_SELECTOR)) targets.push(el);
+  });
+  return targets;
+}
+
 /**
  * 给表单控件与「可拖拽节点」打 `panzoom-exclude` 标记（isExcluded 会向上查祖先），
  * 使这些元素上的指针手势不触发平移——字段可编辑/选中、设计态可拖拽节点，其余区域照常平移。
+ * 同时把表单控件（含 Shadow 宿主）的 `user-select` 恢复为 `text`，抵消 panzoom 对整体的
+ * `user-select:none`；该属性可继承，shadow 内控件的继承源正是宿主，故宿主上恢复即生效。
  *
  * ⚠️ 必须「先清后打」（reconcile），不能只 `add`：设计态 `CanvasSurface` 会给所有节点设
  * `draggable="true"`（被本选择器命中 → 打标记）；切到预览态时 `draggable` 被移除，
@@ -97,14 +124,15 @@ const EXCLUDE_SELECTOR =
 function tagExclusions(): void {
   const root = scaler.value;
   if (!root) return;
-  // 先清除全部 panzoom-exclude（含 design→preview 切回后残留的过期标记）。
-  root
-    .querySelectorAll<HTMLElement>(".panzoom-exclude")
-    .forEach((el) => el.classList.remove("panzoom-exclude"));
+  // 先清除全部 panzoom-exclude（含 design→preview 切回后残留的过期标记），并清掉内联 user-select。
+  root.querySelectorAll<HTMLElement>(".panzoom-exclude").forEach((el) => {
+    el.classList.remove("panzoom-exclude");
+    el.style.userSelect = "";
+  });
   // 再按当前选择器重新打标。
-  root.querySelectorAll<HTMLElement>(EXCLUDE_SELECTOR).forEach((el) => {
+  collectExcludeTargets(root).forEach((el) => {
     el.classList.add("panzoom-exclude");
-    if (el.matches("input, textarea, select, [contenteditable]")) {
+    if (el.matches(EDITABLE_SELECTOR) || el.shadowRoot) {
       el.style.userSelect = "text";
     }
   });

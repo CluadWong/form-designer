@@ -72,6 +72,14 @@ function restoreLayout(): void {
   savedLayoutDescriptors.length = 0;
 }
 
+/**
+ * MutationObserver 回调是微任务：等两个 macrotask 确保 `tagExclusions` 重跑完毕再断言。
+ */
+async function flushObserver(): Promise<void> {
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+}
+
 describe("PaperViewport（纸张视口 · 浏览缩放）", () => {
   it("挂载即创建 panzoom，并以 props 透传缩放边界/光标", () => {
     mount(PaperViewport, { props: { initialScale: 1, minScale: 0.2, maxScale: 4 } });
@@ -384,5 +392,69 @@ describe("PaperViewport（尺寸变化自愈）", () => {
     } finally {
       restoreLayout();
     }
+  });
+
+  it("Shadow DOM 内的表单控件：宿主被穿透打上 panzoom-exclude（否则预览态点不进 HTML 字段）", async () => {
+    const wrapper = mount(PaperViewport);
+    const scaler = wrapper.find(".paper-viewport__scaler").element as HTMLElement;
+    const host = document.createElement("div");
+    host.setAttribute("data-node-id", "html-1");
+    const sr = host.attachShadow({ mode: "open" });
+    sr.innerHTML = '<p data-field="收工月1" contenteditable="true"></p>';
+    scaler.appendChild(host);
+    await flushObserver();
+    // panzoom 判定 exclude 时看到的是**宿主**（事件跨 shadow 边界被重定向，closest 不穿边界），
+    // 故必须打在宿主上；user-select 亦可继承，宿主恢复 text 才能让 shadow 内文本可选中。
+    expect(host.classList.contains("panzoom-exclude")).toBe(true);
+    expect(host.style.userSelect).toBe("text");
+    wrapper.unmount();
+  });
+
+  it("Shadow DOM 内无可编辑控件：宿主不打标（保留拖拽平移）", async () => {
+    const wrapper = mount(PaperViewport);
+    const scaler = wrapper.find(".paper-viewport__scaler").element as HTMLElement;
+    const host = document.createElement("div");
+    host.setAttribute("data-node-id", "html-2");
+    const sr = host.attachShadow({ mode: "open" });
+    sr.innerHTML = "<p>纯展示片段</p>";
+    scaler.appendChild(host);
+    await flushObserver();
+    expect(host.classList.contains("panzoom-exclude")).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("回归：light DOM 控件与可拖拽节点照常打标，普通元素不打标", async () => {
+    const wrapper = mount(PaperViewport);
+    const scaler = wrapper.find(".paper-viewport__scaler").element as HTMLElement;
+    const input = document.createElement("input");
+    const drag = document.createElement("div");
+    drag.setAttribute("draggable", "true");
+    const plain = document.createElement("div");
+    scaler.append(input, drag, plain);
+    await flushObserver();
+    expect(input.classList.contains("panzoom-exclude")).toBe(true);
+    expect(input.style.userSelect).toBe("text");
+    expect(drag.classList.contains("panzoom-exclude")).toBe(true);
+    expect(plain.classList.contains("panzoom-exclude")).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("先清后打：contenteditable 关闭后标记与 user-select 一并清除（design→preview 平移不失效）", async () => {
+    const wrapper = mount(PaperViewport);
+    const scaler = wrapper.find(".paper-viewport__scaler").element as HTMLElement;
+    // 用 light DOM 的 contenteditable 而非 shadow 宿主：attributeFilter 含 contenteditable，
+    // 属性翻转能被 observer 观察到，从而真正鉴别「清理阶段是否把内联 user-select 也清掉」。
+    const cell = document.createElement("div");
+    cell.setAttribute("contenteditable", "true");
+    scaler.appendChild(cell);
+    await flushObserver();
+    expect(cell.classList.contains("panzoom-exclude")).toBe(true);
+    expect(cell.style.userSelect).toBe("text");
+
+    cell.setAttribute("contenteditable", "false");
+    await flushObserver();
+    expect(cell.classList.contains("panzoom-exclude")).toBe(false);
+    expect(cell.style.userSelect).toBe("");
+    wrapper.unmount();
   });
 });

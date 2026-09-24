@@ -485,7 +485,13 @@ HTML 模块把字段名写在片段里（`data-field="x"` 或 `{{x}}`），既�
   `collectFieldValues(root)` 遍历渲染 DOM（含全部绑定键，未填为空串，适合「导出完整表单」）。
 - **只读回显不留空白**：`readonly` 态下值照常写进 DOM（`<input readonly>` / 文本节点），故查阅模式能看到值、
   也能被采集（保存 → 查阅 → 复制成新单不丢值）；用户改不动。
+- **权限切换必须撤销脱敏标记**（2026-09-24）：原生 `data-field` 元素的 `data-masked` 是 `applyFieldState`
+  **事后**写上的、不在 markup 串里，故 `HIDDEN → EDIT/READ` 时片段走「未重建」分支。若只设不撤，
+  `collectFieldValues` 会继续把该字段当脱敏处理（**不读 DOM**）⇒ 票面值显示正常、保存/采集却是空的。
+  故非 HIDDEN 分支必须先 `removeAttribute("data-masked")`。`{{field}}` 形式不受此影响
+  （HIDDEN 与非 HIDDEN 的 markup 不同 ⇒ 必然重建）。
 - 守卫：`HtmlBlockField.test.ts`（只读回显 / readonly 切换 / 焦点保护 / 注入幂等 / 取值口径）、
+  `HtmlBlockPermissionSwitch.test.ts`（权限 HIDDEN↔EDIT/READ 切换后标记撤销与可采集）、
   `engine-v2/__tests__/html-fields.test.ts`（清单枚举）、
   `HtmlComplexExport.test.ts`（设计器真实导出 JSON 的端到端：清单 → 输入 → 取数 → 只读回显）。
 
@@ -539,3 +545,55 @@ HTML 模块把字段名写在片段里（`data-field="x"` 或 `{{x}}`），既�
   + `HtmlComplexExport.test.ts` 端到端一条（失焦回写触发 data 变化后单元格元素身份不变）。
 - 反向验证 6/6：无条件重建 / 比较恒等 / 逐键回写 / 监听用不冒泡的 `blur` / 可写判定不查
   `contenteditable` / 去掉设计态闸门 —— 逐个破坏都变红。
+
+## 22. HTML 模块内字段「点不进 / 打不了字」：视口层 panzoom 排除必须穿透 Shadow DOM（2026-09-24）
+
+**症状**：设计器预览态（及宿主消费页）里，HTML 模块内的字段**鼠标点不进去、键盘打不出字**，
+而同一张纸上的 P 字段正常可输入。
+
+**机制**（三层叠加，缺一不可）：
+
+1. 画布平移由 `PaperViewport` 的 `@panzoom/panzoom` 接管；panzoom 用 `excludeClass`（默认 `panzoom-exclude`）
+   决定哪些元素上的指针手势**不**触发平移 —— 判定实现是 `event.target.closest('.panzoom-exclude')`。
+2. HTML 模块内的控件长在 **shadow root** 里。事件跨 shadow 边界时 `event.target` 被**重定向为宿主元素**，
+   且 `closest` 同样止步于边界 ⇒ **给 shadow 内的元素打标毫无作用，必须把宿主打标**。
+3. 打标遍历 `scaler.querySelectorAll(EXCLUDE_SELECTOR)` **也不穿 shadow 边界** ⇒ shadow 内的控件
+   从一开始就没被看见。
+
+**为什么只在预览/填写态暴露**：设计态 `CanvasSurface` 给所有节点设 `draggable="true"`，
+HTML 宿主本身命中 `[draggable='true']` ⇒ 顺带被打上标；切到预览态 `draggable` 被移除，
+宿主失去这唯一的命中来源 ⇒ panzoom 吞掉 HTML 模块内的 `mousedown` ⇒ 点不进、打不了字。
+
+**修复**（`PaperViewport.tagExclusions`）：
+
+- `collectExcludeTargets(root)` = 常规选择器命中项 **+ 含可编辑控件的 Shadow 宿主**（遍历所有元素查
+  `el.shadowRoot?.querySelector(EDITABLE_SELECTOR)` 决定是否收宿主）。全仓 `attachShadow` 只有 `HtmlBlock`
+  一处 ⇒ 该扫描不会误伤其他节点（非 shadow 元素 `el.shadowRoot` 为 `null`，直接跳过）。
+  代价是每次重打标多一次全树 `querySelectorAll("*")`；触发源是 `MutationObserver`（`childList`/`subtree`
+  与 `draggable`/`contenteditable` 属性），纯文本输入不触发。若要更省可只扫 `.layout-html`
+  （`collectFieldValues` 已是这个口径），代价是失去「不依赖类名」的鲁棒性 —— 当前未改。
+- `user-select` 恢复同样作用于宿主：该属性**可继承**，shadow 内控件的继承源正是宿主，
+  在宿主上写 `text` 即可让 shadow 内文本可选（也给宿主写了才生效）。
+- 选择器收成一份共用口径 `EDITABLE_SELECTOR = input, textarea, select, [contenteditable]:not([contenteditable="false"])`
+  —— 属性选择器匹配的是「属性**存在**」，`contenteditable="false"` 同样命中，加 `:not` 属**口径收紧**。
+  ⚠️ 但它**不是本 bug 的成因**、当前影响面为零：FD 的 light DOM 里不存在 `contenteditable="false"`
+  （P 字段只产生 `"true"` / `undefined`；唯一产生 `"false"` 的 `HtmlBlock.applyFieldState` 在 shadow 内，
+  本就不被 light 选择器覆盖）。留着它只为防「将来 light DOM 出现关闭态时 reconcile 永远命中」。
+- 清理阶段同时重置内联 `user-select`（原实现只摘类，残留 `style.user-select: text`）。
+  内联 `user-select` 的写入点全仓只有本组件 ⇒ 重置不会覆盖别处设置；CSS 表里的 `user-select: none` 不受影响。
+
+**已知边界**：HTML 模块内控件的**增减**（schema 改 html、控件由可编辑变只读）发生在 shadow 内，
+对 PaperViewport 的 MutationObserver（观察 light DOM）**不可见** ⇒ 宿主上的标记要等下一次重打标
+（`draggable` / `contenteditable` 属性变化或节点增删）才收敛。仅影响该模块区域的平移手感，
+不影响字段可编辑性（`HtmlBlock` 每次 `inject()` 都会重落 `contenteditable`）。
+
+**守卫**：`PaperViewport.test.ts` 四条 —— 穿透打标（宿主有 `panzoom-exclude` 且 `user-select: text`）、
+纯展示 Shadow 不打标（保留平移）、light DOM 控件/可拖拽节点照常打标、`contenteditable` 关闭后
+标记与内联 `user-select` 一并清除。反向验证 5/5（不穿透 / 宿主不恢复 user-select / 清理不清类 /
+清理不清内联样式 / 选择器口径退化为 `[contenteditable]`）。
+
+**影响面（2026-09-24 审计）**：本轮改动**对非 HTML 节点零影响** —— 无 shadow 时 `collectExcludeTargets`
+与直接 `querySelectorAll(EXCLUDE_SELECTOR)` 等价（唯一差异是 `[contenteditable="false"]` 不再命中，
+而 light DOM 里没有这类元素）；内联 `user-select` 清理不覆盖别处；`attachShadow` 全仓唯一。
+对**消费方**有两处口径变化需知：① `collectSchemaFields` 现在也枚举 HTML 片段内字段（宿主权限表 / 校验
+`rule` 的键集会随之变大，复杂表 +36）；② HTML 内字段的 `field-change` 由逐键改**失焦一次**（已与 P 字段一致）。
