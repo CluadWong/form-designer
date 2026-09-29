@@ -265,9 +265,42 @@ interface HtmlNode {
 - 内部字段用 `{{field}}` 自动绑定 data，无需显式声明。
 - 不允许将整张表单放进一个 HTML 节点。
 
-### 8.2 Image
+### 8.2 Image（图片列表）
 
-Image 保留 Logo、二维码和图片签章能力。固定图片使用 src，动态图片使用 field，从 data 获取地址。
+Image 保留 Logo、二维码、盖章区和现场照片能力，形态是**列表**（2026-09-28 由单图改造）：
+
+- 模板：`images: ImageItemV2[]`，每项 `{ name, src, width, height }`（宽高单位 mm，缺省自适应）；
+  旧 schema 的单图字段 `src` / `width` / `height` 保留为兼容读取路径：`src` 在面板写入时清除，
+  `width` / `height` 则**提升为 `defaultWidth` / `defaultHeight`**（语义正是「整组图默认尺寸」，不静默丢弃）。
+- 尺寸有两档，**行内优先**（2026-09-29 补默认档）：
+  1. 行内 `images[i].width` / `.height` —— **该张图的渲染尺寸**（`vertical` / `horizontal` 下生效），精确到某一张；
+     宽度落在条目盒上、高度落在 `<img>` 本身（同日修正）——盒高必须留给「图片 + 名称」共同撑开，
+     否则图片 `height:100%` 会吃满盒高、把同列的名称挤出盒外（被单元格 `overflow:hidden` 裁掉，
+     高度小的条目尤其明显）；勾选「显示名称」时名称行计入分页估算（`imageItemHeightMm`，11px × 1.4 一行）；
+  2. 节点级 `defaultWidth` / `defaultHeight` —— **整组图的统一尺寸兜底**，某行留空该维时吃默认值
+     （如把「与输入框等高的 30×10mm 签名条」配一次即可，不必每行重复填）；
+  两档都缺的维度 → 按图片自身比例（`fill` 布局下配置高只提供宽高比，高度由行宽推得）。
+  图片与盒子的关系交给 `objectFit`（contain 等比完整显示 / cover 裁剪 / fill 拉伸）。
+  尺寸解析统一走 `withImageDefaultsV2`；**采集侧用 `applyDefaults: false`** 只回读「行内 / 数据」的显式尺寸
+  —— 默认值不写进字段值，否则之后再改默认宽高对已保存的数据不再生效。
+- 取值：`field` 绑定数据字段。数据有值时用**数据内容**，并**按 index 与模板行逐字段合并**
+  （数据项缺 `name` / `width` / `height` 时继承模板同序号行，模板行也缺则吃节点默认宽高）
+  ——模板行是「样式预设」，数据是「内容」。
+  值形态：对象数组 `[{ name, src, width, height }]`、地址字符串数组 `["url"]`，或**单个地址字符串**
+  （视为一张图，与模板第 0 行配对；宿主回填单张签名图的最省事形态）。
+- 排布：`layout` = `vertical`（默认，一张一行）/ `horizontal`（并排一行）/ `fill`（按宽高比自动换行、行内撑满）。
+- 对齐分**两个方向**，各管一个方向、可同时生效（2026-09-29 补垂直，原 `align` 只做水平）：
+  - `align` = `left` / `center` / `right`，**水平**位置：垂直布局走 `align-items`（每张图左右）、
+    水平布局走 `justify-content`（整行左右）；缺省按布局取默认（垂直居中、水平靠左，见 `derivation.resolveImageAlignV2`）；
+  - `verticalAlign` = `top` / `middle` / `bottom`，**垂直**位置：垂直布局走 `justify-content`（整组上下）、
+    水平布局走 `align-items`（每行上下）；缺省固定 `top`（= 升级前的 CSS 默认，见 `derivation.resolveImageVerticalAlignV2`）。
+    值域与单元格垂直对齐（`cellVerticalAlign`）一致，便于两处共用心智；
+  - 两者的缺省值都取「升级前的行为」，故既有 schema 的渲染结果不变；
+    `fill` 布局每行被 `flex-grow` 撑满，两个方向都不生效（`align-items: stretch` 是该布局「行内等高、
+    图片按比例铺满」的前提，渲染层刻意不覆盖它）。
+- `maxCount` 限制张数（未设 / 0 = 不限）；`showName` 控制 `name` 是否画到表单上。
+- 唯一真相源 `resolveImageItemsV2`（渲染 / 分页 / 采集三处共用）：整块列表都没有可显示地址时，
+  屏幕上保留占位灰框、**打印时不占版面**（分页按 0 高度计）。
 
 ## 9. 边框模型
 

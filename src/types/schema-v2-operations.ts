@@ -1210,6 +1210,9 @@ export function createImageNodeV2(): ImageNodeV2 {
   return {
     id: createSchemaNodeIdV2("image"),
     type: "image",
+    // 列表模板先给一条空行：面板打开就有可填的 index 0，避免「先点添加才能填」
+    images: [{}],
+    layout: "vertical",
     objectFit: "contain",
   };
 }

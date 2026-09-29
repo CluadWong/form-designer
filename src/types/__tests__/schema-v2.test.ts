@@ -363,6 +363,35 @@ describe("Schema V2 serialization", () => {
     expect((htmlNode as unknown as Record<string, unknown>).bindings).toBeUndefined();
     expect(imageNode).toMatchObject({ type: "image", src: "data:image/png;base64,AAAA", field: "photo", width: 30, objectFit: "cover" });
   });
+
+  it("图片对齐归一化：水平 / 垂直各按自己的值域收敛，非法值丢弃且不补默认", () => {
+    const schema = makeSchema();
+    schema.pages[0].children.push(
+      {
+        id: "img-align",
+        type: "image",
+        images: [{ src: "a.png" }],
+        align: "right",
+        verticalAlign: "middle",
+      } as never,
+      // 越界值：`middle` 不是水平对齐的值域、`center` 也不是垂直对齐的（两个方向刻意用不同词表）
+      {
+        id: "img-bad",
+        type: "image",
+        images: [{ src: "b.png" }],
+        align: "middle",
+        verticalAlign: "center",
+      } as never,
+    );
+    const children = parseFormSchemaV2(serializeFormSchemaV2(schema)).pages[0].children;
+    const ok = children.find(node => node.id === "img-align") as unknown as Record<string, unknown>;
+    expect(ok.align).toBe("right");
+    expect(ok.verticalAlign).toBe("middle");
+    const bad = children.find(node => node.id === "img-bad") as unknown as Record<string, unknown>;
+    // 丢弃而非回退默认：缺省即「按布局取默认」/「top」，写死会让导出 JSON 多出一层语义
+    expect("align" in bad).toBe(false);
+    expect("verticalAlign" in bad).toBe(false);
+  });
 });
 
 describe("旧字段触发配置迁移（action / actionParams → interactive / params）", () => {

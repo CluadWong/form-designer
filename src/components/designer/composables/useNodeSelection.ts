@@ -37,7 +37,7 @@ export const NODE_TYPE_LABELS: Record<string, string> = {
   text: "文本",
   p: "字段",
   table: "表格",
-  image: "图片",
+  image: "图片列表",
   html: "HTML 模块",
 };
 
@@ -58,7 +58,7 @@ export function nodeLabel(node: EditorNodeV2): string {
     case "table":
       return node.field ? `表格：${node.field}` : "表格";
     case "image":
-      return "图片";
+      return "图片列表";
     case "html":
       return "HTML 模块";
     default:

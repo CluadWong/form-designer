@@ -48,6 +48,11 @@ import type {
   GridRowV2,
   GridTrackV2,
   HeaderFooterV2,
+  ImageAlignV2,
+  ImageItemV2,
+  ImageLayoutV2,
+  ImageNodeV2,
+  ImageVerticalAlignV2,
   NodeParamsV2,
   TableColumnV2,
   TextStyleV2,
@@ -82,6 +87,11 @@ function parseNonNegativeMm(raw: string): number | undefined {
   if (trimmed === "") return undefined;
   const n = Number(trimmed);
   return Number.isFinite(n) ? Math.max(0, n) : undefined;
+}
+
+/** 尺寸类数值：正数才有效，其余（0 / 负数 / NaN / undefined）视为未配置。 */
+function positiveOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 export function useSchemaEdits(ctx: SchemaEditsContext) {
@@ -746,7 +756,7 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     });
   }
 
-  // ── HTML / Image ──
+  // ── HTML / 图片列表 ──
   function updateSelectedHtml(event: Event): void {
     const value = (event.target as HTMLTextAreaElement).value;
     updateSelectedNode(
@@ -763,12 +773,87 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     );
   }
 
-  function updateSelectedImageSrc(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+  /**
+   * 图片节点的统一写入口：写列表时顺手清掉旧版单图**地址**，避免旧值在取值层复活。
+   *
+   * 旧版节点级 `width` / `height` 在清理前**提升为默认宽高**（`defaultWidth` / `defaultHeight`）：
+   * 它们的语义正是「这一组图的默认尺寸」，若不提升，旧 schema 的尺寸会在面板第一次编辑时
+   * 被静默丢掉（面板已改为读写 `defaultWidth` / `defaultHeight`）。已有新字段时不覆盖。
+   */
+  function patchSelectedImage(
+    updater: (node: ImageNodeV2) => ImageNodeV2,
+    token: string,
+  ): void {
     updateSelectedNode(
-      (node) => (node.type === "image" ? { ...node, src: value || undefined } : node),
-      selectedNodeId.value ? `imgsrc:${selectedNodeId.value}` : undefined,
+      (node) => {
+        if (node.type !== "image") return node;
+        const { src: _src, width: legacyWidth, height: legacyHeight, ...rest } = updater(node);
+        const next: ImageNodeV2 = { ...rest };
+        if (next.defaultWidth === undefined) {
+          const promoted = positiveOrUndefined(legacyWidth);
+          if (promoted !== undefined) next.defaultWidth = promoted;
+        }
+        if (next.defaultHeight === undefined) {
+          const promoted = positiveOrUndefined(legacyHeight);
+          if (promoted !== undefined) next.defaultHeight = promoted;
+        }
+        return next;
+      },
+      selectedNodeId.value ? `${token}:${selectedNodeId.value}` : undefined,
     );
+  }
+
+  /** 取列表条目（越界 / 空数组时按需补齐空条目），保证「面板 index 0 先在」。 */
+  function imageItemsOf(node: ImageNodeV2): ImageItemV2[] {
+    return Array.isArray(node.images) ? node.images.map((item) => ({ ...item })) : [];
+  }
+
+  function patchSelectedImageItem(index: number, patch: Partial<ImageItemV2>, token: string): void {
+    patchSelectedImage((node) => {
+      const items = imageItemsOf(node);
+      while (items.length <= index) items.push({});
+      items[index] = { ...items[index], ...patch };
+      return { ...node, images: items };
+    }, token);
+  }
+
+  function updateSelectedImageItemName(index: number, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    patchSelectedImageItem(index, { name: value || undefined }, `imgitemname:${index}`);
+  }
+
+  function updateSelectedImageItemSrc(index: number, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    patchSelectedImageItem(index, { src: value || undefined }, `imgitemsrc:${index}`);
+  }
+
+  function updateSelectedImageItemSize(
+    index: number,
+    dimension: "width" | "height",
+    event: Event,
+  ): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    patchSelectedImageItem(
+      index,
+      { [dimension]: Number.isFinite(value) && value > 0 ? value : undefined },
+      `imgitemsize:${index}`,
+    );
+  }
+
+  /** 追加一行：面板的「添加图片」。 */
+  function addSelectedImageItem(): void {
+    patchSelectedImage(
+      (node) => ({ ...node, images: [...imageItemsOf(node), {}] }),
+      "imgitemadd",
+    );
+  }
+
+  function removeSelectedImageItem(index: number): void {
+    patchSelectedImage((node) => {
+      const items = imageItemsOf(node);
+      items.splice(index, 1);
+      return { ...node, images: items };
+    }, `imgitemremove:${index}`);
   }
 
   function updateSelectedImageField(event: Event): void {
@@ -779,23 +864,76 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     );
   }
 
-  function updateSelectedImageSize(dimension: "width" | "height", event: Event): void {
-    const value = Number((event.target as HTMLInputElement).value);
-    updateSelectedNode(
-      (node) =>
-        node.type === "image"
-          ? { ...node, [dimension]: Number.isFinite(value) && value > 0 ? value : undefined }
-          : node,
-      selectedNodeId.value ? `imgsize:${selectedNodeId.value}` : undefined,
+  /** 布局方式：垂直 / 水平 / 填充。 */
+  function updateSelectedImageLayout(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value as ImageLayoutV2;
+    patchSelectedImage((node) => ({ ...node, layout: value }), "imglayout");
+  }
+
+  /**
+   * 水平对齐方式（整组图的左右位置）：左 / 中 / 右。
+   * 未显式配置时渲染层按布局取默认（垂直居中、水平靠左）——面板显示的是该默认值，
+   * 用户一改就写入 schema，从此该节点有了显式对齐。
+   */
+  function updateSelectedImageAlign(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value as ImageAlignV2;
+    if (value !== "left" && value !== "center" && value !== "right") return;
+    patchSelectedImage((node) => ({ ...node, align: value }), "imgalign");
+  }
+
+  /**
+   * 垂直对齐方式（整组图的上下位置）：顶 / 中 / 底。
+   * 与 `align` 各管一个方向、互不覆盖；未显式配置时渲染层取默认 `top`。
+   */
+  function updateSelectedImageVerticalAlign(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value as ImageVerticalAlignV2;
+    if (value !== "top" && value !== "middle" && value !== "bottom") return;
+    patchSelectedImage((node) => ({ ...node, verticalAlign: value }), "imgvalign");
+  }
+
+  /** 数量上限：空 / 非正数 → 取消限制（不落 schema 值）。 */
+  function updateSelectedImageMaxCount(event: Event): void {
+    const raw = Number((event.target as HTMLInputElement).value);
+    patchSelectedImage(
+      (node) => ({
+        ...node,
+        maxCount: Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : undefined,
+      }),
+      "imgmaxcount",
     );
+  }
+
+  /** 是否渲染名称说明文字（默认关）。 */
+  function updateSelectedImageShowName(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    patchSelectedImage(
+      (node) => ({ ...node, showName: checked ? true : undefined }),
+      "imgshowname",
+    );
+  }
+
+  /**
+   * 节点级默认图框尺寸（mm）：**列表行未配该维时的兜底**，行内宽高优先。
+   * 空 / 非正数 → 移除该维默认值（不落 0），交回「按图片自身比例」。
+   */
+  function updateSelectedImageDefaultSize(
+    dimension: "width" | "height",
+    event: Event,
+  ): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    patchSelectedImage((node) => {
+      const key = dimension === "width" ? "defaultWidth" : "defaultHeight";
+      const next: ImageNodeV2 = { ...node };
+      const positive = positiveOrUndefined(value);
+      if (positive !== undefined) next[key] = positive;
+      else delete next[key];
+      return next;
+    }, `imgdefsize:${dimension}`);
   }
 
   function updateSelectedImageFit(event: Event): void {
     const value = (event.target as HTMLSelectElement).value as "contain" | "cover" | "fill";
-    updateSelectedNode(
-      (node) => (node.type === "image" ? { ...node, objectFit: value } : node),
-      selectedNodeId.value ? `imgfit:${selectedNodeId.value}` : undefined,
-    );
+    patchSelectedImage((node) => ({ ...node, objectFit: value }), "imgfit");
   }
 
   // ── 页面级：行高 / 纸张 ──
@@ -1009,9 +1147,18 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     updateSelectedVerticalAlign,
     updateSelectedHtml,
     updateSelectedCss,
-    updateSelectedImageSrc,
     updateSelectedImageField,
-    updateSelectedImageSize,
+    updateSelectedImageLayout,
+    updateSelectedImageAlign,
+    updateSelectedImageVerticalAlign,
+    updateSelectedImageMaxCount,
+    updateSelectedImageShowName,
+    updateSelectedImageDefaultSize,
+    updateSelectedImageItemName,
+    updateSelectedImageItemSrc,
+    updateSelectedImageItemSize,
+    addSelectedImageItem,
+    removeSelectedImageItem,
     updateSelectedImageFit,
     updateBaseRowHeight,
     baseFontSize,

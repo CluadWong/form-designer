@@ -22,7 +22,7 @@ import {
   DEFAULT_TEXT_FONT_SIZE_PX,
   DEFAULT_TEXT_LINE_HEIGHT,
 } from "@/engine-v2/derivation";
-import type { TextNodeV2, FieldPNodeV2 } from "@/types";
+import type { ImageNodeV2, TextNodeV2, FieldPNodeV2 } from "@/types";
 
 /** 面板只读展示，编辑动作由 api 承载；此处用空实现占位。 */
 const api = new Proxy({}, { get: () => () => {} }) as never;
@@ -157,12 +157,114 @@ describe("组件面板：新建节点的默认参数渲染", () => {
     assertNoBareControls(wrapper);
   });
 
-  it("图片：字段名 / 地址 / 宽高均有占位提示，填充方式有默认 contain", () => {
+  it("图片列表：字段名 / 地址行 / 宽高均有占位，布局默认垂直、填充方式默认 contain", () => {
     const wrapper = mount(ImageInspector, { props: { node: createImageNodeV2(), api } });
-    expect(wrapper.find('input[placeholder="绑定数据字段（可选）"]').exists()).toBe(true);
+    expect(wrapper.find('input[placeholder="字段"]').exists()).toBe(true);
     expect(wrapper.find('input[placeholder="https:// 链接或 Base64"]').exists()).toBe(true);
+    // 列表行：名称 / 宽 / 高
+    expect(wrapper.find('input[placeholder="名称（可选）"]').exists()).toBe(true);
     expect(wrapper.findAll('input[placeholder="如 40"]')).toHaveLength(2);
-    expect((wrapper.find("select").element as HTMLSelectElement).value).toBe("contain");
+    expect(
+      (wrapper.find('[data-image-layout="true"]').element as HTMLSelectElement).value,
+    ).toBe("vertical");
+    expect((wrapper.find('[data-image-fit="true"]').element as HTMLSelectElement).value).toBe(
+      "contain",
+    );
+    assertNoBareControls(wrapper);
+  });
+
+  it("图片列表：布局方式与两个方向的对齐同行、数量上限与填充方式同行", () => {
+    const wrapper = mount(ImageInspector, { props: { node: createImageNodeV2(), api } });
+    const rowOf = (selector: string): Element | null =>
+      (wrapper.find(selector).element as HTMLElement).closest(".v2-grid-dimensions");
+    // 布局 + 水平对齐 + 垂直对齐三者成组，占同一行
+    expect(rowOf('[data-image-layout="true"]')).toBe(rowOf('[data-image-align="true"]'));
+    expect(rowOf('[data-image-layout="true"]')).toBe(
+      rowOf('[data-image-vertical-align="true"]'),
+    );
+    expect(rowOf('[data-image-max-count="true"]')).toBe(rowOf('[data-image-fit="true"]'));
+    // 两组各占一行，互不同行
+    expect(rowOf('[data-image-layout="true"]')).not.toBe(rowOf('[data-image-fit="true"]'));
+  });
+
+  it("图片列表：水平对齐默认显示「当前生效值」（垂直 → 居中；水平 → 左对齐）", () => {
+    const value = (node: ImageNodeV2): string =>
+      (
+        mount(ImageInspector, { props: { node, api } })
+          .find('[data-image-align="true"]')
+          .element as HTMLSelectElement
+      ).value;
+    expect(value(createImageNodeV2())).toBe("center");
+    expect(value({ ...createImageNodeV2(), layout: "horizontal" })).toBe("left");
+    // 旧 schema 不带 `layout` → 缺省即垂直，对齐也按垂直默认居中（两处同口径）
+    expect(value({ ...createImageNodeV2(), layout: undefined })).toBe("center");
+    // 显式配置优先于布局默认
+    expect(value({ ...createImageNodeV2(), layout: "horizontal", align: "right" })).toBe("right");
+  });
+
+  it("图片列表：垂直对齐默认「顶对齐」（升级前 CSS 默认），与水平对齐各管一个方向", () => {
+    const value = (node: ImageNodeV2): string =>
+      (
+        mount(ImageInspector, { props: { node, api } })
+          .find('[data-image-vertical-align="true"]')
+          .element as HTMLSelectElement
+      ).value;
+    // 三种布局的垂直方向历史行为都是 flex-start，故缺省一律 top（不随布局分叉）
+    expect(value(createImageNodeV2())).toBe("top");
+    expect(value({ ...createImageNodeV2(), layout: "horizontal" })).toBe("top");
+    expect(value({ ...createImageNodeV2(), layout: "fill" })).toBe("top");
+    expect(value({ ...createImageNodeV2(), layout: undefined })).toBe("top");
+    // 显式配置优先；且与水平对齐互不覆盖
+    expect(value({ ...createImageNodeV2(), verticalAlign: "bottom" })).toBe("bottom");
+    expect(value({ ...createImageNodeV2(), align: "right" })).toBe("top");
+    expect(value({ ...createImageNodeV2(), verticalAlign: "middle", align: "right" })).toBe(
+      "middle",
+    );
+  });
+
+  it("图片列表：按 index 分行，行内可配名称 / 地址 / 宽高，并有数量上限与显示名称开关", () => {
+    const node: ImageNodeV2 = {
+      ...createImageNodeV2(),
+      field: "photos",
+      maxCount: 2,
+      layout: "fill",
+      showName: true,
+      images: [{ name: "门头", src: "https://example.com/a.png", width: 40, height: 30 }, {}],
+    };
+    const wrapper = mount(ImageInspector, { props: { node, api } });
+    const rows = wrapper.findAll("[data-image-row]");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].findAll("input")).toHaveLength(4);
+    expect((rows[0].find("input").element as HTMLInputElement).value).toBe("门头");
+    expect((wrapper.find('[data-image-max-count="true"]').element as HTMLInputElement).value).toBe("2");
+    expect(wrapper.find('[data-image-show-name="true"]').exists()).toBe(true);
+    expect(wrapper.find('[data-image-list="true"]').exists()).toBe(true);
+    assertNoBareControls(wrapper);
+  });
+
+  it("图片列表：默认宽高独立成项，旧版节点级 width/height 作为默认值回显", () => {
+    const wrapper = mount(ImageInspector, { props: { node: createImageNodeV2(), api } });
+    expect(wrapper.find('[data-image-default-width="true"]').exists()).toBe(true);
+    expect(wrapper.find('[data-image-default-height="true"]').exists()).toBe(true);
+    // 旧 schema 的节点级尺寸不静默丢失：面板照原值回显，编辑一次即提升为默认宽高
+    const legacy = mount(ImageInspector, {
+      props: { node: { ...createImageNodeV2(), width: 30, height: 10 }, api },
+    });
+    expect(
+      (legacy.find('[data-image-default-width="true"]').element as HTMLInputElement).value,
+    ).toBe("30");
+    expect(
+      (legacy.find('[data-image-default-height="true"]').element as HTMLInputElement).value,
+    ).toBe("10");
+    assertNoBareControls(wrapper);
+    assertNoBareControls(legacy);
+  });
+
+  it("图片列表：无条目时面板仍给出一行空占位（可直接填，不必先点添加）", () => {
+    const wrapper = mount(ImageInspector, {
+      props: { node: { ...createImageNodeV2(), images: [] }, api },
+    });
+    expect(wrapper.findAll("[data-image-row]")).toHaveLength(1);
     assertNoBareControls(wrapper);
   });
 });

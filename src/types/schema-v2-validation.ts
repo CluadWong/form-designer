@@ -6,6 +6,8 @@ import type {
   GridNodeV2,
   GridRowV2,
   GridTrackV2,
+  ImageItemV2,
+  ImageNodeV2,
   PageSchemaV2,
   PNodeV2,
   TableNodeV2,
@@ -45,6 +47,13 @@ function isValidTrack(value: unknown): boolean {
 const MM_PER_PX = 25.4 / 96;
 const DEFAULT_P_FONT_SIZE_PX = 13;
 const FIELD_P_MIN_INPUT_WIDTH_MM = 12;
+/**
+ * 图片名称说明文字的估算行高（mm）：与 `.layout-image__name`（`font-size: 11px` /
+ * `line-height: 1.4`）及 `engine-v2/derivation.IMAGE_NAME_LINE_HEIGHT_MM` 同源。
+ * 此处不 import 那个常量：validation 属于 `types` 模块，engine-v2 反向依赖 `@/types`，
+ * 引入会造成 types ↔ engine-v2 循环依赖。改字号 / 行高时三处同改。
+ */
+const IMAGE_NAME_LINE_HEIGHT_MM = (11 * 1.4) / MM_PER_PX;
 
 function isWideChar(char: string): boolean {
   return /[\u3000-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]/.test(char);
@@ -105,13 +114,52 @@ function minNodeHeightMm(node: FormNodeV2, baseRowHeight: number): number {
     return Math.max(0, 1 + node.minRows) * baseRowHeight;
   }
   if (node.type === "image") {
-    // 与渲染 / 分页同口径：没配地址的图片不占版面，估高为 0（避免误报「内容超高」）。
+    // 与渲染 / 分页同口径：整块列表都没有可显示地址的不占版面，估高为 0（避免误报「内容超高」）。
     // 静态校验拿不到 data，故只按 schema 层判定——配了 `field` 就认为填数时可能有图（宁可高估）。
-    // 此判定与 `engine-v2/derivation.resolveImageSourceV2` 在无 data 时等价。
-    if (!node.src && !node.field) return 0;
-    return Math.max(0, node.height ?? 0);
+    // 此判定与 `engine-v2/derivation.resolveImageItemsV2` 在无 data 时等价。
+    const items = imageStaticItems(node);
+    if (!items.hasSource && !node.field) return 0;
+    // 垂直 / 填充按各行累加（保守上限），水平按最高一张；尺寸未配时按基准行高兜底。
+    // 勾选「显示名称」时每项再叠加一行名称高度——名称与图片同在一个条目盒里纵向排列，是真实版面。
+    const heights = items.heights.length > 0 ? items.heights : [baseRowHeight];
+    const nameLine = node.showName === true ? IMAGE_NAME_LINE_HEIGHT_MM : 0;
+    const perItem = heights.map((h) => (h > 0 ? h : baseRowHeight) + nameLine);
+    return node.layout === "horizontal"
+      ? Math.max(...perItem)
+      : perItem.reduce((total, h) => total + h, 0);
   }
   return 0;
+}
+
+/**
+ * 图片列表的静态配置口径（校验层专用：拿不到 `data`，只看 schema）。
+ * 条目取 `images`，为空时回退旧版单图字段（`src` / `width` / `height`）；再按 `maxCount` 截断。
+ * 高度的取值链与渲染 / 分页一致：行内 `height` → 节点默认 `defaultHeight` → 行内 `width`
+ * → 节点默认 `defaultWidth`（后两者是「正方形」兜底口径）；判定真相源是
+ * `engine-v2/derivation.resolveImageItemsV2` + `withImageDefaultsV2`，此处在无 `data` 时与其等价。
+ */
+function imageStaticItems(node: ImageNodeV2): { hasSource: boolean; heights: number[] } {
+  const raw: ImageItemV2[] =
+    Array.isArray(node.images) && node.images.length > 0
+      ? node.images
+      : typeof node.src === "string" && node.src !== ""
+        ? [{ src: node.src, width: node.width, height: node.height }]
+        : [];
+  const max = node.maxCount;
+  const items =
+    typeof max === "number" && Number.isFinite(max) && max > 0
+      ? raw.slice(0, Math.floor(max))
+      : raw;
+  const pick = (...candidates: Array<number | undefined>): number => {
+    for (const value of candidates) if (isPositiveNumber(value)) return value;
+    return 0;
+  };
+  return {
+    hasSource: items.some((item) => typeof item.src === "string" && item.src !== ""),
+    heights: items.map((item) =>
+      pick(item.height, node.defaultHeight, item.width, node.defaultWidth),
+    ),
+  };
 }
 
 function pageUsableHeightMm(schema: FormSchemaV2, page: PageSchemaV2): number {
@@ -336,9 +384,41 @@ function scanNode(
       );
     });
   } else if (node.type === "image") {
-    if (!node.src && !node.field) issue(issues, "warning", "IMAGE_WITHOUT_SOURCE", node, path, "图片未设置地址或数据字段");
-    if ((node.width !== undefined && !isPositiveNumber(node.width)) || (node.height !== undefined && !isPositiveNumber(node.height))) {
+    const items = Array.isArray(node.images) ? node.images : [];
+    const hasLegacySource = Boolean(node.src);
+    if (!hasLegacySource && !node.field && !items.some((item) => item.src)) {
+      issue(issues, "warning", "IMAGE_WITHOUT_SOURCE", node, path, "图片未设置地址或数据字段");
+    }
+    items.forEach((item, index) => {
+      if (
+        (item.width !== undefined && !isPositiveNumber(item.width)) ||
+        (item.height !== undefined && !isPositiveNumber(item.height))
+      ) {
+        issue(
+          issues,
+          "error",
+          "INVALID_IMAGE_DIMENSION",
+          node,
+          [...path, "images", index],
+          "图片宽高必须是正数",
+        );
+      }
+    });
+    // 节点级默认宽高（`defaultWidth` / `defaultHeight`，含旧版单图字段 `width` / `height`）
+    // 同样校验尺寸。
+    if (
+      (node.defaultWidth !== undefined && !isPositiveNumber(node.defaultWidth)) ||
+      (node.defaultHeight !== undefined && !isPositiveNumber(node.defaultHeight)) ||
+      (node.width !== undefined && !isPositiveNumber(node.width)) ||
+      (node.height !== undefined && !isPositiveNumber(node.height))
+    ) {
       issue(issues, "error", "INVALID_IMAGE_DIMENSION", node, path, "图片宽高必须是正数");
+    }
+    if (
+      node.maxCount !== undefined &&
+      (!Number.isFinite(node.maxCount) || node.maxCount < 0 || !Number.isInteger(node.maxCount))
+    ) {
+      issue(issues, "error", "INVALID_IMAGE_MAX_COUNT", node, path, "数量上限必须是不小于 0 的整数");
     }
   }
 }

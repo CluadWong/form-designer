@@ -1,4 +1,4 @@
-import type { FormDataV2 } from "@/types";
+import type { FormDataV2, ImageItemV2 } from "@/types";
 
 export interface CollectFieldValuesOptions {
   /**
@@ -17,7 +17,10 @@ export interface CollectFieldValuesOptions {
  * 通过遍历渲染 DOM 收集字段值（用户需求：预览 / 填写不必逐键回写，改用 DOM 遍历采集）。
  *
  * - 带 `data-field` 的普通文本字段（`<p>` / 复合字段的 `.layout-p__input`）取其文本；
- * - 带 `data-field` 的图片字段（`<img>`）取其 `src`；
+ * - **图片列表**（`.layout-image__item[data-field]`）：同一字段的多个条目聚成
+ *   `ImageItemV2[]`（`{ name, src, width, height }`），**字段值是数组**——这是与文本字段
+ *   唯一的形态差异；条目盒上的 `data-*` 承载 name / 尺寸，避免从样式里反解数值；
+ * - 带 `data-field` 的单张 `<img>`（旧版单图节点的 DOM）取其 `src` 字符串（兼容路径）；
  * - 多行（innerBorder 逐行 div）在浏览器中由 `innerText` 还原为带 `\n` 的文本，
  *   jsdom 等无 `innerText` 实现时回退 `textContent`（不含换行分隔）；
  * - **HIDDEN 脱敏字段**（`.layout-p--hidden`）：DOM 中显示的是假值 `***`，按调用方
@@ -27,12 +30,36 @@ export interface CollectFieldValuesOptions {
  *
  * @param root 渲染根容器，如 `.grid-form-canvas` 或 `GridFormRenderer` 的挂载元素。
  */
+/**
+ * 从图片列表条目盒（`.layout-image__item`）还原一条图片值。
+ *
+ * name / 宽高放在条目盒的 `data-*` 上（渲染时写入模板配置或数据值），直接回读既避免
+ * 从内联样式里反解 mm 数值，也保证「保存 → 读取」闭环无损。
+ * 加载失败退回的占位图不是真值：带 `data-fallback` 时 src 记为空串。
+ */
+function readImageItem(el: HTMLElement): ImageItemV2 {
+  const item: ImageItemV2 = {};
+  const name = el.getAttribute("data-name");
+  if (name) item.name = name;
+  const img = el.querySelector("img");
+  item.src = img?.getAttribute("data-fallback") === "true"
+    ? ""
+    : (img?.getAttribute("src") ?? "");
+  const rawWidth = el.getAttribute("data-width");
+  const rawHeight = el.getAttribute("data-height");
+  const width = Number(rawWidth);
+  const height = Number(rawHeight);
+  if (rawWidth && Number.isFinite(width) && width > 0) item.width = width;
+  if (rawHeight && Number.isFinite(height) && height > 0) item.height = height;
+  return item;
+}
+
 export function collectFieldValues(
   root: ParentNode,
   options: CollectFieldValuesOptions = {},
 ): FormDataV2 {
   const { baseData, maskHidden } = options;
-  const result: Record<string, string> = {};
+  const result: Record<string, unknown> = {};
   // root 自身即字段（如直接挂载 GridSchemaNode 时根就是 <p data-field>）也要纳入：
   // querySelectorAll 只匹配后代、不含根，故先单独检查根。
   const self = root instanceof Element && root.matches("[data-field]")
@@ -45,6 +72,18 @@ export function collectFieldValues(
   for (const el of Array.from(nodes)) {
     const field = el.getAttribute("data-field");
     if (!field) continue;
+    // 图片列表条目：同字段多条聚合为数组（DOM 顺序即 index 顺序）。
+    if (el.classList.contains("layout-image__item")) {
+      const items = (result[field] as ImageItemV2[] | undefined) ?? [];
+      items.push(readImageItem(el));
+      result[field] = items;
+      continue;
+    }
+    // 列表容器本身也带 `data-field`（标识整块列表属于哪个字段），但不是字段值元素：
+    // 不跳过会被当成文本字段采成 `""`，把刚聚合好的数组覆盖掉。
+    if (el.classList.contains("layout-image")) continue;
+    // 条目内部的 `<img>` / 名称文本已由条目统一采集，不重复处理。
+    if (el.closest(".layout-image__item")) continue;
     // HIDDEN 脱敏字段：DOM 值是假值 ***，按调用口径回源真实值或保持脱敏导出
     if (el.closest(".layout-p--hidden")) {
       if (maskHidden) {
