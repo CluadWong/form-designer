@@ -369,17 +369,73 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   }
 
   /**
-   * 点击触发开关（`interactive`）：内核只据此决定「填写态点击该字段要不要 emit
-   * `field-activate`」——**控件类型不进内核**，由 `params` 承载，宿主自行消费。
+   * 值的渲染形态（`valueType`，2026-09-29）：文本 / 图片。
+   *
+   * 图片形态服务电子签名——宿主经 `params.action`（落到字段标签属性）识别签名栏并
+   * 弹签名框、回填图片地址，票面把签名图贴在下划线上（空值仍显示下划线）。切回
+   * 文本时连同 `imageHeight` 一起清掉：它只对图片形态有意义，留着会污染导出 JSON。
    */
-  function updateSelectedInteractive(event: Event): void {
-    const checked = (event.target as HTMLInputElement).checked;
+  function updateSelectedValueType(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    if (value !== "text" && value !== "image") return;
+    updateSelectedNode(
+      (node) => {
+        if (node.type !== "p" || node.mode !== "field") return node;
+        return value === "image"
+          ? { ...node, valueType: "image" }
+          : {
+              ...node,
+              valueType: undefined,
+              imageHeight: undefined,
+              gap: undefined,
+              maxCount: undefined,
+            };
+      },
+      selectedNodeId.value ? `edit:${selectedNodeId.value}` : undefined,
+    );
+  }
+
+  /** 签名图高度（`imageHeight`，CSS 长度，如 `10mm`）：**留空 = 与标签（文字行盒）等高**
+   *  （渲染层取 `1.6em`，跟随纸张基础字号；见 `DEFAULT_SIGN_IMAGE_HEIGHT_V2`）。
+   *  空态也占这个高度，令「未签名 / 已签名」两态的下划线位置一致。
+   *  多人签名换行时**每行行高都等于它**。 */
+  function updateSelectedImageHeight(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
     updateSelectedNode(
       (node) =>
         node.type === "p" && node.mode === "field"
-          ? { ...node, interactive: checked || undefined }
+          ? { ...node, imageHeight: value.trim() || undefined }
           : node,
-      selectedNodeId.value ? `interactive:${selectedNodeId.value}` : undefined,
+      selectedNodeId.value ? `edit:${selectedNodeId.value}` : undefined,
+    );
+  }
+
+  /** 多张签名图之间的水平间距（`gap`，CSS 长度如 `2mm` / `0.5em`）：**留空 = 0.5em**
+   *  （见 `DEFAULT_SIGN_IMAGE_GAP_V2`）。仅多人签名（≥2 张）时有视觉效果。 */
+  function updateSelectedSignGap(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    updateSelectedNode(
+      (node) =>
+        node.type === "p" && node.mode === "field"
+          ? { ...node, gap: value.trim() || undefined }
+          : node,
+      selectedNodeId.value ? `edit:${selectedNodeId.value}` : undefined,
+    );
+  }
+
+  /** 签名图数量上限（`maxCount`）：**留空 = 不限**；非正整数一律视为不限。
+   *  与 `ImageNodeV2.maxCount` 同词表（>0 生效，超出部分不渲染也不随值采集）。 */
+  function updateSelectedSignMaxCount(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    const parsed = Number(value.trim());
+    const next =
+      value.trim() !== "" && Number.isFinite(parsed) && parsed > 0
+        ? Math.floor(parsed)
+        : undefined;
+    updateSelectedNode(
+      (node) =>
+        node.type === "p" && node.mode === "field" ? { ...node, maxCount: next } : node,
+      selectedNodeId.value ? `edit:${selectedNodeId.value}` : undefined,
     );
   }
 
@@ -1113,7 +1169,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     updateSelectedWidth,
     updateSelectedDefault,
     updateSelectedInnerBorder,
-    updateSelectedInteractive,
+    updateSelectedValueType,
+    updateSelectedImageHeight,
+    updateSelectedSignGap,
+    updateSelectedSignMaxCount,
     addSelectedParam,
     renameSelectedParam,
     updateSelectedParamValue,

@@ -37,7 +37,7 @@ function requiredString(value: unknown, label: string): string {
  * - `date`      → `datePicker`（日期/时间选择器）
  * - `upload`    → `uploadImg`（图片上传）
  * - `signature` → `uploadImg`（签名扫件复用图片上传通道；宿主无独立签名分支）
- * - `text`      → 不触发（见 `triggers` 判断，不写 `action` 也不写 `interactive`）
+ * - `text`      → 不触发（见 `triggers` 判断，不写 `action`）
  *
  * **未登记的值原样保留**——不猜宿主词表，交给宿主自行处理。
  */
@@ -58,36 +58,37 @@ const LEGACY_ACTION_PARAM_KEY: Record<string, string> = {
 };
 
 /**
- * 旧版字段触发配置迁移（2026-09-15）：`action` 闭枚举 + `actionParams` → `interactive` + `params`。
+ * 旧版字段触发配置迁移（2026-09-15 引入；2026-09-30 起 interactive 已从内核移除，见下）：
+ * `action` 闭枚举 + `actionParams` → `params`。
  *
  * 背景：`action` 曾是内核闭枚举（text / date / signature / upload），但控件类型是**开放集**
- * （time / date-time / 宿主自定义…），不该由内核表达。改版后内核只留 1 bit（`interactive`：
- * 填写态点击该字段要不要通知宿主），类型与参数一律进通用 `params`，内核不解释其键。
+ * （time / date-time / 宿主自定义…），不该由内核表达；类型与参数一律进通用 `params`，
+ * 内核不解释其键。**触发本体的 1 bit（`interactive`）已于 2026-09-30 移除**——内核不再绑
+ * 点击、不再 emit `field-activate`，点击触发权完全归属宿主（宿主在 DOM 上按
+ * `data-field` + `action` 等属性自行委托）。迁移只保留**属性面**：
  *
- * 迁移规则：
- * - `action` 值经 `LEGACY_ACTION_TO_HOST` 翻成宿主词表后写入 `params.action`；
+ * - `action` 值经 `LEGACY_ACTION_TO_HOST` 翻成宿主词表后写入 `params.action`（宿主识别
+ *   控件类型的钩子属性，存量模板不丢）；
  * - `actionParams` 的键经 `LEGACY_ACTION_PARAM_KEY` 改名（`format` → `date-format`），值原样；
- * - 旧 `action` 非 `text` → 置 `interactive: true`（旧内核在 text 下本就不触发）；
  * - 已是新格式的 `params` 优先（同名键以新格式为准，即新格式不会被旧值覆盖）；
+ * - 输入中的 `interactive` 一律丢弃（内核已无该字段，导出不得残留）；
  * - 旧键读入后丢弃，导出不再写出。
  */
 function migrateLegacyFieldActivation(node: RecordValue): RecordValue {
-  const { action, actionParams, ...rest } = node;
+  const { action, actionParams, interactive: _dropped, ...rest } = node;
   const params: Record<string, string> = {};
   const legacyAction = typeof action === "string" ? action : undefined;
-  // 旧内核在 text 下本就不触发，故 text / 未配置都不算「可触发」。
-  const triggers = !!legacyAction && legacyAction !== "text";
-  // 1) 旧 action → 既是「可触发」信号，也是宿主识别控件类型的键（已翻到宿主词表）。
-  if (triggers && legacyAction) {
+  // 旧内核在 text 下本就不触发，故 text / 未配置都不写 action。
+  if (legacyAction && legacyAction !== "text") {
     params.action = LEGACY_ACTION_TO_HOST[legacyAction] ?? legacyAction;
   }
-  // 2) 旧 actionParams 搬入并改键（含义仍由宿主约定，值不动）。
+  // 旧 actionParams 搬入并改键（含义仍由宿主约定，值不动）。
   if (actionParams && typeof actionParams === "object" && !Array.isArray(actionParams)) {
     for (const [key, value] of Object.entries(actionParams as RecordValue)) {
       if (typeof value === "string") params[LEGACY_ACTION_PARAM_KEY[key] ?? key] = value;
     }
   }
-  // 3) 已是新格式的 params 优先（同名键以新格式为准）。
+  // 已是新格式的 params 优先（同名键以新格式为准）。
   const current = rest.params;
   if (current && typeof current === "object" && !Array.isArray(current)) {
     for (const [key, value] of Object.entries(current as RecordValue)) {
@@ -95,7 +96,6 @@ function migrateLegacyFieldActivation(node: RecordValue): RecordValue {
     }
   }
   const next: RecordValue = { ...rest };
-  if (triggers) next.interactive = true;
   if (Object.keys(params).length) next.params = params;
   else delete next.params;
   return next;
@@ -154,8 +154,34 @@ function normalizeNode(value: unknown): RecordValue {
   if (node.type === "text") return { ...node, text: node.text ?? "" };
   if (node.type === "p") {
     if (node.mode === "field") {
-      // 旧 action / actionParams → interactive / params（读入即迁移，导出只剩新形态）
-      return { ...migrateLegacyFieldActivation(node), field: node.field ?? "" };
+      // 旧 action / actionParams → params（读入即迁移，导出只剩属性面）；
+      // 输入中的 interactive（内核已移除该字段）在迁移里一并丢弃。
+      const next: RecordValue = { ...migrateLegacyFieldActivation(node), field: node.field ?? "" };
+      // 值的渲染形态（2026-09-29）：只接受 text / image，非法一律丢弃；**不补默认值**——
+      // 缺省即 text（历史行为），写死会让导出 JSON 凭空多出一层语义（与 image.align 同规则）。
+      if (next.valueType !== "text" && next.valueType !== "image") delete next.valueType;
+      // 图片高度：非字符串 / 空串一律丢弃（与面板「留空 = 与标签等高（1.6em）」同口径）。
+      if (typeof next.imageHeight !== "string" || next.imageHeight.trim() === "") {
+        delete next.imageHeight;
+      }
+      // 多人签名（2026-09-30）：
+      // - `gap`（多图水平间距）：规则同 `imageHeight`——非字符串 / 空串丢弃（缺省 0.5em）；
+      // - `maxCount`（张数上限）：只接受 > 0 的有限数并取整；0 / 负数 / NaN / 字符串
+      //   一律丢弃 = 不限。与运行期 `resolveSignImageUrlsV2` 的闸门同口径，
+      //   保证导出 JSON 里不会留下「看起来有效但运行期被忽略」的值。
+      if (typeof next.gap !== "string" || next.gap.trim() === "") {
+        delete next.gap;
+      }
+      if (
+        typeof next.maxCount !== "number" ||
+        !Number.isFinite(next.maxCount) ||
+        next.maxCount <= 0
+      ) {
+        delete next.maxCount;
+      } else {
+        next.maxCount = Math.floor(next.maxCount);
+      }
+      return next;
     }
     // 兼容旧版：static P 归一化为 text 节点
     return { ...node, type: "text", text: node.text ?? "" };

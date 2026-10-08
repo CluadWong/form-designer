@@ -87,6 +87,31 @@ describe("组件面板：新建节点的默认参数渲染", () => {
     assertNoBareControls(wrapper);
   });
 
+  it("输入框：值类型缺省「文本」，选图片（电子签名）后才出现「图片高度」", () => {
+    const text = mount(FieldPInspector, {
+      props: { node: createFieldPNodeV2() as FieldPNodeV2, api },
+    });
+    expect((text.find('[data-field-value-type="true"]').element as HTMLSelectElement).value).toBe(
+      "text",
+    );
+    // 文本形态下不渲染图片高度（该配置只对图片值有意义）
+    expect(text.find('[data-field-image-height="true"]').exists()).toBe(false);
+
+    const image = mount(FieldPInspector, {
+      props: {
+        node: { ...createFieldPNodeV2(), valueType: "image", imageHeight: "10mm" } as FieldPNodeV2,
+        api,
+      },
+    });
+    expect((image.find('[data-field-value-type="true"]').element as HTMLSelectElement).value).toBe(
+      "image",
+    );
+    expect(
+      (image.find('[data-field-image-height="true"]').element as HTMLInputElement).value,
+    ).toBe("10mm");
+    assertNoBareControls(image);
+  });
+
   it("网格：行列 / 边框 / 列宽有默认，间距与内边距显示生效默认 0", () => {
     const wrapper = mount(GridInspector, { props: { node: createGridNodeV2(), api } });
     expect((wrapper.find('[data-dimension="rows"]').element as HTMLInputElement).value).toBe("1");

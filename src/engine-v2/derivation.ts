@@ -1,4 +1,5 @@
 import type {
+  FieldPNodeV2,
   FieldRuleV2,
   FormDataV2,
   FormNodeV2,
@@ -265,6 +266,62 @@ export function resolveImageSourceV2(
     if (hasImageSrc(item)) return item.src as string;
   }
   return null;
+}
+
+// ── 签名图（`FieldPNodeV2.valueType === "image"`）──────────────────────────────
+// 单一真源：渲染层（`GridSchemaNode.vue`）、分页估算（`pagination.ts`）与设计器面板
+// （`FieldPInspector.vue`）共用下列解析器，避免三处各自实现造成口径漂移。
+
+/**
+ * 签名图默认高度：**与标签（文字行盒）等高**，即 `.layout-p` 的 `line-height: 1.6`。
+ * 用 `em` 而非写死 mm，是为了跟随纸张「基础字号」自适应——13px 下 = 20.8px（5.50mm），
+ * 16px 下 = 25.6px（6.77mm）；与 `.layout-p__input` 的 `min-height: 1.6em` 同值，
+ * 故图片恰好填满输入区、底边正好压在签名线（border-bottom）上。
+ */
+export const DEFAULT_SIGN_IMAGE_HEIGHT_V2 = "1.6em";
+/** 上述默认高度的数值形式（em 倍率）：分页估算按字号换算 mm 时用。两值必须同源。 */
+export const SIGN_IMAGE_LINE_HEIGHT_EM = 1.6;
+/** 多张签名图之间的默认水平间距（与 `.layout-p__signs` 的 CSS 兜底同值）。 */
+export const DEFAULT_SIGN_IMAGE_GAP_V2 = "0.5em";
+/** 上述默认间距的数值形式（em 倍率）：分页估算按字号换算 mm 时用。两值必须同源。 */
+export const SIGN_IMAGE_GAP_EM = 0.5;
+
+/**
+ * 字段值 → 签名图地址列表（**单值与多值同一条路径**）。
+ *
+ * 多人签名（2026-09-30）：`data[field]` 传数组即得多张。归一化规则：
+ * - 数组：逐项 `String()` 化并**剔除空串**（避免空占位渲染出破图）；
+ * - 字符串：包成单元素数组（`""` → 空数组，即空态）；
+ * - `null` / `undefined` / 其它：空数组。
+ *
+ * 单值（字符串）走此函数得到长度 1 的数组，渲染结果与单图时代**逐字节相同**。
+ */
+export function resolveSignImageUrlsV2(raw: unknown, maxCount?: number): string[] {
+  let urls: string[];
+  if (Array.isArray(raw)) {
+    urls = raw.map((item) => (item == null ? "" : String(item))).filter((src) => src !== "");
+  } else if (raw == null) {
+    urls = [];
+  } else {
+    const single = String(raw);
+    urls = single === "" ? [] : [single];
+  }
+  if (typeof maxCount === "number" && Number.isFinite(maxCount) && maxCount > 0) {
+    return urls.slice(0, Math.floor(maxCount));
+  }
+  return urls;
+}
+
+/** 签名图**有效高度**：配了 `imageHeight` 用它，留空回落到与标签等高的 `1.6em`。 */
+export function resolveSignImageHeightV2(node: Pick<FieldPNodeV2, "imageHeight">): string {
+  const height = node.imageHeight?.trim();
+  return height ? height : DEFAULT_SIGN_IMAGE_HEIGHT_V2;
+}
+
+/** 签名图**有效间距**：配了 `gap` 用它，留空回落到 `0.5em`。 */
+export function resolveSignImageGapV2(node: Pick<FieldPNodeV2, "gap">): string {
+  const gap = node.gap?.trim();
+  return gap ? gap : DEFAULT_SIGN_IMAGE_GAP_V2;
 }
 
 /**

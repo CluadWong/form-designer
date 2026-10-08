@@ -4,10 +4,10 @@
  * 本样例与设计器 UI 完整编辑后导出的
  * 设计器 UI 导出的整票 JSON 逐字对齐，采用「扁平结构」：
  * 每个业务段为一个独立 grid，border 取 all / outer / none，内部列通过 `columns`
- * 描述；字段统一用 prefix / suffix / interactive / params / default / innerBorder 表达
- * （日期字段 interactive + `params.action="datePicker"`、签名字段 interactive +
- * `params.action="uploadImg"`、人数等用 innerBorder）。
- * 「额外属性」params 由宿主自行消费（内核不解释其键），见 `src/utils/node-params.ts`。
+ * 描述；字段统一用 prefix / suffix / params / default / innerBorder 表达
+ * （日期字段 `params.action="datePicker"`、签名字段 `params.action="uploadImg"`、
+ * 人数等用 innerBorder）。「额外属性」params 由宿主自行消费（内核不解释其键、不绑点击），
+ * 见 `src/utils/node-params.ts`。
  * **取值对齐宿主词表**：宿主（soar-web-v3-td `useFcDesigner`）只认 `action="datePicker"`
  * 与 `action="uploadImg"`；签名扫件复用图片上传通道，故签名字段同样写 `uploadImg`。
  *
@@ -102,7 +102,6 @@ const dateField = (
   options: Omit<Partial<FieldPNodeV2>, "id" | "type" | "mode" | "field"> = {},
 ): FieldPNodeV2 =>
   fieldP(id, field, {
-    interactive: true,
     params: { action: "datePicker" },
     default: DATE_DEFAULT,
     ...options,
@@ -320,7 +319,7 @@ const safetyGrid = grid("safety-grid", "outer", [
           row("issuer-inner-row", 1, [
             cell(
               "issuer-sign-cell",
-              [fieldP("issuer-sign-field", "工作票签发人签名", { prefix: "工作票签发人签名：", interactive: true, params: { action: "uploadImg" } })],
+              [fieldP("issuer-sign-field", "工作票签发人签名", { prefix: "工作票签发人签名：", params: { action: "uploadImg" } })],
               { width: "1fr" },
             ),
             cell(
@@ -373,12 +372,12 @@ const confirmGrid = grid(
     row("confirm-sign-row", 1, [
       cell(
         "confirm-owner-cell",
-        [fieldP("confirm-owner-sign", "工作负责人签名", { prefix: "工作负责人签名：", interactive: true, params: { action: "uploadImg" } })],
+        [fieldP("confirm-owner-sign", "工作负责人签名", { prefix: "工作负责人签名：", params: { action: "uploadImg" } })],
         { width: "1fr" },
       ),
       cell(
         "confirm-permitter-cell",
-        [fieldP("confirm-permitter-sign", "工作许可人签名", { prefix: "工作许可人签名：", interactive: true, params: { action: "uploadImg" } })],
+        [fieldP("confirm-permitter-sign", "工作许可人签名", { prefix: "工作许可人签名：", params: { action: "uploadImg" } })],
         { width: "1fr" },
       ),
     ]),
@@ -436,7 +435,7 @@ const extensionGrid = grid(
     row("extension-owner-row", 1, [
       cell(
         "extension-owner-cell",
-        [fieldP("extension-owner-sign", "延期工作负责人签名", { prefix: "工作负责人签名：", interactive: true, params: { action: "uploadImg" } })],
+        [fieldP("extension-owner-sign", "延期工作负责人签名", { prefix: "工作负责人签名：", params: { action: "uploadImg" } })],
         { width: "1fr" },
       ),
       cell(
@@ -448,7 +447,7 @@ const extensionGrid = grid(
     row("extension-permitter-row", 1, [
       cell(
         "extension-permitter-cell",
-        [fieldP("extension-permitter-sign", "延期工作许可人签名", { prefix: "工作许可人签名：", interactive: true, params: { action: "uploadImg" } })],
+        [fieldP("extension-permitter-sign", "延期工作许可人签名", { prefix: "工作许可人签名：", params: { action: "uploadImg" } })],
         { width: "1fr" },
       ),
       cell(
@@ -488,7 +487,7 @@ const completionGrid = grid(
     row("completion-owner-row", 1, [
       cell(
         "completion-owner-cell",
-        [fieldP("completion-owner-sign", "工作负责人签名-终结", { prefix: "工作负责人签名：", interactive: true, params: { action: "uploadImg" } })],
+        [fieldP("completion-owner-sign", "工作负责人签名-终结", { prefix: "工作负责人签名：", params: { action: "uploadImg" } })],
         { width: "1fr" },
       ),
       cell(
@@ -500,7 +499,7 @@ const completionGrid = grid(
     row("completion-permitter-row", 1, [
       cell(
         "completion-permitter-cell",
-        [fieldP("completion-permitter-sign", "工作许可人签名-终结", { prefix: "工作许可人签名：", interactive: true, params: { action: "uploadImg" } })],
+        [fieldP("completion-permitter-sign", "工作许可人签名-终结", { prefix: "工作许可人签名：", params: { action: "uploadImg" } })],
         { width: "1fr" },
       ),
       cell(
