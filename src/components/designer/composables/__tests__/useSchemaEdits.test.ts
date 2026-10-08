@@ -9,7 +9,7 @@ import { ref, type Ref } from "vue";
 import { useSchemaDocument, type SchemaDocument } from "../useSchemaDocument";
 import { useNodeSelection } from "../useNodeSelection";
 import { useSchemaEdits } from "../useSchemaEdits";
-import type { FieldPNodeV2, FormSchemaV2, GridCellV2, GridNodeV2, TableNodeV2, TextStyleV2 } from "@/types";
+import type { FieldPNodeV2, FormSchemaV2, GridCellV2, GridNodeV2, ImageNodeV2, TableNodeV2, TextStyleV2 } from "@/types";
 
 function setup(editable = true) {
   const editableRef = ref(editable);
@@ -537,5 +537,155 @@ describe("第38续回归：inspector 静默兜底清零（8 处统一改金标�
     const rh = findCell(doc, cellId).rowHeight;
     expect(rh).toBeUndefined();
     expect(Number.isNaN(rh as unknown as number)).toBe(false);
+  });
+});
+
+/**
+ * 图片列表编辑（2026-09-28 由单图改造）：列表行与字段值同构，
+ * 写列表必须清掉旧版单图字段，否则取值层的兼容回退会让旧值复活。
+ */
+describe("图片列表：行编辑 / 数量上限 / 布局", () => {
+  function withImageInCell() {
+    const ctx = setup(true);
+    const { doc, selection, edits } = ctx;
+    const grid = doc.schema.value.pages[0].children[0] as GridNodeV2;
+    const cellId = grid.rows[0].cells[0].id;
+    selection.selectNodeById(cellId);
+    edits.addNodeToSelectedCell("image");
+    const imageId = findCell(doc, cellId).children[0].id;
+    selection.selectNodeById(imageId);
+    return { ...ctx, cellId, imageId };
+  }
+  function imageInCell(doc: SchemaDocument, cellId: string): ImageNodeV2 {
+    return findCell(doc, cellId).children[0] as ImageNodeV2;
+  }
+
+  it("新建节点带一条空行与默认布局（面板打开即可填 index 0）", () => {
+    const { doc, cellId } = withImageInCell();
+    const node = imageInCell(doc, cellId);
+    expect(node.layout).toBe("vertical");
+    expect(node.images).toHaveLength(1);
+  });
+
+  it("行内改 name / src / 宽高：落到 schema；添加与删除行同步生效", () => {
+    const { doc, edits, cellId } = withImageInCell();
+    edits.updateSelectedImageItemName(0, { target: { value: "门头" } } as unknown as Event);
+    edits.updateSelectedImageItemSrc(0, { target: { value: "a.png" } } as unknown as Event);
+    edits.updateSelectedImageItemSize(0, "width", { target: { value: "40" } } as unknown as Event);
+    edits.updateSelectedImageItemSize(0, "height", { target: { value: "30" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).images?.[0]).toEqual({
+      name: "门头",
+      src: "a.png",
+      width: 40,
+      height: 30,
+    });
+
+    edits.addSelectedImageItem();
+    expect(imageInCell(doc, cellId).images).toHaveLength(2);
+    edits.updateSelectedImageItemSrc(1, { target: { value: "b.png" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).images?.[1].src).toBe("b.png");
+
+    edits.removeSelectedImageItem(0);
+    expect(imageInCell(doc, cellId).images).toEqual([{ src: "b.png" }]);
+  });
+
+  it("行内非法尺寸不落 NaN（留空 = 自适应）", () => {
+    const { doc, edits, cellId } = withImageInCell();
+    edits.updateSelectedImageItemSize(0, "width", { target: { value: "abc" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).images?.[0].width).toBeUndefined();
+    edits.updateSelectedImageItemSize(0, "height", { target: { value: "-5" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).images?.[0].height).toBeUndefined();
+  });
+
+  it("写列表会清掉旧版单图字段（兼容回退不再复活旧值）", () => {
+    const { doc, edits, selection, cellId } = withImageInCell();
+    const nodeId = imageInCell(doc, cellId).id;
+    // 手工注入旧版字段，模拟旧 schema
+    edits.updateSelectedNode(
+      (node) =>
+        node.type === "image"
+          ? { ...node, src: "legacy.png", width: 50, height: 50 }
+          : node,
+    );
+    selection.selectNodeById(nodeId);
+    edits.updateSelectedImageItemSrc(0, { target: { value: "new.png" } } as unknown as Event);
+    const node = imageInCell(doc, cellId);
+    expect(node.src).toBeUndefined();
+    expect(node.width).toBeUndefined();
+    expect(node.height).toBeUndefined();
+    expect(node.images?.[0].src).toBe("new.png");
+    // 旧版节点级尺寸不静默丢弃：提升为默认宽高（整组图仍按原尺寸呈现）
+    expect(node.defaultWidth).toBe(50);
+    expect(node.defaultHeight).toBe(50);
+  });
+
+  it("数量上限：合法写整数；空 / 0 / 非法 → undefined（不落 0 = 不限）", () => {
+    const { doc, edits, cellId } = withImageInCell();
+    edits.updateSelectedImageMaxCount({ target: { value: "3" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).maxCount).toBe(3);
+    for (const raw of ["", "0", "abc"]) {
+      edits.updateSelectedImageMaxCount({ target: { value: raw } } as unknown as Event);
+      expect(imageInCell(doc, cellId).maxCount).toBeUndefined();
+    }
+  });
+
+  it("布局方式 / 显示名称：写值；关掉显示名称回退 undefined", () => {
+    const { doc, edits, cellId } = withImageInCell();
+    edits.updateSelectedImageLayout({ target: { value: "fill" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).layout).toBe("fill");
+    edits.updateSelectedImageShowName({ target: { checked: true } } as unknown as Event);
+    expect(imageInCell(doc, cellId).showName).toBe(true);
+    edits.updateSelectedImageShowName({ target: { checked: false } } as unknown as Event);
+    expect(imageInCell(doc, cellId).showName).toBeUndefined();
+  });
+
+  it("水平对齐：写左 / 中 / 右；非法值不落 schema（保持「按布局取默认」）", () => {
+    const { doc, edits, cellId } = withImageInCell();
+    for (const value of ["left", "center", "right"] as const) {
+      edits.updateSelectedImageAlign({ target: { value } } as unknown as Event);
+      expect(imageInCell(doc, cellId).align).toBe(value);
+    }
+    edits.updateSelectedImageAlign({ target: { value: "middle" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).align).toBe("right");
+  });
+
+  it("垂直对齐：写上 / 中 / 下；非法值不落 schema，且与水平对齐互不覆盖", () => {
+    const { doc, edits, cellId } = withImageInCell();
+    for (const value of ["top", "middle", "bottom"] as const) {
+      edits.updateSelectedImageVerticalAlign({ target: { value } } as unknown as Event);
+      expect(imageInCell(doc, cellId).verticalAlign).toBe(value);
+    }
+    // 非法值（水平对齐的值域）不落 schema —— 两个方向的值域刻意不同，不能串用
+    edits.updateSelectedImageVerticalAlign({ target: { value: "center" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).verticalAlign).toBe("bottom");
+    // 写垂直对齐不动水平对齐，反之亦然
+    edits.updateSelectedImageAlign({ target: { value: "left" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).align).toBe("left");
+    expect(imageInCell(doc, cellId).verticalAlign).toBe("bottom");
+  });
+
+  it("默认宽高：写值；空 / 0 / 非法 → 移除该维默认值（不落 0）", () => {
+    const { doc, edits, cellId } = withImageInCell();
+    edits.updateSelectedImageDefaultSize("width", { target: { value: "30" } } as unknown as Event);
+    edits.updateSelectedImageDefaultSize("height", { target: { value: "10" } } as unknown as Event);
+    expect(imageInCell(doc, cellId).defaultWidth).toBe(30);
+    expect(imageInCell(doc, cellId).defaultHeight).toBe(10);
+    for (const raw of ["", "0", "-5", "abc"]) {
+      edits.updateSelectedImageDefaultSize("height", { target: { value: raw } } as unknown as Event);
+      const node = imageInCell(doc, cellId);
+      expect(node.defaultHeight).toBeUndefined();
+      expect("defaultHeight" in node).toBe(false);
+    }
+    // 行内尺寸是另一档，不受节点默认值读写影响
+    expect(imageInCell(doc, cellId).defaultWidth).toBe(30);
+  });
+
+  it("默认宽高与行内宽高并存：节点默认写了不覆盖已有的 defaultWidth", () => {
+    const { doc, edits, cellId } = withImageInCell();
+    edits.updateSelectedImageDefaultSize("width", { target: { value: "30" } } as unknown as Event);
+    edits.updateSelectedImageItemSize(0, "height", { target: { value: "10" } } as unknown as Event);
+    const node = imageInCell(doc, cellId);
+    expect(node.defaultWidth).toBe(30);
+    expect(node.images?.[0].height).toBe(10);
   });
 });

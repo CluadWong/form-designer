@@ -63,9 +63,44 @@
 .v2-sidebar {
   min-width: 0;
   padding: 16px;
-  overflow: auto;
   background: #fff;
   border-right: 1px solid #d8dee8;
+}
+
+/* 侧栏级滚动只开在**右侧配置面板**（2026-09-28 由基类 `.v2-sidebar` 迁入）：
+   配置项长、必须有滚动条；左栏（零件库 + 结构树）内容固定，结构树自带 `overflow:auto`，
+   侧栏再叠一层 17px 宽的系统滚动条只会挤掉窄面板的可视宽度。
+   滚动条收窄到 8px：显式声明 ::-webkit-scrollbar 尺寸才会从 overlay 切到常显的精简样式。
+   ⚠️ 左栏必须显式写 `overflow: hidden`（不能留 `visible`）：grid item 的 `min-height` 默认
+   是 `auto`，只有 overflow ≠ visible 时才会解析为 0；留 visible 则左栏内容会**把整行撑高**
+   （实测 520px 视口下左栏高 699px），行高溢出后被 `.v2-designer{overflow:hidden}` 裁掉，
+   右栏也一并失去滚动能力——即「配置面板滚不动」。hidden 只裁不外溢，且
+   `scrollRowIntoView` 仍能对 overflow:hidden 元素做程序化滚动（结构树定位不受影响）。 */
+.v2-sidebar--right {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.v2-sidebar--right::-webkit-scrollbar {
+  width: 8px;
+}
+
+.v2-sidebar--right::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.v2-sidebar--right::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.v2-sidebar--right::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.v2-sidebar--left {
+  overflow: hidden;
 }
 
 .v2-sidebar__subheading {
@@ -73,6 +108,12 @@
   color: #64748b;
   font-size: 11px;
   font-weight: 700;
+}
+
+/* 紧跟在小标题（`.v2-sidebar__subheading`，本身 16/8 外边距）之后的提示，
+   收紧到「标题 → 提示 → 内容」的紧凑节奏，不额外撑开。 */
+.v2-sidebar__hint--tight {
+  margin: 0 2px 8px;
 }
 
 .v2-sidebar__hint {
@@ -157,6 +198,14 @@
   margin: 0;
 }
 
+/* 三列变体：只给「布局方式 + 水平对齐 + 垂直对齐」这一行用——三者语义成组（都决定排布），
+   拆成两行会把「布局」与其中一个方向的对齐拆散。列宽够用：右栏固定 360px，扣掉 padding 32px
+   与常显滚动条 8px 后内容宽 320px，两处 gap 16px → 每列约 101px，而控件是上下结构
+   （标签在上、控件在下），最长的标签「水平对齐 / 垂直对齐」4 字 ≈ 48px。 */
+.v2-grid-dimensions--triple {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .v2-style-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -218,6 +267,128 @@
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   overflow: hidden;
+}
+
+/* ── 图片列表配置（ImageInspector） ────────────────────────────────────
+   列比键值表多（# / 名称 / 地址 / 宽 / 高 / 删除），从面板宽度里挤不下，
+   故外层横向滚动、内层维持固定列宽：窄侧栏下按 index 逐行左右拖动查看。
+   滚动条用 `scroll` 常显（不依赖悬停/滚动才浮现），让「右边还有内容」一眼可见；
+   Chromium 下必须显式给 ::-webkit-scrollbar 尺寸，否则 overlay 滚动条依旧会隐藏。
+   360px 侧栏下无头 Chromium 实测（2026-09-28）：clientWidth 325 / scrollWidth 440，
+   `offsetHeight - clientHeight = 10`（滚动条确实常驻）。 */
+.v2-image-table {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.v2-image-table::-webkit-scrollbar {
+  height: 8px;
+}
+
+.v2-image-table::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 0 0 6px 6px;
+}
+
+.v2-image-table::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.v2-image-table::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.v2-image-table__grid {
+  min-width: 440px;
+}
+
+.v2-image-table__row {
+  display: grid;
+  /* 末列 28px 是「固定」的删除列：宽度只够放下按钮，多出来的横向空间全给地址列 */
+  grid-template-columns: 20px 84px 1fr 56px 56px 28px;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.v2-image-table__row:last-child {
+  border-bottom: none;
+}
+
+.v2-image-table__head {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.v2-image-table__th {
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  /* 表头标题必须完整可读：不设 ellipsis、不裁切，列宽按最宽标题（宽(mm)）留足 */
+  white-space: nowrap;
+}
+
+/* ── 固定删除列 ────────────────────────────────────────────────────────
+   内容横向滚动时右侧删除按钮必须一直停在视口右边（sticky 相对滚动容器定位），
+   否则要滚到最右才能删行。自底色遮住滚过的内容，左侧描边 + 阴影提示「这一列是固定的」。
+   实测（同上）：`scrollLeft = 0` 与 `= 115`（最右）两个状态下按钮矩形完全一致（L 314 / R 342），
+   同时「高」列已滚出可视区（R 373 → 258）—— 说明固定生效且由 sticky 而非列序造成。 */
+.v2-image-table__row > :last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  box-shadow: -6px 0 6px -6px rgba(15, 23, 42, 0.16);
+}
+
+.v2-image-table__head > :last-child {
+  background: #f8fafc;
+}
+
+.v2-image-table__index {
+  padding: 6px 2px;
+  text-align: center;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* 行内输入沿用键值表外观，仅去掉最后两列的右边框（紧邻删除按钮） */
+.v2-image-table__row .v2-col-table__input--width {
+  border-right: 1px solid #f1f5f9;
+}
+
+/* 列宽压到 52px 后留白很紧：收紧内边距，并隐藏数字输入的 spinner（它会吃掉大半格宽）。 */
+.v2-image-table__row .v2-col-table__input {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.v2-image-table__row input[type="number"]::-webkit-outer-spin-button,
+.v2-image-table__row input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.v2-image-table__row input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* 删除按钮同理：默认 8px 内边距 + margin-left:auto 会顶出固定的 28px 列，收紧并居中 */
+.v2-image-table__row .v2-inspector__delete--small {
+  margin: 4px;
+  padding: 2px 6px;
 }
 
 .v2-col-table__row {

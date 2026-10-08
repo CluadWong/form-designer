@@ -5,7 +5,11 @@ import type {
   FormSchemaV2,
   GridCellV2,
   GridNodeV2,
+  ImageAlignV2,
+  ImageItemV2,
+  ImageLayoutV2,
   ImageNodeV2,
+  ImageVerticalAlignV2,
   TableNodeV2,
 } from "@/types";
 // 字号区间常量住类型层（schema 约束），引擎与设计器面板共用，保持 types ← engine 的依赖方向。
@@ -31,25 +35,236 @@ export interface ResolvedCellBoxV2 {
 }
 
 /**
- * 解析图片节点的可显示来源（渲染 / 分页高度估算共用同一真相源）。
+ * 图片列表解析选项。
+ */
+export interface ResolveImageOptionsV2 {
+  data?: FormDataV2 | null;
+  isDesign?: boolean;
+  /**
+   * 是否把**节点级默认宽高**补进条目（默认 `true`）。传 `false` 用于区分
+   * 「显式配置 / 数据提供的尺寸」与「默认兜底」——采集侧只回读前者，
+   * 免得默认值被写进字段值、之后改默认宽高对已保存的数据失效。
+   */
+  applyDefaults?: boolean;
+}
+
+/** 图片地址是否可用（非空字符串）。 */
+function hasImageSrc(item: ImageItemV2): boolean {
+  return typeof item.src === "string" && item.src !== "";
+}
+
+/** 正数才写入（宽高为 0 / 负数 / NaN 一律视为未设）。 */
+function positiveOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * 把数据里的一条图片值清洗成 `ImageItemV2`：
+ * - 字符串（后端只回地址数组的简写）→ `{ src }`；
+ * - 对象 → 取 `name` / `src` / `width` / `height`，多余键丢弃；
+ * - 其它（`null` / 数字 / 嵌套数组）→ `null`（丢弃，不占索引）。
+ */
+function toImageItem(value: unknown): ImageItemV2 | null {
+  if (typeof value === "string") return { src: value };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const item: ImageItemV2 = {};
+  if (typeof raw.name === "string") item.name = raw.name;
+  if (typeof raw.src === "string") item.src = raw.src;
+  const width = positiveOrUndefined(raw.width);
+  const height = positiveOrUndefined(raw.height);
+  if (width !== undefined) item.width = width;
+  if (height !== undefined) item.height = height;
+  return item;
+}
+
+/** 静态配置来源：`images` 优先；为空时回退旧版单图字段（`src` / `width` / `height`）。 */
+function staticImageItems(node: ImageNodeV2): ImageItemV2[] {
+  if (Array.isArray(node.images) && node.images.length > 0) {
+    return node.images.map(toImageItem).filter((item): item is ImageItemV2 => item !== null);
+  }
+  if (typeof node.src === "string" && node.src !== "") {
+    const legacy: ImageItemV2 = { src: node.src };
+    const width = positiveOrUndefined(node.width);
+    const height = positiveOrUndefined(node.height);
+    if (width !== undefined) legacy.width = width;
+    if (height !== undefined) legacy.height = height;
+    return [legacy];
+  }
+  return [];
+}
+
+/**
+ * 数据项与**模板同序号行**配对：模板行是「样式预设」，数据项是「内容」。
+ * 逐字段覆盖——数据项自带 `src` / `name` / `width` / `height` 的以数据为准，
+ * 缺省的那些从模板行补（所以「模板配好 30×10mm 的签名条 + 宿主回填一张签名图」
+ * 才能真的渲染成长条；否则数据只给地址时尺寸会退回图片自身比例）。
+ */
+function mergeTemplateItem(
+  dataItem: ImageItemV2,
+  templateItem: ImageItemV2 | undefined,
+): ImageItemV2 {
+  return templateItem ? { ...templateItem, ...dataItem } : dataItem;
+}
+
+/**
+ * 节点级默认图框尺寸（mm）：`defaultWidth` / `defaultHeight` 为正式字段，
+ * 旧版单图字段 `width` / `height`（deprecated 兼容读取）作为兜底。
+ */
+function nodeDefaultImageSize(
+  node: ImageNodeV2,
+  dimension: "width" | "height",
+): number | undefined {
+  return dimension === "width"
+    ? (positiveOrUndefined(node.defaultWidth) ?? positiveOrUndefined(node.width))
+    : (positiveOrUndefined(node.defaultHeight) ?? positiveOrUndefined(node.height));
+}
+
+/**
+ * 给条目补齐**节点级默认宽高**：行内 `width` / `height` **优先**，缺的那一维才吃节点默认值。
  *
- * 取值优先级（与渲染层历史行为一致）：
- * 1. 非设计态且配了 `field`、**数据里该字段有值** → 用数据值（可覆盖 `src`）；
- * 2. 否则用 `src`；
- * 3. 都没有 → **`null`（无来源）**，渲染层显示占位灰框、分页按 0 高度计。
+ * 三档优先级：行内配置 → 节点默认宽高 → 图片自身比例（渲染层 `object-fit` / 自然比例兜底）。
+ * 渲染层设计态的占位条目也走本函数，保证「只在面板上配了默认尺寸」的图
+ * 在画布上就呈现为那个尺寸（如与输入框等高的长条签名框）。
+ */
+export function withImageDefaultsV2(node: ImageNodeV2, item: ImageItemV2): ImageItemV2 {
+  const width = positiveOrUndefined(item.width) ?? nodeDefaultImageSize(node, "width");
+  const height = positiveOrUndefined(item.height) ?? nodeDefaultImageSize(node, "height");
+  const next: ImageItemV2 = { ...item };
+  if (width !== undefined) next.width = width;
+  else delete next.width;
+  if (height !== undefined) next.height = height;
+  else delete next.height;
+  return next;
+}
+
+/**
+ * 解析图片列表的**最终渲染条目**（渲染层 / 分页估算 / 采集三处共用的唯一真相源）。
  *
- * ⚠️ 渲染层与分页估算必须与本函数同口径：屏幕/打印不显示的东西，就不能在分页里占高度，
+ * 取值优先级（2026-09-28 列表化，同日补「模板尺寸预设」）：
+ * 1. 非设计态且配了 `field`，且数据里该字段有值 → 用数据内容，并**按 index 与模板行配对**
+ *    （数据项缺 `name` / `width` / `height` 时继承模板同序号行；见 `mergeTemplateItem`）：
+ *    - 值为数组 → 逐项转换（对象数组，或纯字符串数组的简写）；
+ *    - 值为**单个地址字符串** → 视为「一张图」，与模板第 0 行配对（宿主回填单张签名图的最省事形态）；
+ * 2. 否则用**静态模板** `images`（旧 schema 回退 `src` / `width` / `height`）；
+ * 3. 每条缺的宽 / 高维度用**节点级默认宽高**（`defaultWidth` / `defaultHeight`）补齐
+ *    —— 行内配置优先，见 `withImageDefaultsV2`；
+ * 4. 最后按 `maxCount` 截断（未设 / ≤0 = 不限）。
+ *
+ * ⚠️ 渲染层与分页估算必须与本函数同口径：屏幕 / 打印不显示的条目就不能在分页里占高度，
  *    否则会出现「图片没打印出来却多出一张空白纸」。
+ */
+export function resolveImageItemsV2(
+  node: ImageNodeV2,
+  options: ResolveImageOptionsV2 = {},
+): ImageItemV2[] {
+  let items: ImageItemV2[] = [];
+  const fromData = !options.isDesign && node.field ? options.data?.[node.field] : undefined;
+  if (Array.isArray(fromData) || typeof fromData === "string") {
+    const template = staticImageItems(node);
+    const raw = Array.isArray(fromData) ? fromData : [fromData];
+    items = raw
+      .map(toImageItem)
+      .filter((item): item is ImageItemV2 => item !== null)
+      .map((item, index) => mergeTemplateItem(item, template[index]));
+  } else {
+    items = staticImageItems(node);
+  }
+  if (options.applyDefaults !== false) {
+    items = items.map((item) => withImageDefaultsV2(node, item));
+  }
+  const max = node.maxCount;
+  if (typeof max === "number" && Number.isFinite(max) && max > 0) {
+    return items.slice(0, Math.floor(max));
+  }
+  return items;
+}
+
+/** 列表里是否至少有一张有地址的图片（没有 → 整块列表在打印时隐藏）。 */
+export function hasImageSourceV2(items: readonly ImageItemV2[]): boolean {
+  return items.some(hasImageSrc);
+}
+
+/**
+ * 图片列表的**有效水平对齐**解析（渲染层与设计器面板共用，保证「面板显示的选项」
+ * 就是「画布上生效的选项」）。
+ *
+ * 语义：整组图在容器内的**水平**对齐——
+ * - 垂直布局：每个条目（一张图 + 名称）在容器内左 / 中 / 右对齐；
+ * - 水平 / 填充布局：整行内容在容器内左 / 中 / 右对齐（填充布局每行被撑满，实际无效果）。
+ *
+ * 未显式设置 `align`（或值非法）时按布局取默认：垂直 → `center`、水平 / 填充 → `left`
+ * ——各布局维持自己的历史外观，升级不改变既有 schema 的渲染结果。
+ */
+export function resolveImageAlignV2(
+  node: Pick<ImageNodeV2, "align" | "layout">,
+): ImageAlignV2 {
+  const align = node.align;
+  if (align === "left" || align === "center" || align === "right") return align;
+  // `layout` 缺省即 `vertical`（旧 schema 不带该字段）——与渲染层的 `layout ?? "vertical"` 同口径，
+  // 否则「布局是垂直、对齐却按水平默认靠左」两处不一致。
+  return node.layout === "horizontal" || node.layout === "fill" ? "left" : "center";
+}
+export const DEFAULT_IMAGE_VERTICAL_ALIGN_V2: ImageVerticalAlignV2 = "top";
+
+/**
+ * 图片列表的**有效垂直对齐**解析（渲染层与设计器面板共用，保证「面板显示的选项」
+ * 就是「画布上生效的选项」）。
+ *
+ * 语义：整组图在容器内的**垂直**位置——
+ * - 垂直布局：条目沿主轴堆叠 → 整组内容顶 / 中 / 底对齐；
+ * - 水平布局：每行沿交叉轴 → 行内顶 / 中 / 底对齐；
+ * - 填充布局：每行被撑满，垂直对齐不生效（与水平对齐在该布局下同理）。
+ *
+ * 与 `resolveImageAlignV2` 不同，这里**没有按布局分叉的默认值**：升级前三种布局的垂直方向
+ * 都是 CSS 默认的 `flex-start`（`.layout-image--horizontal` 显式写了 `align-items: flex-start`），
+ * 故缺省一律取 `top`，既有 schema 的渲染结果不变。
+ */
+export function resolveImageVerticalAlignV2(
+  node: Pick<ImageNodeV2, "verticalAlign">,
+): ImageVerticalAlignV2 {
+  const value = node.verticalAlign;
+  if (value === "top" || value === "middle" || value === "bottom") return value;
+  return DEFAULT_IMAGE_VERTICAL_ALIGN_V2;
+}
+export const IMAGE_NAME_LINE_HEIGHT_MM = (11 * 1.4) / (96 / 25.4);
+
+/**
+ * 单张图片条目估算高度（mm）：`height` → `width` 兜底 → 一行基准高；
+ * `showName` 且该条目有名称时叠加一行名称高度（见 `IMAGE_NAME_LINE_HEIGHT_MM`）。
+ *
+ * 与渲染层同口径：条目盒高度 = 图片高 + 名称行（2026-09-29 修复：此前盒高被配置高锁死，
+ * 图片把盒高吃满、名称溢出盒外被单元格 `overflow:hidden` 裁掉）。
+ */
+export function imageItemHeightMm(
+  item: ImageItemV2,
+  options: { showName?: boolean; baseRowHeight: number },
+): number {
+  const { showName, baseRowHeight } = options;
+  let height = baseRowHeight;
+  if (typeof item.height === "number" && Number.isFinite(item.height) && item.height > 0) {
+    height = item.height;
+  } else if (typeof item.width === "number" && Number.isFinite(item.width) && item.width > 0) {
+    height = item.width;
+  }
+  const named = showName === true && typeof item.name === "string" && item.name.trim() !== "";
+  return height + (named ? IMAGE_NAME_LINE_HEIGHT_MM : 0);
+}
+
+/**
+ * 解析图片节点的**首张可显示地址**（单图时代的兼容入口，现按列表首张有地址的条目取值）。
+ *
+ * 返回 `null` 表示整块列表都没有来源：渲染层显示占位灰框、分页按 0 高度计。
+ * 旧的单图判断逻辑统一收敛到 `resolveImageItemsV2`，避免两套口径。
  */
 export function resolveImageSourceV2(
   node: ImageNodeV2,
-  options: { data?: FormDataV2 | null; isDesign?: boolean } = {},
+  options: ResolveImageOptionsV2 = {},
 ): string | null {
-  if (!options.isDesign && node.field) {
-    const fromData = options.data?.[node.field];
-    if (fromData != null) return String(fromData);
+  for (const item of resolveImageItemsV2(node, options)) {
+    if (hasImageSrc(item)) return item.src as string;
   }
-  return node.src && node.src !== "" ? node.src : null;
+  return null;
 }
 
 /**
@@ -333,8 +548,20 @@ export function findEmptyRequiredFields(
   data: FormDataV2 | null | undefined,
 ): string[] {
   if (!rules) return [];
-  const isBlank = (value: unknown): boolean =>
-    typeof value !== "string" || value.trim() === "";
+  // 空值口径：键缺失 / `undefined` / `""` / 纯空白串都算空；
+  // 数组值（图片列表）按「是否至少有一项有地址」判定——空数组或全是空地址也算空。
+  const isBlank = (value: unknown): boolean => {
+    if (Array.isArray(value)) {
+      return !value.some((entry) => {
+        if (typeof entry === "string") return entry.trim() !== "";
+        if (entry && typeof entry === "object") {
+          return typeof (entry as ImageItemV2).src === "string" && (entry as ImageItemV2).src !== "";
+        }
+        return false;
+      });
+    }
+    return typeof value !== "string" || value.trim() === "";
+  };
   return Object.entries(rules)
     .filter(([, rule]) => rule?.required === true)
     .map(([field]) => field)

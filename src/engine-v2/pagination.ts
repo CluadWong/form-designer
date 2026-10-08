@@ -38,6 +38,8 @@ import type {
   FormSchemaV2,
   GridNodeV2,
   GridRowV2,
+  ImageItemV2,
+  ImageLayoutV2,
   PageSchemaV2,
   ResolvedPaperSizeV2,
 } from "@/types";
@@ -45,8 +47,10 @@ import { resolveGridGapV2, resolvePaperSizeV2 } from "@/types";
 import {
   DEFAULT_TEXT_FONT_SIZE_PX,
   DEFAULT_TEXT_LINE_HEIGHT,
+  hasImageSourceV2,
+  imageItemHeightMm,
   resolveBaseFontSizeV2,
-  resolveImageSourceV2,
+  resolveImageItemsV2,
   resolveTableRowCount,
 } from "@/engine-v2/derivation";
 
@@ -139,15 +143,22 @@ function textHeightMm(
   return lines * lineHeightMm;
 }
 
-/** Image 节点估算高度（mm）：有 height 用 height；仅有 width 时按正方形兜底；都没有用一行基准高。 */
-function imageHeightMm(node: Extract<FormNodeV2, { type: "image" }>, baseRowHeight: number): number {
-  if (typeof node.height === "number" && Number.isFinite(node.height) && node.height > 0) {
-    return node.height;
-  }
-  if (typeof node.width === "number" && Number.isFinite(node.width) && node.width > 0) {
-    return node.width;
-  }
-  return baseRowHeight;
+/**
+ * 图片列表估算高度（mm）：逐项取高（`height` → `width` 兜底 → 一行基准高，
+ * 勾选「显示名称」时叠加名称行高，见 `imageItemHeightMm`），
+ * 再按布局折算——垂直 / 填充按「各行累加」上限估（保守，宁可略高），水平按「最高一张」。
+ */
+function imageListHeightMm(
+  items: readonly ImageItemV2[],
+  layout: ImageLayoutV2 | undefined,
+  baseRowHeight: number,
+  showName?: boolean,
+): number {
+  const heights = items.map((item) => imageItemHeightMm(item, { showName, baseRowHeight }));
+  if (heights.length === 0) return 0;
+  return layout === "horizontal"
+    ? Math.max(...heights)
+    : heights.reduce((total, h) => total + h, 0);
 }
 
 /** Table 节点估算高度（mm）：表头 1 行 + 数据行（minRows 或 data 推导，受 _paginateMaxRows 限制）× baseRowHeight + 外框。 */
@@ -179,13 +190,14 @@ function atomicNodeHeightMm(
     case "grid":
       // 整 Grid 高度（无抑制边框）
       return gridFragmentHeightMm(ctx.baseRowHeight, node, node.rows, false, false, ctx.measureRow);
-    case "image":
-      // 与渲染层同口径（`resolveImageSourceV2`）：没配地址、数据也没给图的图片，
-      // 屏幕上是占位灰框、**打印时不占版面**，故此处按 0 高度计——否则会算出
-      // 一张实际不存在内容的物理页（打印多出空白纸）。
-      return resolveImageSourceV2(node, { data: ctx.data }) === null
-        ? 0
-        : imageHeightMm(node, ctx.baseRowHeight);
+    case "image": {
+      // 与渲染层同口径（`resolveImageItemsV2`）：整块列表都没有来源时，屏幕上是占位灰框、
+      // **打印时不占版面**，故此处按 0 高度计——否则会算出一张实际不存在内容的物理页（打印多出空白纸）。
+      const items = resolveImageItemsV2(node, { data: ctx.data });
+      return hasImageSourceV2(items)
+        ? imageListHeightMm(items, node.layout, ctx.baseRowHeight, node.showName === true)
+        : 0;
+    }
     case "text":
       return textHeightMm(node, ctx.contentWidthMm, ctx.baseFontSize);
     case "table":

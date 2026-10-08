@@ -283,13 +283,97 @@ export interface HtmlNodeV2 extends SchemaNodeBaseV2 {
   css?: string;
 }
 
+/** 图片列表中的一项：`{ name, src, width, height }`，既是面板配置行，也是字段值的元素结构。 */
+export interface ImageItemV2 {
+  /** 图片名称：说明文字。默认不渲染（`showName` 打开后才显示），但始终随字段值采集 / 保存。 */
+  name?: string;
+  /** 图片地址：`https://` 链接或 Base64。 */
+  src?: string;
+  /** 展示宽（mm）：落到条目盒上的宽；未设时按图片自身比例自适应。 */
+  width?: number;
+  /**
+   * 展示高（mm）：**落到 `<img>` 上的高**（`layout` 为 `vertical` / `horizontal` 时生效）。
+   * 配了宽+高就是固定尺寸的图（如 30×10mm 的签名条，与输入框等高）；
+   * 未设时按图片自身比例自适应。「填充」布局下高度随行宽推得，本值只提供宽高比。
+   *
+   * 注意：高不写在条目盒上——盒高要留给「图片 + 名称」共同撑开，
+   * 否则图片会把盒高吃满、把同列的名称挤出盒外（2026-09-29 修正）。
+   */
+  height?: number;
+}
+
+/** 图片列表布局：垂直（一张一行，默认）/ 水平（并排一行）/ 填充（按尺寸自动换行铺满容器）。 */
+export type ImageLayoutV2 = "vertical" | "horizontal" | "fill";
+
+/**
+ * 图片列表**水平对齐**：整组图在容器内的左右位置。
+ * - 垂直布局：每个条目（一张图 + 名称）在容器内左 / 中 / 右对齐；
+ * - 水平 / 填充布局：整行内容在容器内左 / 中 / 右对齐（填充布局每行被撑满，实际无效果）。
+ *
+ * 未显式设置时按布局取默认：垂直 → `center`（历史行为）、水平 / 填充 → `left`，
+ * 见 `derivation.resolveImageAlignV2`。
+ */
+export type ImageAlignV2 = "left" | "center" | "right";
+
+/**
+ * 图片列表**垂直对齐**：整组图在容器内的上下位置。
+ * - 垂直布局：条目沿主轴堆叠 → 整组内容顶 / 中 / 底对齐（容器被单元格撑得比内容高时才看得见）；
+ * - 水平布局：每行在容器内顶 / 中 / 底对齐（行内各条目高度不一时可见）；
+ * - 填充布局：每行被 `flex-grow` 撑满，`align-items: stretch` 是「行内等高」所必需，垂直对齐不生效。
+ *
+ * 未显式设置时固定取 `top`——与升级前容器的 `justify-content / align-items: flex-start`
+ * 同口径，保证既有 schema 的渲染结果不变，见 `derivation.resolveImageVerticalAlignV2`。
+ * 值域与单元格垂直对齐（`cellVerticalAlign`）保持一致。
+ */
+export type ImageVerticalAlignV2 = "top" | "middle" | "bottom";
+
+/**
+ * 图片列表组件（原「图片」组件的改造版，2026-09-28）。
+ *
+ * - 配置侧：`images` 是列表模板（设计期占位、导出 JSON 的一部分），同行还充当**样式预设**；
+ * - 取值侧：数据里的 `field` 值有值时用它作内容，并**按 index 与模板行逐字段合并**
+ *   （数据项缺 `name` / `width` / `height` 时继承模板同序号行 → 模板配好尺寸的图，
+ *   宿主只需回填地址也能保持尺寸，见 `derivation.resolveImageItemsV2`）；
+ * - 展示侧：`layout` 决定排布，`maxCount` 限制张数，`showName` 控制 name 是否出画面。
+ */
 export interface ImageNodeV2 extends SchemaNodeBaseV2 {
   type: "image";
-  src?: string;
+  /** 图片列表（列表模板）。 */
+  images?: ImageItemV2[];
+  /** 布局方式，缺省按 `vertical`。 */
+  layout?: ImageLayoutV2;
+  /** 水平对齐方式；未设时按布局取默认（垂直 → center、水平 / 填充 → left），见 `ImageAlignV2`。 */
+  align?: ImageAlignV2;
+  /**
+   * 垂直对齐方式；未设时取 `top`（历史行为）。语义与生效范围见 `ImageVerticalAlignV2`。
+   * 与 `align` 各管一个方向：两者可同时生效（垂直布局下分别落到 `justify-content` /
+   * `align-items`），并非互斥。
+   */
+  verticalAlign?: ImageVerticalAlignV2;
+  /** 数量上限：>0 生效（超出部分不渲染，也不随值采集）；未设或 ≤0 = 不限。 */
+  maxCount?: number;
+  /** 是否把 `name` 作为说明文字渲染到画面上（默认 false：name 只随数据采集）。 */
+  showName?: boolean;
+  /**
+   * 默认图框宽 / 高（mm）：**列表行未配该维时的兜底**，行内 `images[i].width/height` 优先。
+   * 只配一维则另一维按图片自身比例；两维都不配 = 完全由行内配置 / 图片自身比例决定。
+   * 用途：整组图统一尺寸（如与输入框等高的 10mm 签名条），不必在每一行重复填。
+   */
+  defaultWidth?: number;
+  /** @see defaultWidth */
+  defaultHeight?: number;
   field?: string;
-  width?: number;
-  height?: number;
+  /** 填充方式（列表内共用）：contain 等比完整显示 / cover 裁剪填满 / fill 拉伸填满。 */
   objectFit?: "contain" | "cover" | "fill";
+  /**
+   * @deprecated 单图时代的地址。旧 schema 兼容读取：`images` 为空时回退为 `[{ src, width, height }]`；
+   * 面板写入列表时会清除这三个字段，避免旧值复活。
+   */
+  src?: string;
+  /** @deprecated 见 `src`。 */
+  width?: number;
+  /** @deprecated 见 `src`。 */
+  height?: number;
 }
 
 export type FormNodeV2 =
@@ -300,8 +384,21 @@ export type FormNodeV2 =
   | HtmlNodeV2
   | ImageNodeV2;
 
+/**
+ * 图片列表字段的值：推荐形态是对象数组 `[{ name, src, width, height }]`；
+ * 也接受地址字符串数组 `["url"]` 的简写（按 index 与模板行配对，缺省字段继承模板行），
+ * 也接受**单个地址字符串**（视为一张图，与模板第 0 行配对）——见 `resolveImageItemsV2`。
+ */
+export type ImageListValueV2 = Array<string | ImageItemV2>;
+
+/**
+ * 字段值：文本类字段是字符串；图片列表字段是 `ImageListValueV2` 或单个地址字符串
+ * （渲染层按「一张图」处理，故 `string` 同时服务两类字段）；`null` 表示显式空值。
+ */
+export type FieldValueV2 = string | number | boolean | null | ImageListValueV2;
+
 /** 表单数据：字段名 -> 值。渲染时用于原地填充字段节点（见 engine.md §11）。 */
-export type FormDataV2 = Record<string, string | number | boolean | null>;
+export type FormDataV2 = Record<string, FieldValueV2>;
 
 /** Persisted component nodes. Rows/cells/templates are owned layout records. */
 export type SchemaNodeV2 = PageSchemaV2 | FormNodeV2;

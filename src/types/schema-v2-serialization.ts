@@ -101,6 +101,24 @@ function migrateLegacyFieldActivation(node: RecordValue): RecordValue {
   return next;
 }
 
+/**
+ * 图片列表条目归一化：只保留 `name` / `src` / `width` / `height` 四个已知键，
+ * 数值键非正数一律丢弃（与面板「宽高留空 = 自适应」同口径）。
+ */
+function normalizeImageItem(value: unknown): RecordValue {
+  const item = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as RecordValue)
+    : {};
+  const next: RecordValue = {};
+  if (typeof item.name === "string" && item.name) next.name = item.name;
+  if (typeof item.src === "string" && item.src) next.src = item.src;
+  for (const key of ["width", "height"] as const) {
+    const raw = item[key];
+    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) next[key] = raw;
+  }
+  return next;
+}
+
 function normalizeNode(value: unknown): RecordValue {
   const node = asRecord(value, "Schema node");
   requiredString(node.id, "Schema node id");
@@ -143,7 +161,39 @@ function normalizeNode(value: unknown): RecordValue {
     return { ...node, type: "text", text: node.text ?? "" };
   }
   if (node.type === "html") return { ...node, html: node.html ?? "" };
-  if (node.type === "image") return { ...node, objectFit: node.objectFit ?? "contain" };
+  if (node.type === "image") {
+    // 列表化（2026-09-28）：`images` 缺省补空数组、`layout` 缺省 vertical；
+    // 旧 schema 的单图字段（`src` / `width` / `height`）保留原样交给取值层回退，
+    // 不在这里改写——避免「读入即迁移」把原始 JSON 与导出结果的差异藏起来。
+    const images = Array.isArray(node.images) ? node.images.map(normalizeImageItem) : [];
+    const next: RecordValue = {
+      ...node,
+      images,
+      layout: node.layout ?? "vertical",
+      objectFit: node.objectFit ?? "contain",
+    };
+    // 节点级默认宽高：非正数一律丢弃（与面板「留空 = 按图片自身比例」同口径）。
+    for (const key of ["defaultWidth", "defaultHeight"] as const) {
+      const raw = next[key];
+      if (typeof raw !== "number" || !Number.isFinite(raw) || raw <= 0) delete next[key];
+    }
+    // 水平对齐（2026-09-29）：只接受三个合法值，其它一律丢弃；**不补默认值**——
+    // 默认值随布局而异（垂直居中、水平靠左），缺省即「按布局取默认」，写死反而会让
+    // 导出 JSON 凭空多出一层语义（见 `derivation.resolveImageAlignV2`）。
+    if (next.align !== "left" && next.align !== "center" && next.align !== "right") {
+      delete next.align;
+    }
+    // 垂直对齐（2026-09-29）：与 `align` 同规则——只接受三个合法值，非法一律丢弃、不补默认值
+    // （缺省即 `top`，写死会在导出 JSON 里凭空多出一层语义，见 `derivation.resolveImageVerticalAlignV2`）。
+    if (
+      next.verticalAlign !== "top" &&
+      next.verticalAlign !== "middle" &&
+      next.verticalAlign !== "bottom"
+    ) {
+      delete next.verticalAlign;
+    }
+    return next;
+  }
   // 未知节点类型：放行（不再整体 throw），保留原样交由校验标记为 UNKNOWN_NODE_TYPE；
   // 严格解析（parseFormSchemaV2）仍会因该校验 error 抛错，容错解析（parseTolerantFormSchemaV2）
   // 收集 issues 后返回 schema，渲染端对未知类型按 v-else-if 链跳过（G6 降级为占位/跳过）。

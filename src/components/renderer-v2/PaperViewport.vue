@@ -101,7 +101,9 @@ const EXCLUDE_SELECTOR = `${EDITABLE_SELECTOR}, [draggable='true']`;
  * 已被本选择器命中，所以该缺陷只在预览态暴露，容易被误判成「HTML 里的表单不能输入」。
  */
 function collectExcludeTargets(root: HTMLElement): HTMLElement[] {
-  const targets = Array.from(root.querySelectorAll<HTMLElement>(EXCLUDE_SELECTOR));
+  const targets = Array.from(
+    root.querySelectorAll<HTMLElement>(EXCLUDE_SELECTOR),
+  );
   root.querySelectorAll<HTMLElement>("*").forEach((el) => {
     if (el.shadowRoot?.querySelector(EXCLUDE_SELECTOR)) targets.push(el);
   });
@@ -270,7 +272,9 @@ function measureFit(): { scale: number; x: number; y: number } {
   const content = (el.firstElementChild as HTMLElement | null) ?? el;
   const contentW = content.scrollWidth || 0;
   const s =
-    contentW > 0 && vp.clientWidth > 0 ? clampScale(vp.clientWidth / contentW) : props.initialScale;
+    contentW > 0 && vp.clientWidth > 0
+      ? clampScale(vp.clientWidth / contentW)
+      : props.initialScale;
   return { scale: s, ...alignPanFor(s) };
 }
 
@@ -487,8 +491,8 @@ onBeforeUnmount(() => {
 
 .paper-viewport__bar {
   position: absolute;
-  right: 12px;
-  bottom: 12px;
+  right: 6px;
+  top: 6px;
   z-index: 20;
   display: flex;
   align-items: center;

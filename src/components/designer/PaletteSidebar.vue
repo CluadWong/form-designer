@@ -48,8 +48,13 @@ function findRow(id: string): HTMLElement | null {
 
 /**
  * 把选中行滚进视野。滚动分两级：先在 `.v2-tree`（自身 `overflow:auto`）内就近滚动，
- * 再确保结构树整块在 `.v2-sidebar` 视野内（侧栏也可能出现滚动条）。用就近算法而非
- * `scrollIntoView`，避免连环滚动整个页面。
+ * 再确保结构树整块在 `.v2-sidebar` 视野内。用就近算法而非 `scrollIntoView`，
+ * 避免连环滚动整个页面。
+ *
+ * ⚠️ 侧栏级滚动 2026-09-28 迁到只给右栏（`.v2-sidebar--right { overflow:auto }`），
+ * 左栏改成 `overflow:hidden`（防内容把 grid 行撑高）。**这里仍要保留**：`overflow:hidden`
+ * 的元素照样接受程序化 `scrollTop`（实测 520px 视口下 `scrollTop=179` 能把底部按钮带回视野），
+ * 也就是说窗口偏矮时结构树的定位仍能用滚动把它自己带进来 —— 只是没有可见滚动条。
  */
 function revealSelectedRow(id: string | null): void {
   if (!id) return;
@@ -114,7 +119,7 @@ const emit = defineEmits<{
       @dragstart="emit('palette-drag', 'image', $event)"
       @click="emit('add-node', 'image')"
     >
-      图片
+      图片列表
     </button>
     <button
       class="v2-palette-item v2-palette-item--button"

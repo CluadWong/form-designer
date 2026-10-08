@@ -7,6 +7,11 @@ import type {
   FieldPermissionV2,
   GridCellV2,
   GridNodeV2,
+  ImageAlignV2,
+  ImageItemV2,
+  ImageLayoutV2,
+  ImageNodeV2,
+  ImageVerticalAlignV2,
   PNodeV2,
   SchemaNodeBaseV2,
   TextNodeV2,
@@ -20,9 +25,13 @@ import { resolveGridGapV2 } from "@/types";
 import { resolveNodeParamAttrs } from "@/utils/node-params";
 import {
   bindTableRowCell,
+  hasImageSourceV2,
   resolveCellBoxV2,
-  resolveImageSourceV2,
+  resolveImageAlignV2,
+  resolveImageItemsV2,
+  resolveImageVerticalAlignV2,
   resolveTableRowCount,
+  withImageDefaultsV2,
 } from "@/engine-v2/derivation";
 
 defineOptions({ name: "GridSchemaNodeV2" });
@@ -483,35 +492,208 @@ function fieldLines(node: PNodeV2): string[] {
 const BROKEN_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60'%3E%3Crect width='100%25' height='100%25' fill='%23f1f5f9' stroke='%23cbd5e1'/%3E%3Ctext x='50%25' y='50%25' font-size='10' fill='%2394a3b8' text-anchor='middle' dominant-baseline='middle'%3E图片%3C/text%3E%3C/svg%3E";
 
-const imgError = ref(false);
-/** 可用图片来源：`null` = 没配地址也没有数据提供图（将显示占位灰框）。 */
-const imageSource = computed<string | null>(() =>
-  props.node.type === "image"
-    ? resolveImageSourceV2(props.node, {
+/** 加载失败的图片下标（按 index 记录，换图 / 换数据时清空）。 */
+const brokenIndexes = ref<number[]>([]);
+/** 图片自然宽高比（宽 / 高）：无配置尺寸时用真实比例驱动「填充」布局的伸缩权重。 */
+const naturalRatios = ref<Record<number, number>>({});
+
+const imageNode = computed<ImageNodeV2 | null>(() =>
+  props.node.type === "image" ? props.node : null,
+);
+/** 列表条目：数据驱动优先，回退静态模板，并按 `maxCount` 截断（与分页同口径）。 */
+const imageItems = computed<ImageItemV2[]>(() =>
+  imageNode.value
+    ? resolveImageItemsV2(imageNode.value, {
         data: props.data,
         isDesign: resolvedMode.value === "design",
       })
-    : null,
+    : [],
 );
-const imageSrc = computed<string>(() => {
-  if (imgError.value) return BROKEN_PLACEHOLDER;
-  return imageSource.value ?? BROKEN_PLACEHOLDER;
+/**
+ * 条目的**显式尺寸**（不含节点级默认兜底）：只用于写条目盒的 `data-width` / `data-height`。
+ * 采集侧回读的是「行内配置 / 数据提供」的尺寸，默认值不落数据——否则默认宽高会被写进
+ * 字段值固化下来，之后在面板改默认值对已保存的数据就不再生效（数据项尺寸优先级更高）。
+ * `applyDefaults: false` 不改变条目数量与顺序，故与 `imageItems` 索引一一对齐。
+ */
+const imageExplicitItems = computed<ImageItemV2[]>(() =>
+  imageNode.value
+    ? resolveImageItemsV2(imageNode.value, {
+        data: props.data,
+        isDesign: resolvedMode.value === "design",
+        applyDefaults: false,
+      })
+    : [],
+);
+/** 条目盒 `data-*` 上的显式尺寸（没显式配 → 空串，采集时不回写该维度）。 */
+function explicitSize(index: number, dimension: "width" | "height"): number | "" {
+  const value = imageExplicitItems.value[index]?.[dimension];
+  return typeof value === "number" && value > 0 ? value : "";
+}
+const imageLayout = computed<ImageLayoutV2>(() => imageNode.value?.layout ?? "vertical");
+/**
+ * 整组图的**有效水平对齐**（`align` 未设时按布局取默认：垂直居中、水平/填充靠左）。
+ * 与设计器面板同源（`resolveImageAlignV2`），面板显示什么就是这里生效什么。
+ */
+const imageAlign = computed<ImageAlignV2>(() =>
+  imageNode.value
+    ? resolveImageAlignV2(imageNode.value)
+    : resolveImageAlignV2({ layout: undefined }),
+);
+/**
+ * 整组图的**有效垂直对齐**（`verticalAlign` 未设时取 `top`，即升级前的 CSS 默认）。
+ * 与水平对齐各管一个方向，同源 `resolveImageVerticalAlignV2`。
+ */
+const imageVerticalAlign = computed<ImageVerticalAlignV2>(() =>
+  imageNode.value
+    ? resolveImageVerticalAlignV2(imageNode.value)
+    : resolveImageVerticalAlignV2({ verticalAlign: undefined }),
+);
+const imageShowName = computed(() => imageNode.value?.showName === true);
+/**
+ * 实际渲染的条目：**设计态列表为空时补一条占位**，否则节点会退化成零高度的空 div，
+ * 既看不见也点不中（画布上无法再选中它）。预览 / 打印不补——那里没有可编辑的东西。
+ */
+const imageRenderItems = computed<ImageItemV2[]>(() => {
+  if (imageItems.value.length > 0 || resolvedMode.value !== "design") return imageItems.value;
+  const node = imageNode.value;
+  // 占位条目同样吃节点级默认宽高，否则「只配了默认尺寸」的图在设计态量不出该尺寸。
+  return [node ? withImageDefaultsV2(node, {}) : {}];
 });
-/** 无来源的图片：设计态仍需占位（可点选编辑），但打印时不占版面（见 @media print）。 */
-const imageBlank = computed(() => props.node.type === "image" && imageSource.value === null);
+/** 整块列表都没有可显示地址：设计态仍需占位（可点选编辑），打印时不占版面。 */
+const imageBlank = computed(
+  () => imageNode.value !== null && !hasImageSourceV2(imageItems.value),
+);
 watch(
   () => [
+    props.node.type === "image" ? props.node.images : null,
     props.node.type === "image" ? props.node.src : null,
     props.node.type === "image" ? props.node.field : null,
+    props.node.type === "image" ? props.node.maxCount : null,
+    props.node.type === "image" ? props.node.defaultWidth : null,
+    props.node.type === "image" ? props.node.defaultHeight : null,
     props.data,
   ],
   () => {
-    imgError.value = false;
+    brokenIndexes.value = [];
+    naturalRatios.value = {};
   },
   { deep: true },
 );
-function onImgError(): void {
-  imgError.value = true;
+
+/** 条目地址：加载失败时退回占位图（单张失败不影响同一列表里的其它图）。 */
+function itemSrc(item: ImageItemV2, index: number): string {
+  if (!item.src || brokenIndexes.value.includes(index)) return BROKEN_PLACEHOLDER;
+  return item.src;
+}
+function onImgError(index: number): void {
+  if (!brokenIndexes.value.includes(index)) brokenIndexes.value = [...brokenIndexes.value, index];
+}
+/** 记录自然宽高比，供「填充」布局在未配置尺寸时按真实比例分配行内空间。 */
+function onImgLoad(index: number, event: Event): void {
+  const img = event.target as HTMLImageElement | null;
+  const w = img?.naturalWidth ?? 0;
+  const h = img?.naturalHeight ?? 0;
+  if (w > 0 && h > 0) naturalRatios.value = { ...naturalRatios.value, [index]: w / h };
+}
+
+/** 已知宽高比：配置尺寸优先，其次实测自然比例，最后缺省 1（正方形）。 */
+function itemRatio(item: ImageItemV2, index: number): number {
+  if (item.width && item.height && item.width > 0 && item.height > 0) {
+    return item.width / item.height;
+  }
+  return naturalRatios.value[index] ?? 1;
+}
+
+/** 对齐值 → flex 关键字。 */
+const IMAGE_ALIGN_FLEX: Record<ImageAlignV2, string> = {
+  left: "flex-start",
+  center: "center",
+  right: "flex-end",
+};
+
+/** 垂直对齐值 → flex 关键字（值域与 `ImageVerticalAlignV2` / 单元格 `cellVerticalAlign` 同构）。 */
+const IMAGE_VERTICAL_ALIGN_FLEX: Record<ImageVerticalAlignV2, string> = {
+  top: "flex-start",
+  middle: "center",
+  bottom: "flex-end",
+};
+
+/**
+ * 容器对齐：**水平 `align` 与垂直 `verticalAlign` 各管一个方向**，按布局分别落到主轴 / 交叉轴
+ * （两个方向互不覆盖，可同时生效）：
+ * - 垂直布局（`column`）：水平 → `align-items`（交叉轴，每张图左右）；垂直 → `justify-content`（主轴）；
+ * - 水平布局（`row`）：水平 → `justify-content`（主轴，整行左右）；垂直 → `align-items`（交叉轴，每行上下）；
+ * - 填充布局：每行被 `flex-grow` 撑满 → 水平对齐无效果；`align-items: stretch`（CSS 里写死）是
+ *   「同一条目行等高、图片按比例铺满」的前提，故这里**不写垂直对齐**，避免把行内撑满破坏掉。
+ */
+function imageContainerStyle(): CSSProperties {
+  const horizontal = IMAGE_ALIGN_FLEX[imageAlign.value] as CSSProperties["alignItems"];
+  const vertical = IMAGE_VERTICAL_ALIGN_FLEX[
+    imageVerticalAlign.value
+  ] as CSSProperties["alignItems"];
+  if (imageLayout.value === "vertical") {
+    return { alignItems: horizontal, justifyContent: vertical };
+  }
+  if (imageLayout.value === "fill") {
+    return { justifyContent: horizontal };
+  }
+  return { justifyContent: horizontal, alignItems: vertical };
+}
+
+/**
+ * 条目盒样式：**配置的 mm 宽高落到 `<img>` 上，盒子只承载宽度**（2026-09-29 修正）。
+ *
+ * 曾经把 `height` 也锁在盒子上，结果是「盒高 = 配置高」，而 `<img height:100%>` 会把盒高吃满，
+ * 同列的 `.layout-image__name` 只能溢出盒外——被单元格的 `overflow:hidden` 裁掉，
+ * 高度小（如 10mm）的条目尤其明显：图片的自然高（`min-height`）已占满盒子，名称一点位置都拿不到。
+ * 现在盒高由内容决定（图片 + 名称各占自身高度），名称在任何高度下都不会被图片挤掉。
+ * - 垂直 / 水平：宽度按配置（未设则自适应），`maxWidth:100%` 压回容器宽度；
+ * - 填充：宽度由 `flex-grow ∝ 宽高比` 分配（行内撑满），高度随行宽与比例推得，
+ *   故**不锁**配置的 mm 高——配置高在这里只提供比例，`flex-basis` 用配置宽决定换行点。
+ */
+function imageItemStyle(item: ImageItemV2, index: number): CSSProperties {
+  const width = item.width && item.width > 0 ? `${item.width}mm` : undefined;
+  if (imageLayout.value === "fill") {
+    const ratio = Math.max(itemRatio(item, index), 0.05);
+    return {
+      width,
+      maxWidth: "100%",
+      flex: `${ratio} 1 auto`,
+      minWidth: "0",
+    };
+  }
+  if (imageLayout.value === "horizontal") {
+    return { width, maxWidth: "100%", flex: "0 0 auto" };
+  }
+  return { width, maxWidth: "100%" };
+}
+
+/**
+ * `<img>` 自身样式：配置尺寸写在图片上（不是盒子上），盒子高度随内容。
+ * - 宽高都配 → 图片铺满盒子宽、高就是配置的 mm（长条型签名条走这条）；
+ * - 只配宽 → 图片 100% 宽、高按自身比例；
+ * - 只配高 → 图片高就是配置的 mm、宽按自身比例（`alignSelf: center` 抵消 flex 交叉轴的拉伸）；
+ * - 都没配 → 图片自然尺寸（CSS 的 `max-width:100%` 兜底），不写死 `width:100%`；
+ * - 「填充」布局：盒宽由 flex 分配，这里按宽高比等比放大（`aspect-ratio`），不锁 mm 高。
+ */
+function imageStyle(item: ImageItemV2, index: number): CSSProperties {
+  const objectFit = imageNode.value?.objectFit;
+  if (imageLayout.value === "fill") {
+    const hasKnownRatio = Boolean(item.width && item.height) || naturalRatios.value[index] !== undefined;
+    return {
+      width: "100%",
+      height: "auto",
+      aspectRatio: hasKnownRatio ? `${itemRatio(item, index)}` : undefined,
+      objectFit,
+    };
+  }
+  const hasWidth = Boolean(item.width && item.width > 0);
+  const hasHeight = Boolean(item.height && item.height > 0);
+  const height = hasHeight ? `${item.height}mm` : undefined;
+  if (hasWidth && hasHeight) return { width: "100%", height, objectFit };
+  if (hasWidth) return { width: "100%", height: "auto", objectFit };
+  if (hasHeight) return { width: "auto", height, alignSelf: "center", objectFit };
+  return { objectFit };
 }
 </script>
 
@@ -757,22 +939,43 @@ function onImgError(): void {
     @field-change="(field: string, value: string) => emit('field-change', field, value)"
   />
 
-  <img
+  <!-- 图片列表：容器持有节点级 `data-field`（列表整体是那个字段），
+       每个条目再带一份 `data-field` + index，供 `collectFieldValues` 组装成对象数组。 -->
+  <div
     v-else
     class="layout-image"
-    :class="{ 'layout-image--blank': imageBlank }"
+    :class="[`layout-image--${imageLayout}`, { 'layout-image--blank': imageBlank }]"
     :data-node-id="node.id"
     :data-field="node.field"
+    :data-image-align="imageAlign"
+    :data-image-vertical-align="imageVerticalAlign"
+    :style="imageContainerStyle()"
     v-bind="nodeParamAttrs(node)"
-    :src="imageSrc"
-    :alt="node.field ?? node.src ?? ''"
-    :style="{
-      width: node.width ? `${node.width}mm` : undefined,
-      height: node.height ? `${node.height}mm` : undefined,
-      objectFit: node.objectFit,
-    }"
-    @error="onImgError"
-  />
+  >
+    <div
+      v-for="(item, index) in imageRenderItems"
+      :key="index"
+      class="layout-image__item"
+      :class="{ 'layout-image__item--blank': !item.src }"
+      :data-field="node.field"
+      :data-image-index="index"
+      :data-name="item.name ?? ''"
+      :data-width="explicitSize(index, 'width')"
+      :data-height="explicitSize(index, 'height')"
+      :style="imageItemStyle(item, index)"
+    >
+      <img
+        class="layout-image__img"
+        :src="itemSrc(item, index)"
+        :alt="item.name ?? node.field ?? ''"
+        :data-fallback="item.src && !brokenIndexes.includes(index) ? null : 'true'"
+        :style="imageStyle(item, index)"
+        @error="onImgError(index)"
+        @load="onImgLoad(index, $event)"
+      />
+      <span v-if="imageShowName && item.name" class="layout-image__name">{{ item.name }}</span>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -1097,17 +1300,83 @@ function onImgError(): void {
   font-size: var(--v2-table-header-font-size, 16px);
 }
 
+/* 图片列表容器：三种布局共用同一套条目 DOM，仅容器方向与条目伸缩规则不同。 */
 .layout-image {
-  max-width: 100%;
-  object-position: center;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  gap: 1mm;
 }
 
-/* 没配地址、也没有数据给图的图片：屏幕上保留占位灰框（设计态要靠它选中/编辑），
-   **打印时不占版面** —— 否则空图框会撑出一块空白，甚至导致内容被挤到下一张纸。
-   用 `display:none` 而非 `height:0`：高度归零仍会占据行内宽度并接收对齐，
-   彻底移出打印流才能保证与分页引擎的「无高度」估算同口径。 */
+/* 垂直：一张一行。两个方向的对齐都由渲染层内联驱动（水平 → `align-items`、
+   垂直 → `justify-content`，见 `imageContainerStyle`）——不在这里写死，否则面板上的
+   「水平 / 垂直对齐」不生效。 */
+.layout-image--vertical {
+  flex-direction: column;
+}
+
+/* 水平：并排一行、可换行。`align-items` 是垂直对齐的**默认值兜底**（缺省 top = flex-start），
+   显式配置由渲染层内联样式覆盖。 */
+.layout-image--horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* 填充：按条目尺寸（或实测比例）自动换行并撑满整行——`flex-grow` 由内联样式给出。
+   `align-items: stretch`（同一行条目等高、图片按比例铺满）是该布局的前提，
+   所以渲染层对填充布局**不**写垂直对齐（见 `imageContainerStyle`）。 */
+.layout-image--fill {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.layout-image__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.layout-image--fill .layout-image__item,
+.layout-image--horizontal .layout-image__item {
+  align-items: stretch;
+}
+
+/* 尺寸不写死在 CSS 里：`width` / `height` 都由渲染层按配置写到 `<img>` 上，
+   条目盒只承载宽度、高度随内容（图片 + 名称各占自身）——2026-09-29 起盒高不再锁 mm，
+   否则图片会把盒高吃满、同列的名称被挤出盒外裁掉（小高度条目尤其明显）。
+   `flex: 0 0 auto`：图片与名称都不参与 flex 压缩，配置的 mm 高就是真实渲染高。 */
+.layout-image__img {
+  display: block;
+  flex: 0 0 auto;
+  max-width: 100%;
+  object-position: center;
+  box-sizing: border-box;
+}
+
+/* 名称说明文字：仅在「显示名称」打开时渲染。与图片同在一个纵向条目盒里，
+   图片高 + 一行文字高 = 条目盒高（分页估算 `imageItemHeightMm` 同口径）。 */
+.layout-image__name {
+  display: block;
+  flex: 0 0 auto;
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+  color: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 没配地址的条目：屏幕上保留占位灰框（设计态要靠它选中/编辑），打印时不占版面；
+   整块列表都没有来源时容器也带 `--blank`（见下），两层都隐藏，避免挤出一张空白纸。 */
 @media print {
-  .layout-image--blank {
+  .layout-image--blank,
+  .layout-image__item--blank {
     display: none;
   }
   /* 输入框下划线（.layout-p--underline）是设计/预览态的「可填写」提示线，打印时不输出
