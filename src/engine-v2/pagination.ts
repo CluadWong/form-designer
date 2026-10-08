@@ -33,6 +33,7 @@
 
 import type {
   EdgeInsetsV2,
+  FieldPNodeV2,
   FormDataV2,
   FormNodeV2,
   FormSchemaV2,
@@ -47,15 +48,25 @@ import { resolveGridGapV2, resolvePaperSizeV2 } from "@/types";
 import {
   DEFAULT_TEXT_FONT_SIZE_PX,
   DEFAULT_TEXT_LINE_HEIGHT,
+  SIGN_IMAGE_GAP_EM,
+  SIGN_IMAGE_LINE_HEIGHT_EM,
   hasImageSourceV2,
   imageItemHeightMm,
   resolveBaseFontSizeV2,
   resolveImageItemsV2,
+  resolveSignImageUrlsV2,
   resolveTableRowCount,
 } from "@/engine-v2/derivation";
 
 /** 1px（96DPI 下）换算成 mm，用于外框边框占用的高度。 */
 const ONE_PX_MM = 1 / (96 / 25.4); // ≈ 0.264583mm
+
+/**
+ * 签名图「与标签等高」的行高倍数（`em`）与「多图间距」的默认值，均已收敛到
+ * `derivation.ts`（`SIGN_IMAGE_LINE_HEIGHT_EM` / `SIGN_IMAGE_GAP_EM`）——
+ * 与渲染层 `GridSchemaNode.vue` 的 `DEFAULT_SIGN_IMAGE_HEIGHT_V2` / `DEFAULT_SIGN_IMAGE_GAP_V2`
+ * 同一真源，避免「分页算高」与「屏幕实际高度」错配。
+ */
 
 /** 该 Grid 是否绘制外框（all / outer 才有容器边框）。 */
 function drawsOuterFrame(grid: GridNodeV2): boolean {
@@ -177,6 +188,22 @@ export function tableHeightMm(
   return h;
 }
 
+/**
+ * CSS 长度 → mm（仅认 mm / cm / px）。
+ * 其它单位（em / % / 无单位）依赖字号与容器宽度，无法在此可靠换算 → 返回 null，
+ * 由调用方回落默认估算（宁可保守，也不要算出一个错误的页高）。
+ */
+function cssLengthToMm(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = /^([\d.]+)\s*(mm|cm|px)$/.exec(value.trim());
+  if (!match) return null;
+  const n = Number(match[1]);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (match[2] === "mm") return n;
+  if (match[2] === "cm") return n * 10;
+  return n * ONE_PX_MM;
+}
+
 /** 单个原子节点（非 Grid）的估算高度（mm）。 */
 function atomicNodeHeightMm(
   node: FormNodeV2,
@@ -205,10 +232,47 @@ function atomicNodeHeightMm(
     case "html":
       // Html 内容高度不可知，按一行基准高估算并提示（可注入 measureNode 提升精度）
       return ctx.baseRowHeight;
-    case "p":
-      // 字段 P 在 Grid 外通常占一行；按基准行高估算
-      return ctx.baseRowHeight;
+    case "p": {
+      // 字段 P 在 Grid 外通常占一行；按基准行高估算。
+      // 例外：图片值字段（电子签名，`valueType === "image"`）——签名图会撑高行盒，
+      // 按其高度估算，避免低估导致签名栏被挤到下一页。高度口径与渲染层同源：
+      //   ① 配了 `imageHeight` 用它（em / % 等依赖字号、容器宽度的单位无法在此换算 → null，
+      //      此时回落到 ②）；
+      //   ② 否则用「与标签等高」的 1.6em——跟随全局基础字号，故按字号换算成 mm
+      //      （见渲染层 `DEFAULT_SIGN_IMAGE_HEIGHT_V2`；13px → 5.5mm、16px → 6.77mm）。
+      //
+      // 多人签名（2026-09-30）：多张签名图**自动换行**，而行数在设计期算不出——图宽是
+      // 「按自身比例 + max-width:100%」，没有固定宽度就推不出每行能放几张。故取**保守上界**：
+      // 每张独占一行，总高 = N × 图高 + (N-1) × 间距。偏高只会让分页提前（留白），
+      // 偏低则会溢出纸外，二者取前者。
+      // 空态（N = 0）与单张（N = 1）都按一行算 —— 空态也要占住 `imageHeight`
+      // （`min-height` 兜底），否则「未签名 / 已签名」两态的下划线位置会不一致。
+      // 注：Grid 内的行由渲染层 `measureRow` 实测真实高度二次校正，不依赖此处估算；
+      // 本分支只覆盖 Grid 外的裸 p 节点。
+      const isSignImage = node.mode === "field" && node.valueType === "image";
+      const rows = isSignImage ? Math.max(1, signImageRowCount(node, ctx)) : 0;
+      if (rows === 0) return ctx.baseRowHeight;
+      const fontMm =
+        resolveBaseFontSizeV2({ baseFontSize: ctx.baseFontSize }) * ONE_PX_MM;
+      const imageMm =
+        cssLengthToMm(node.imageHeight) ?? SIGN_IMAGE_LINE_HEIGHT_EM * fontMm;
+      const gapMm = cssLengthToMm(node.gap) ?? SIGN_IMAGE_GAP_EM * fontMm;
+      return Math.max(ctx.baseRowHeight, rows * imageMm + (rows - 1) * gapMm);
+    }
   }
+}
+
+/**
+ * 签名图**估算行数**（保守上界 = 图片张数，即每张独占一行）。
+ *
+ * 张数取自 `data`，取值与兜底规则和渲染层 `signImageUrls` 一致（`data` 无该键 / 值为 `null`
+ * 时回落节点 `default`，并按 `maxCount` 截断），否则「带默认值的签名栏」会出现
+ * 渲染与分页两套口径。
+ */
+function signImageRowCount(node: FieldPNodeV2, ctx: PaginateContext): number {
+  const inData = ctx.data != null && node.field in ctx.data;
+  const raw = inData ? (ctx.data?.[node.field] ?? node.default) : node.default;
+  return resolveSignImageUrlsV2(raw, node.maxCount).length;
 }
 
 /** 分页上下文（高度计算所需的一切）。 */

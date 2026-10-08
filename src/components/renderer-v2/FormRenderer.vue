@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from "vue";
 import type {
-  FieldActivateV2,
   FieldPermissionV2,
   FieldRuleV2,
   FormDataV2,
@@ -37,6 +36,59 @@ export interface FormRendererOptions {
    * 默认 false（保持 100%）；窄屏传 true 可让表单自动铺满视口宽度。
    */
   fitOnMount?: boolean;
+  /**
+   * 「适应宽度」时左右各留出的空白（px，缺省 `0` = 内容贴边）。仅当 `zoom` 为真时生效。
+   *
+   * 宿主希望票面**铺满显示区域但不贴边**时传一个正数（如 `24`）：视口按
+   * `(视口宽 − 2×fitPadding) / 内容宽` 解比例，由水平居中自然给出左右等宽间隔。
+   * 顶部间隔不受它影响（恒为视口内的 `TOP_GAP = 18px`）。
+   */
+  fitPadding?: number;
+  /**
+   * 「适应宽度」按哪个元素量（视口内 CSS 选择器，缺省第一个子元素）。仅当 `zoom` 为真时生效。
+   *
+   * 本内核的 DOM 是 `缩放层 > .grid-form-canvas > .grid-form-paper`（纸外面还包了一层铺满视口的
+   * 画布）⇒ 缺省量到的是**画布**（宽 = 视口宽），比例恒等于 1，适应宽度退化为「不缩放」。
+   * 需要「按纸宽铺满」的消费方传 `".grid-form-paper"`。
+   *
+   * **默认不改**：审批 / 新建 / 表单管理那些页面用的是内核原生的「缩到能放下」（不做放大），
+   * 传选择器会变成「铺满（含放大）」，属于另一个形态，由消费方显式声明。
+   */
+  fitContentSelector?: string;
+  /**
+   * 隐藏视口**内置**的缩放工具栏（`.paper-viewport__bar`）。仅当 `zoom` 为真时生效。
+   *
+   * 宿主已有自己的缩放控件（如详情页顶栏的 TDesign 缩放组）时置真：让宿主工具栏成为唯一 UI 与
+   * 唯一百分比真源，避免页面上叠两套缩放条、两处百分比各说各话。隐藏后仍可用
+   * `zoomIn / zoomOut / zoomTo / resetZoom / fitWidth / getScale`（本组件 `defineExpose`）
+   * 驱动缩放，视口的 `scale-change` 事件照常上报（滚轮 / 双指捏合同样会触发）。
+   */
+  hideZoomBar?: boolean;
+  /**
+   * 允许的最小 / 最大缩放。仅当 `zoom` 为真时生效，缺省沿用视口的 `0.2 / 4`。
+   *
+   * 宿主按百分比界定时**必须**与宿主自己的上下界对齐（如宿主工具栏是 50%~200%，
+   * 这里就要传 `0.5 / 2`）—— 否则滚轮 / 捏合能把比例带到宿主工具栏显示不出的区间
+   * （视口 4× 而工具栏 clamped 到 200%），两处百分比永久不一致。
+   */
+  minScale?: number;
+  /** 见 {@link FormRendererOptions.minScale}。 */
+  maxScale?: number;
+  /**
+   * 视口初始缩放比例（缺省 `1` = 100%）。仅当 `zoom` 为真时生效。
+   *
+   * 只被**挂载时**读取：之后改它不会让视口重新缩放（否则宿主的百分比状态与滚轮缩放会互相打架）。
+   * 宿主按百分比下发时传 `percent / 100`，这样挂载那一刻就是目标比例，不会先闪一帧 100%。
+   */
+  initialScale?: number;
+  /**
+   * 固定比例模式（`zoom: true` 且 `fitOnMount` 为假）下，挂载时是否解算一次落点对齐。
+   *
+   * **默认 true**：消费页固定比例浏览时必须对齐，否则 panzoom 以元素中心为 `transform-origin`
+   * 会把内容整体顶出左上角（偏移 `size/2·(1−s)`），用户得自己拖回来。置 `false` 可回到
+   * 「原样不干预落点」的旧行为（设计态场景——那里缩放恒为 1，本就没有偏移）。
+   */
+  alignOnMount?: boolean;
   /**
    * 只读闸门（与内核 `mode` **正交**）：默认 **true** —— 消费页默认只读回显（仅浏览详情）。
    * 设为 false 即进入「填写」态，字段可输入（契合「预览即消费模板、输入数据以配合业务流程流转」）。
@@ -85,7 +137,13 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: "field-change", field: string, value: string): void;
   (e: "update:data", data: FormDataV2): void;
-  (e: "field-activate", payload: FieldActivateV2): void;
+  /**
+   * 视口缩放比例变化（滚轮 / 双指捏合 / `zoomIn`·`zoomOut`·`zoomTo`·`fitWidth`·`reset`）。
+   *
+   * 宿主自持工具栏时靠它把「视口当前比例」同步回工具栏百分比显示——不给这个事件，用户滚一次
+   * 滚轮后工具栏就会停在旧数字上。仅当 `options.zoom` 为真时有事件。
+   */
+  (e: "scale-change", scale: number): void;
 }>();
 
 // 内部持有 data，使填写态输入可回写并被消费页 v-model:data 接管。
@@ -113,16 +171,6 @@ function onFieldChange(field: string, value: string): void {
   emit("field-change", field, value);
 }
 
-/**
- * 字段触发事件透传：内核在填写态对 `interactive` 字段（点击字段元素）发出 `field-activate`，
- * 此处原样 re-emit —— **弹窗/选择器由宿主实现**，宿主从 `payload.params` 自取所需约定
- * （如 `params.action` 决定弹哪个选择器），在回调里回写 data（`v-model:data` / `props.data`）
- * 后票面自动重渲染。内核不认识这些约定。
- */
-function onFieldActivate(payload: FieldActivateV2): void {
-  emit("field-activate", payload);
-}
-
 /** 内核实例引用（`$el` 即 `.grid-form-canvas`）：`printForm` 需要根元素才能圈定纸张。 */
 const rendererRef = ref<ComponentPublicInstance | null>(null);
 
@@ -133,12 +181,22 @@ const rendererRef = ref<ComponentPublicInstance | null>(null);
  * ⇒ 同一消费页里切换到另一张表单时，会沿用上一张的 scale / 平移量，落点错乱（A4↔A3 切换尤其明显）。
  * 故在此 watch `schema` 显式重排；视口内部还会在内容尺寸（分页校正后）变化时再自愈一次。
  */
-const viewportRef = ref<{ fitWidth?: () => void } | null>(null);
+const viewportRef = ref<{
+  fitWidth?: () => void;
+  relayout?: () => void;
+  zoomIn?: () => void;
+  zoomOut?: () => void;
+  zoomTo?: (scale: number) => void;
+  reset?: () => void;
+  getScale?: () => number;
+} | null>(null);
 
 watch(
   () => props.schema,
   () => {
-    nextTick(() => viewportRef.value?.fitWidth?.());
+    // `relayout` 而非 `fitWidth`：固定比例模式（宿主工具栏主导、`fitOnMount` 为假）下换表单
+    // 只该重排落点，不该把宿主下发的比例改掉。
+    nextTick(() => viewportRef.value?.relayout?.());
   },
 );
 
@@ -175,11 +233,69 @@ function validate(): string[] {
   return findEmptyRequiredFields(props.options?.rules, data.value);
 }
 
-defineExpose({ print, getFormData, validate });
+function zoomIn(): void {
+  viewportRef.value?.zoomIn?.();
+}
+
+function zoomOut(): void {
+  viewportRef.value?.zoomOut?.();
+}
+
+function zoomTo(scale: number): void {
+  viewportRef.value?.zoomTo?.(scale);
+}
+
+function resetZoom(): void {
+  viewportRef.value?.reset?.();
+}
+
+function fitWidth(): void {
+  viewportRef.value?.fitWidth?.();
+}
+
+function getScale(): number {
+  return viewportRef.value?.getScale?.() ?? 1;
+}
+
+/**
+ * 缩放能力透出（仅 `options.zoom` 为真时可用；否则各方法空转、`getScale()` 返回 1）。
+ *
+ * 宿主接自己的工具栏时用这组方法驱动视口，并用 `scale-change` 事件回读比例：
+ * - `zoomIn / zoomOut`：视口自带的**乘法**步进（×1.2 / ÷1.2），适合「放大 / 缩小」按钮；
+ * - `zoomTo(scale)`：**绝对**比例，适合宿主用**加法**步进（如百分比 ±10）或滑块；
+ * - `resetZoom`：回到 `initialScale`；`fitWidth`：按视口宽自适应；`getScale`：当前比例。
+ *
+ * 语义提示：`zoomTo` 与 `zoomIn` / `zoomOut` 都**不动平移**（围绕视口中心缩放，保留用户的浏览位置），
+ * 只有 `fitWidth` / `resetZoom` 会重排落点——这与宿主自研缩放「每次改比例都回到左上」的旧行为不同，
+ * 是刻意的：3× 下微调 ±10% 时被拉回原点会很难用。
+ */
+defineExpose({
+  print,
+  getFormData,
+  validate,
+  zoomIn,
+  zoomOut,
+  zoomTo,
+  resetZoom,
+  fitWidth,
+  getScale,
+});
 </script>
 
 <template>
-  <PaperViewport ref="viewportRef" v-if="options?.zoom" :fit-on-mount="options?.fitOnMount ?? false">
+  <PaperViewport
+    ref="viewportRef"
+    v-if="options?.zoom"
+    :fit-on-mount="options?.fitOnMount ?? false"
+    :fit-padding="options?.fitPadding ?? 0"
+    :fit-content-selector="options?.fitContentSelector ?? ''"
+    :hide-bar="options?.hideZoomBar ?? false"
+    :initial-scale="options?.initialScale ?? 1"
+    :min-scale="options?.minScale"
+    :max-scale="options?.maxScale"
+    :align-on-mount="options?.alignOnMount ?? true"
+    @scale-change="(scale: number) => emit('scale-change', scale)"
+  >
     <GridFormRenderer
       ref="rendererRef"
       :schema="schema"
@@ -189,7 +305,6 @@ defineExpose({ print, getFormData, validate });
       :field-permissions="options?.fieldPermissions"
       :bare="true"
       @field-change="onFieldChange"
-      @field-activate="onFieldActivate"
     />
   </PaperViewport>
   <GridFormRenderer
@@ -202,6 +317,5 @@ defineExpose({ print, getFormData, validate });
     :field-permissions="options?.fieldPermissions"
     :bare="options?.bare"
     @field-change="onFieldChange"
-    @field-activate="onFieldActivate"
   />
 </template>

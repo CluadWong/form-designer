@@ -3,7 +3,6 @@ import { computed, ref, watch, onMounted } from "vue";
 import type { CSSProperties } from "vue";
 import type {
   FormNodeV2,
-  FieldActivateV2,
   FieldPermissionV2,
   GridCellV2,
   GridNodeV2,
@@ -30,6 +29,9 @@ import {
   resolveImageAlignV2,
   resolveImageItemsV2,
   resolveImageVerticalAlignV2,
+  resolveSignImageGapV2,
+  resolveSignImageHeightV2,
+  resolveSignImageUrlsV2,
   resolveTableRowCount,
   withImageDefaultsV2,
 } from "@/engine-v2/derivation";
@@ -47,7 +49,6 @@ defineOptions({ name: "GridSchemaNodeV2" });
 
 const emit = defineEmits<{
   (e: "field-change", field: string, value: string): void;
-  (e: "field-activate", payload: FieldActivateV2): void;
 }>();
 
 const props = defineProps<{
@@ -328,6 +329,80 @@ function isCompositeField(node: PNodeV2): boolean {
 }
 
 /**
+ * 图片值字段（`valueType === "image"`，2026-09-29）：`data[field]` 是**一个或多个**图片地址
+ * （URL / data URL），每个渲染为坐落在下划线上的 `<img>`——电子签名场景，宿主经
+ * `params.action`（落到字段标签属性）识别签名栏并弹签名框、回填图片地址。
+ *
+ * 该形态**不参与就地输入**（值只能由宿主回填），故 `contenteditable` 一律关闭；
+ * 空值不渲染图片，下划线照常显示（「负责人签名：____」空态占位）。
+ */
+function isImageValue(node: PNodeV2): boolean {
+  return node.mode === "field" && node.valueType === "image";
+}
+
+/**
+ * 签名字段的图片地址列表（**单值与多值同一条路径**，多人签名 2026-09-30）。
+ *
+ * 取值口径与 `fieldValue` 完全一致（`.default` 兜底规则也照搬，否则带默认值的签名栏
+ * 会与文本态行为分叉），只把「标量」换成「数组」：字符串 → 长度 1 的数组。
+ * 故单值场景渲染结果与单图时代逐字节相同；数组即多张，超宽换行。
+ * 归一化规则（空项剔除、`maxCount` 截断）见 `resolveSignImageUrlsV2`。
+ */
+function signImageUrls(node: PNodeV2): string[] {
+  const data = props.data;
+  let raw: unknown = node.default ?? "";
+  if (data != null && node.field in data) {
+    raw = data[node.field];
+    if (raw == null) raw = node.default ?? "";
+  }
+  return resolveSignImageUrlsV2(raw, node.maxCount);
+}
+
+/**
+ * 签名图**张数**（已过 `valueType === "image"` 与脱敏两道闸门）：模板据此三选一——
+ * `0` 空态（下划线照常显示）或已脱敏、`1` 走单 `<img>` 路径、`> 1` 用 `.layout-p__signs`
+ * 容器承载并排多图。
+ *
+ * 脱敏（HIDDEN）态返回 0 → 落回原文本分支显示 `***`：真实图片地址不进 DOM（P9.2b 口径），
+ * 且**多图时整栏统一 `***`**，不逐张遮罩（否则张数本身就是信息泄露）。
+ */
+function signImageCount(node: PNodeV2): number {
+  if (!isImageValue(node) || fieldMasked.value) return 0;
+  return signImageUrls(node).length;
+}
+
+/** 签名图**有效高度**：`imageHeight` 缺省即与标签（文字行盒）等高——解析逻辑与分页估算
+ *  同源（`resolveSignImageHeightV2`），见 `DEFAULT_SIGN_IMAGE_HEIGHT_V2` 的说明。
+ *
+ *  2026-09-29 修正：此前留空 = **不设高度**，图片按固有尺寸铺开 —— 无头实测一张 400×120 的
+ *  签名图被渲染成 105.83×31.75mm，把原本 5.77mm 的字段行撑到 38.51mm（6.7 倍）。 */
+function signImageStyle(node: PNodeV2): CSSProperties {
+  return {
+    height: resolveSignImageHeightV2(node),
+    maxWidth: "100%",
+  };
+}
+
+/** 图片值容器的底高预留：空态（未签名）也占住 `imageHeight`，令下划线位置在
+ *  「未签名 / 已签名」两态一致；有图时以图片高度为准（`min-height` 仅作下限）。
+ *
+ *  留空 `imageHeight` 时无需任何额外样式：`.layout-p__input` 自带的 `min-height: 1.6em`
+ *  与默认图片高度同值，两态天然等高（实测 5.77mm 对 5.77mm）。 */
+function signBoxStyle(node: PNodeV2): CSSProperties {
+  return isImageValue(node) && node.imageHeight ? { minHeight: node.imageHeight } : {};
+}
+
+/**
+ * 多人签名容器（`.layout-p__signs`）的**节点级**样式：间距 `gap` 抽自 `resolveSignImageGapV2`
+ * （缺省 `0.5em`）。换行与贴底（`flex-wrap` / `align-content: flex-end`）是静态规则，
+ * 由 CSS 承担；此处只下发可配置项，故单图 / 空态都不需要它——**该容器只在 N > 1 时渲染**，
+ * 单张仍走原来的单 `<img>` 路径，DOM 与升级前逐字节一致。
+ */
+function signWrapStyle(node: PNodeV2): CSSProperties {
+  return isImageValue(node) ? { gap: resolveSignImageGapV2(node) } : {};
+}
+
+/**
  * 当前字段节点的运行时权限（P9.2a）：缺省 EDIT（向后兼容——未注明的字段可输入）。
  * 仅对字段 P 生效；权限由消费方经 `fieldPermissions` 注入，设计态不传 → 恒为 EDIT。
  * HIDDEN / READ 是比 `readonly` 会话闸门更细的一层：READ/HIDDEN 一律不可就地输入。
@@ -347,27 +422,6 @@ const fieldPermission = computed<FieldPermissionV2>(() => {
  */
 function nodeParamAttrs(node: SchemaNodeBaseV2): Record<string, string> {
   return resolveNodeParamAttrs(node.params);
-}
-
-/**
- * 字段触发（用户拍板：**表单不加任何额外元素**）：字段配置了 `interactive` 时，
- * **点击字段元素本身** emit `field-activate`，把触发权交还宿主——**宿主负责召唤外部输入组件
- * （弹窗/选择器）并在回调里回写 data**（票面自动重渲染）；内核不做任何弹窗实现，
- * 也**不解释 `params` 的键**（分层：内核不认识宿主 UI 与业务约定）。
- *
- * 内核只持有「可点击触发」这 1 bit（`interactive`），控件类型是开放集、由 `params` 承载，
- * 故宿主新增控件类型（time / date-time / …）零内核改动。
- * 设计态 / 只读态 / `interactive` 未配置（或 false）不触发；点击与就地输入并存：内核不改
- * contenteditable 语义。
- */
-function onFieldActivate(node: PNodeV2, event: MouseEvent): void {
-  if (!canFill.value) return;
-  if (node.mode !== "field" || !node.interactive) return;
-  emit("field-activate", {
-    nodeId: node.id,
-    field: node.field,
-    params: node.params,
-  });
 }
 
 /**
@@ -758,9 +812,6 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
               (field: string, value: string) =>
                 emit('field-change', field, value)
             "
-            @field-activate="
-              (payload: FieldActivateV2) => emit('field-activate', payload)
-            "
           />
         </template>
       </div>
@@ -790,7 +841,7 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
     }"
     :style="pStyle(node)"
     :contenteditable="
-      isCompositeField(node)
+      isCompositeField(node) || isImageValue(node)
         ? undefined
         : fieldPermission === 'EDIT'
           ? canFill
@@ -801,7 +852,6 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
     :data-field="node.field"
     :data-node-id="node.id"
     v-bind="nodeParamAttrs(node)"
-    @click="onFieldActivate(node, $event)"
     @blur="onFillBlur(node.field, $event)"
   >
     <span v-if="node.prefix" class="layout-p__label">{{ node.prefix }}</span>
@@ -816,20 +866,39 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
     <span
       v-if="isCompositeField(node)"
       class="layout-p__input"
-      :class="{ 'layout-p--underline': node.underline }"
-      :style="fieldInputStyle(node)"
+      :class="{ 'layout-p--underline': node.underline, 'layout-p__signbox': isImageValue(node) }"
+      :style="[fieldInputStyle(node), signBoxStyle(node)]"
       :contenteditable="
-        fieldPermission === 'EDIT'
-          ? canFill
-            ? 'true'
-            : props.readonly
-              ? undefined
-              : 'true'
-          : undefined
+        isImageValue(node)
+          ? undefined
+          : fieldPermission === 'EDIT'
+            ? canFill
+              ? 'true'
+              : props.readonly
+                ? undefined
+                : 'true'
+            : undefined
       "
       :data-field="node.field"
       @blur="onFillBlur(node.field, $event)"
-      ><template v-if="node.innerBorder"
+      ><img
+        v-if="signImageCount(node) === 1"
+        class="layout-p__sign"
+        :src="signImageUrls(node)[0]"
+        :style="signImageStyle(node)"
+        :alt="node.prefix ?? node.field"
+      /><span
+        v-else-if="signImageCount(node) > 1"
+        class="layout-p__signs"
+        :style="signWrapStyle(node)"
+        ><img
+          v-for="(signUrl, signIndex) in signImageUrls(node)"
+          :key="signIndex"
+          class="layout-p__sign"
+          :src="signUrl"
+          :style="signImageStyle(node)"
+          :alt="node.prefix ?? node.field"
+      /></span><template v-else-if="node.innerBorder"
         ><div
           v-for="(line, li) in displayLines(node)"
           :key="li"
@@ -839,6 +908,33 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
         </div></template
       ><span v-else class="layout-p__value">{{ displayValue(node) }}</span></span
     >
+
+    <!-- 图片值（非复合字段）：签名图作为 .layout-p 的直接子项贴底排布，坐落在字段
+         自身的 border-bottom（签名线）上。必须接成同一条 v-if 链（v-else-if）——
+         独立写 v-if 时条件不满足会留下注释占位节点，把容器子元素数从 3 顶成 4，
+         破坏字段容器 HTML 往返与整票快照基线。空值不渲染此图，走下面的空态分支。
+         多人签名（2026-09-30）：**单张仍走单 <img> 分支**（DOM 与升级前逐字节一致），
+         仅 N > 1 时换成 `.layout-p__signs` 容器承载并排多图——用 <template v-for> 直接
+         接在链上会引入 Fragment 锚点（实测每个空文本节点 ×2），同样会顶掉子元素数。 -->
+    <img
+      v-else-if="signImageCount(node) === 1"
+      class="layout-p__sign layout-p__sign--inline"
+      :src="signImageUrls(node)[0]"
+      :style="signImageStyle(node)"
+      :alt="node.field"
+    />
+    <span
+      v-else-if="signImageCount(node) > 1"
+      class="layout-p__signs layout-p__signs--inline"
+      :style="signWrapStyle(node)"
+      ><img
+        v-for="(signUrl, signIndex) in signImageUrls(node)"
+        :key="signIndex"
+        class="layout-p__sign"
+        :src="signUrl"
+        :style="signImageStyle(node)"
+        :alt="node.field"
+    /></span>
 
     <!-- 非复合字段：innerBorder 时逐行渲染（v-once 静态 + 填写态 DOM 重建）。 -->
     <span
@@ -918,9 +1014,6 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
               @field-change="
                 (field: string, value: string) =>
                   emit('field-change', field, value)
-              "
-              @field-activate="
-                (payload: FieldActivateV2) => emit('field-activate', payload)
               "
             />
           </template>
@@ -1202,6 +1295,59 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   min-height: 1.6em;
 }
 
+/* 签名图（`valueType === "image"`，2026-09-29）：图片值字段的容器改为**底对齐**弹性盒，
+   让签名图底边压在 `.layout-p__input` 的 border-bottom 上（那条线就是签名线）。
+   高度由 `imageHeight` 决定，**留空则与标签（文字行盒）等高**（= `line-height: 1.6`，
+   见 `DEFAULT_SIGN_IMAGE_HEIGHT_V2`）；宽度受输入区约束、按比例（`object-fit: contain` 不裁不拉）。
+   标签与签名图同处 `.layout-p`（flex row）⇒ 二者水平并排，图紧贴标签右侧。
+   容器 min-height 由内联的 signBoxStyle 给出（仅配了 `imageHeight` 时需要；留空时
+   `.layout-p__input` 自带的 `min-height: 1.6em` 已与图片同高），保证空态（未签名）
+   与有值（已签名）两态的下划线落在同一位置。 */
+.layout-p__signbox {
+  display: flex;
+  align-items: flex-end;
+}
+
+.layout-p__sign {
+  display: block;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* 多人签名（2026-09-30）：一条下划线上并排多张签名图，一行放不下即换行、多行整体贴底。
+   该容器**只在 N > 1 时渲染**（单张仍走单 <img> 路径，DOM 与升级前逐字节一致），
+   故这些规则不参与单图 / 空态的任何计算。间距 `gap` 是节点级配置，由 signWrapStyle 下发。
+
+   flex: 1 1 auto + min-width: 0 是让**换行真正发生**的前提：容器必须被约束到可用宽度，
+   否则它会按 max-content 撑开（等于所有图之和）从而永不换行、直接溢出字段。
+   图自身的 max-width: 100% 是相对本容器解析的，故单张超出时也不会溢出。 */
+.layout-p__signs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  align-content: flex-end;
+  min-width: 0;
+}
+
+/* 非复合字段下容器是 `.layout-p`（align-items: center）的直接子项，需显式贴底才能
+   让图底压在字段自身的下划线上——与 `.layout-p__sign--inline` 同理。 */
+.layout-p__signs--inline {
+  align-self: flex-end;
+}
+
+/* 并排的图不参与伸缩：宽度按图片自身比例，超宽交回容器换行（若允许压缩，多张图会挤成
+   一排窄图而非换行，与「多人签名：___________」的票面预期不符）。 */
+.layout-p__signs > .layout-p__sign {
+  flex: 0 0 auto;
+}
+
+/* 非复合字段的签名图直接作为 `.layout-p`（flex）的子项，贴底对齐才能落在
+   字段自身的下划线上（`.layout-p` 默认 align-items: center 会把它居中）。 */
+.layout-p__sign--inline {
+  align-self: flex-end;
+}
+
 /* 字段 P 已统一渲染为可编辑 <div>（预览 / 填写态与设计态同结构，行高一致），
    不再使用 textarea 控件（G11 的 textarea 分支已回退，见十续）。复合字段的可输入区
    为 .layout-p__input（设计/预览/填写共用），见上。 */
@@ -1368,6 +1514,30 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   line-height: 1.4;
   text-align: center;
   color: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 没配地址的条目：屏幕上保留占位灰框（设计态要靠它选中/编辑），打印时不占版面；
+   整块列表都没有来源时容器也带 `--blank`（见下），两层都隐藏，避免挤出一张空白纸。 */
+@media print {
+  .layout-image--blank,
+  .layout-image__item--blank {
+    display: none;
+  }
+  /* 输入框下划线（.layout-p--underline）是设计/预览态的「可填写」提示线，打印时不输出
+     （手写票应保持干净）。显式勾选「显示内部边框」(innerBorder) 的逐行实线边框由独立的
+     .layout-p--inner-border :deep(div) 绘制、不在本媒体内，故仍正常打印——
+     即「默认无下划线，除非选了内部边框」。 */
+  .layout-p--underline {
+    border-bottom: none;
+  }
+}
+
+/* D3：插入指示线（`.v2-insertion-line`）与拖拽悬停态（`dragOverCellId` / `dragOverIndex`）
+   已整体移出内核——它们是设计态交互，由设计表面层 `designer/CanvasSurface.vue` 用
+   overlay 绝对定位绘制（内核不认识拖拽/落点，也不再为设计态输出任何 DOM 分支）。
+   内�erit;
   white-space: pre-wrap;
   word-break: break-word;
 }

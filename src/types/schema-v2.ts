@@ -125,17 +125,6 @@ export interface FieldPNodeV2 extends SchemaNodeBaseV2 {
   prefix?: string;
   /** Optional inline label rendered after the input area. */
   suffix?: string;
-  /**
-   * 可点击触发（原 `action` 闭枚举收敛出的 1 bit，2026-09-15 用户拍板）：为 `true` 时渲染内核在
-   * **填写态**由**点击字段元素本身** emit `field-activate`，把触发权交还宿主。
-   *
-   * 内核只持有这 1 bit（「要不要绑点击、发不发事件」），**不持有控件类型词表**——「是日期选择器
-   * 还是时间选择器」等开放集由 `params` 表达（如 `params.action = "datePicker"`），
-   * 内核原样透传、不认识其值。故新增宿主控件类型零内核改动。
-   *
-   * 缺省 / `false`：不触发（传统纸类表单的普通输入框，仅就地输入）。
-   */
-  interactive?: boolean;
   underline?: boolean;
   webUnderline?: boolean;
   printUnderline?: boolean;
@@ -147,6 +136,36 @@ export interface FieldPNodeV2 extends SchemaNodeBaseV2 {
   /** 内部边框：为 p 标签内每一行（回车生成的 div）显示底边框。
    *  默认不显示；勾选后设计态 / 预览 / 打印均保持显示。 */
   innerBorder?: boolean;
+  /**
+   * 值的渲染形态（2026-09-29；多人签名扩充 2026-09-30）：
+   * - `"text"`（缺省）：`data[field]` 按文本渲染（历史行为，既有 schema 外观不变）；
+   * - `"image"`：`data[field]` 视为**一个或多个**图片地址（URL / data URL），
+   *   每个渲染为 `<img>`，**坐落在下划线上**、底边压线。
+   *
+   * 电子签名场景：宿主借 `params.action`（经 `nodeParamAttrs` 落到字段标签属性）识别签名栏
+   * 并弹签名框，回填 `data[field] = 图片地址`；**无值时下划线照常显示**
+   * （「负责人签名：____」空态占位），一个节点即可表达，无需「文本 + 图片组」拼装。
+   *
+   * 多人签名（一次审批多个签批人各一张）：`data[field]` 传**数组**即得多张
+   * （`["url1", "url2"]`）——多张在同一条下划线上并排，超出可用宽度**自动换行**
+   * （「多人签名：___________」），每行行高均等于 `imageHeight`。
+   * 传字符串与传单元素数组渲染结果**完全一致**，故单值路径与升级前逐字节相同。
+   *
+   * 该形态下字段**不参与就地输入**（值由宿主回填，contenteditable 关闭）。
+   */
+  valueType?: "text" | "image";
+  /** 签名图高度（CSS 长度，如 `"10mm"`、`"1.2em"`）——仅 `valueType === "image"` 生效。
+   *  缺省（留空）**与标签（文字行盒）等高**（渲染层取 `1.6em`，随纸张基础字号自适应）；
+   *  **空态也占这个高度**，保证「未签名 / 已签名」两态的下划线位置一致。
+   *  多图换行时**每行行高都等于它**，故分页估算与张数无关地按此行高叠加。
+   *  建议与基准行高同高以稳定分页估算。 */
+  imageHeight?: string;
+  /** 多张签名图之间的水平间距（CSS 长度，如 `"2mm"`、`"0.5em"`）。
+   *  缺省（留空）渲染层取 `0.5em`；单图时无效果。 */
+  gap?: string;
+  /** 签名图数量上限：>0 生效（超出部分不渲染，也不随值采集）；未设或 ≤0 = 不限。
+   *  词表与 `ImageNodeV2.maxCount` 一致。 */
+  maxCount?: number;
   style?: TextStyleV2;
 }
 
@@ -173,24 +192,6 @@ export type FieldPermissionV2 = "READ" | "EDIT" | "HIDDEN";
 export interface FieldRuleV2 {
   /** 必填：值为空（键缺失 / 空串 / 纯空白）时校验不通过。 */
   required?: boolean;
-}
-
-/**
- * 字段触发事件契约：字段配置 `interactive: true` 时，渲染内核在**填写态**（canFill）由
- * **点击字段元素本身**触发（表单不加任何额外按钮），经 `field-activate` 事件把触发权交还
- * 宿主——**宿主负责召唤外部输入组件（弹窗/选择器）并在回调里回写 data**（与 data 同轨，
- * 回写后票面自动重渲染）。
- *
- * 分层：内核不做任何弹窗实现，**也不解释 `params` 的键**（内核不认识宿主 UI 与业务约定）；
- * 宿主从 `params` 自取所需（如 `params.action` 决定弹哪个选择器、`params.format` 决定显示格式）。
- */
-export interface FieldActivateV2 {
-  /** 触发源字段节点 id。 */
-  nodeId: string;
-  /** 字段名（宿主回写 data 的键）。 */
-  field: string;
-  /** 该字段的额外属性（原样透传，含义由宿主约定）。 */
-  params?: NodeParamsV2;
 }
 
 export interface GridNodeV2 extends SchemaNodeBaseV2 {

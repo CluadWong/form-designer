@@ -11,8 +11,7 @@ import signTableExport from "@/fixtures/formdesigner-schema-v2-sign-table.json";
  * 消费页演示（G8 独立运行，最简形态）：schema → 渲染 / 填写 / 取数。
  * 只验证渲染内核可脱离设计器独立运行。设计页（FormDesigner）保持纯设计用途。
  *
- * `readonly` 是 `options` 里的字段（`FormRenderer` 无同名 prop）：显式 false 即「填写」态，
- * 便于手动点字段验证 `field-activate` 触发。
+ * `readonly` 是 `options` 里的字段（`FormRenderer` 无同名 prop）：显式 false 即「填写」态。
  *
  * URL 参数（缺省 = 云铝第二种工作票全工单）：
  * - `?schema=sign-table`：切到「HTML 复杂表」——设计器**真实导出**的收工/开工签名时间表

@@ -14,6 +14,15 @@
 export { default as FormRenderer } from "./components/renderer-v2/FormRenderer.vue";
 export { default as GridFormRenderer } from "./components/renderer-v2/GridFormRenderer.vue";
 export { default as GridSchemaNode } from "./components/renderer-v2/GridSchemaNode.vue";
+/**
+ * 纸张视口（浏览缩放外壳）：纯 slot 组件，只负责平移 / 缩放，不依赖 schema ——
+ * 宿主可以把它套在**任意**票面内容外层（含从旧设计器迁移过来的表单），
+ * 从而与 `FormRenderer` 共用同一套缩放实现，而不是各自维护一份。
+ *
+ * 对外能力：`zoomIn / zoomOut / zoomTo / reset / fitWidth / relayout / getScale`（`defineExpose`）
+ * 与 `scale-change` 事件；`hide-bar` 可隐藏内置工具栏，交由宿主自己的工具栏驱动。
+ */
+export { default as PaperViewport } from "./components/renderer-v2/PaperViewport.vue";
 export type { FormRendererOptions } from "./components/renderer-v2/FormRenderer.vue";
 
 // ---- 数据回写：DOM 遍历采集字段值 ----

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import FormRenderer from "@/components/renderer-v2/FormRenderer.vue";
+import PaperViewport from "@/components/renderer-v2/PaperViewport.vue";
 import { makeYunlvSecondTicketFirstFiveRowsSchema } from "@/dev/yunlv-second-ticket-first-five-rows";
 import demoData from "@/dev/demoData";
 import { parseTolerantFormSchemaV2 } from "@/types";
@@ -184,6 +185,130 @@ describe("FormRenderer（G8 公共入口）", () => {
 
     // 视口不重建也要重排：fitWidth → zoom + 对齐（pan 再次被调用）
     expect(panCallCount()).toBeGreaterThan(panBefore);
+  });
+});
+
+describe("FormRenderer 缩放能力透出（宿主自持工具栏时驱动视口）", () => {
+  const exposed = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.vm as unknown as {
+      zoomTo: (scale: number) => void;
+      zoomIn: () => void;
+      zoomOut: () => void;
+      resetZoom: () => void;
+      fitWidth: () => void;
+      getScale: () => number;
+    };
+  const zoomCallCount = (): number =>
+    (__getPz().zoom as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
+
+  it("options.hideZoomBar：隐藏视口内置工具栏（宿主用自己那套）", () => {
+    const hidden = mount(FormRenderer, {
+      props: { schema: sampleSchema, options: { zoom: true, hideZoomBar: true } },
+    });
+    expect(hidden.find(".paper-viewport__bar").exists()).toBe(false);
+    expect(hidden.find(".paper-viewport__scaler").exists()).toBe(true);
+    hidden.unmount();
+
+    // 缺省仍渲染内置工具栏（既有消费页不变）
+    const shown = mount(FormRenderer, {
+      props: { schema: sampleSchema, options: { zoom: true } },
+    });
+    expect(shown.find(".paper-viewport__bar").exists()).toBe(true);
+    shown.unmount();
+  });
+
+  it("options.initialScale：作为视口起始比例（挂载即目标比例，不先闪一帧 100%）", () => {
+    const wrapper = mount(FormRenderer, {
+      props: {
+        schema: sampleSchema,
+        options: { zoom: true, hideZoomBar: true, initialScale: 1.1 },
+      },
+    });
+    expect(__getLastOptions()).toMatchObject({ startScale: 1.1 });
+    wrapper.unmount();
+  });
+
+  it("options.minScale / maxScale：透传给视口，钳制宿主下发到界外的比例", () => {
+    const wrapper = mount(FormRenderer, {
+      props: {
+        schema: sampleSchema,
+        options: { zoom: true, hideZoomBar: true, minScale: 0.5, maxScale: 2 },
+      },
+    });
+    expect(__getLastOptions()).toMatchObject({ minScale: 0.5, maxScale: 2 });
+    exposed(wrapper).zoomTo(5);
+    expect(__getPz().zoom).toHaveBeenLastCalledWith(2, { animate: false, force: true });
+    wrapper.unmount();
+  });
+
+  it("scale-change 转发：滚轮 / 捏合把视口比例上报给宿主（工具栏百分比才不会停在旧值）", () => {
+    const wrapper = mount(FormRenderer, {
+      props: { schema: sampleSchema, options: { zoom: true, hideZoomBar: true } },
+    });
+    const scaler = wrapper.find(".paper-viewport__scaler").element;
+    scaler.dispatchEvent(new CustomEvent("panzoomchange", { detail: { scale: 1.5 } }));
+    // 挂载时会先上报一次**初始比例**，故断言取最后一次（本文件另有用例专测那次上报）
+    const emitted = wrapper.emitted("scale-change") as Array<[number]>;
+    expect(emitted[emitted.length - 1]).toEqual([1.5]);
+    wrapper.unmount();
+  });
+
+  it("挂载即上报初始比例：宿主的工具栏（hideZoomBar）第一帧就与视口比例一致", () => {
+    const wrapper = mount(FormRenderer, {
+      props: { schema: sampleSchema, options: { zoom: true, hideZoomBar: true } },
+    });
+    // jsdom 无布局 → 自适应不可用，初始比例即 initialScale（缺省 1）
+    expect(wrapper.emitted("scale-change")?.[0]).toEqual([1]);
+    wrapper.unmount();
+  });
+
+  it("options.fitPadding：透传给视口（适应宽度时左右各留出的空白）", () => {
+    const padded = mount(FormRenderer, {
+      props: {
+        schema: sampleSchema,
+        options: { zoom: true, hideZoomBar: true, fitOnMount: true, fitPadding: 24 },
+      },
+    });
+    expect(padded.findComponent(PaperViewport).props("fitPadding")).toBe(24);
+    padded.unmount();
+
+    // 缺省 0：既有消费页（设计态 / 审批预览）的适应宽度结果不变
+    const plain = mount(FormRenderer, {
+      props: { schema: sampleSchema, options: { zoom: true } },
+    });
+    expect(plain.findComponent(PaperViewport).props("fitPadding")).toBe(0);
+    plain.unmount();
+  });
+
+  it("未开启 zoom：不渲染视口，缩放方法与 getScale 安全降级（不抛错）", () => {
+    const wrapper = mount(FormRenderer, { props: { schema: sampleSchema } });
+    expect(wrapper.find(".paper-viewport").exists()).toBe(false);
+    const vm = exposed(wrapper);
+    expect(() => {
+      vm.zoomIn();
+      vm.zoomOut();
+      vm.zoomTo(1.5);
+      vm.resetZoom();
+      vm.fitWidth();
+    }).not.toThrow();
+    expect(vm.getScale()).toBe(1);
+    wrapper.unmount();
+  });
+
+  it("固定比例模式（fitOnMount 缺省为假）：换 schema 只重排落点，不覆盖宿主下发的比例", async () => {
+    const wrapper = mount(FormRenderer, {
+      props: { schema: sampleSchema, options: { zoom: true, hideZoomBar: true } },
+    });
+    await new Promise((r) => setTimeout(r, 0)); // 放行构造器延后那次 pan
+    const zoomBefore = zoomCallCount();
+    const panBefore = panCallCount();
+
+    await wrapper.setProps({ schema: JSON.parse(JSON.stringify(sampleSchema)) });
+    await flushPromises();
+
+    expect(zoomCallCount()).toBe(zoomBefore); // 比例不动（宿主说了算）
+    expect(panCallCount()).toBeGreaterThan(panBefore); // 落点重排
+    wrapper.unmount();
   });
 });
 

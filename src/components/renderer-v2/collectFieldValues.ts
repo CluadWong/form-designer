@@ -20,6 +20,9 @@ export interface CollectFieldValuesOptions {
  * - **图片列表**（`.layout-image__item[data-field]`）：同一字段的多个条目聚成
  *   `ImageItemV2[]`（`{ name, src, width, height }`），**字段值是数组**——这是与文本字段
  *   唯一的形态差异；条目盒上的 `data-*` 承载 name / 尺寸，避免从样式里反解数值；
+ * - **签名字段**（`FieldPNodeV2.valueType === "image"`）：值在容器内若干
+ *   `img.layout-p__sign` 的 `src` 上，聚成 `string[]`（单值 = 长度 1 的数组）——
+ *   与图片列表同为「一个字段多值」的数组形态，但只取地址、不带名称/尺寸；
  * - 带 `data-field` 的单张 `<img>`（旧版单图节点的 DOM）取其 `src` 字符串（兼容路径）；
  * - 多行（innerBorder 逐行 div）在浏览器中由 `innerText` 还原为带 `\n` 的文本，
  *   jsdom 等无 `innerText` 实现时回退 `textContent`（不含换行分隔）；
@@ -90,8 +93,24 @@ export function collectFieldValues(
         result[field] = "***";
       } else {
         const real = baseData?.[field];
-        if (real != null) result[field] = String(real);
+        if (real != null) {
+          // 图片类字段的值本身就是数组（图片列表 / 多人签名）：回源时**保持数组形态**，
+          // 不可一概 `String()` 化——`["a","b"]` 会被拼成 `"a,b"`、`[{…}]` 会变成
+          // `"[object Object]"`，保存一次就把值损坏了。
+          result[field] = Array.isArray(real) ? [...real] : String(real);
+        }
       }
+      continue;
+    }
+    // 签名字段（`FieldPNodeV2.valueType === "image"`，2026-09-30 多人签名）：字段值不在
+    // 容器文本里，而在内部若干 `img.layout-p__sign` 的 `src` 上。`.layout-p` 与复合字段的
+    // `.layout-p__input` 都带 `data-field`，此前按文本采集一律得到空串、**把签名地址抹掉**
+    // （0.3.9 的既有缺陷：实测采集结果为 `{"签名":""}`）。
+    // 故先按图片聚合为数组——与上面图片列表同为「一个字段多值 = 数组」形态；
+    // 单值也返回长度 1 的数组，与多值同一条路径。
+    const signImages = el.querySelectorAll<HTMLImageElement>("img.layout-p__sign");
+    if (signImages.length > 0) {
+      result[field] = Array.from(signImages).map((img) => img.getAttribute("src") ?? "");
       continue;
     }
     if (el instanceof HTMLImageElement) {

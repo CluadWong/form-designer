@@ -4,7 +4,6 @@ import type { CSSProperties } from "vue";
 import {
   resolvePaperSizeV2,
   DEFAULT_BAND_HEIGHT_MM,
-  type FieldActivateV2,
   type FormSchemaV2,
   type FormDataV2,
   type FormNodeV2,
@@ -27,7 +26,6 @@ defineOptions({ name: "GridFormRenderer" });
 
 const emit = defineEmits<{
   (e: "field-change", field: string, value: string): void;
-  (e: "field-activate", payload: FieldActivateV2): void;
 }>();
 
 const props = withDefaults(
@@ -362,7 +360,6 @@ function pageParamAttrs(sourcePageId: string): Record<string, string> {
         :field-permissions="props.fieldPermissions"
         :suppress-borders="suppressFor(pp, index, child.suppressBorders)"
         @field-change="(field, value) => emit('field-change', field, value)"
-        @field-activate="(payload) => emit('field-activate', payload)"
       />
       <div
         v-if="bandVisibleOn(pageIdx, schema.paper.footer)"

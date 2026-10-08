@@ -238,7 +238,41 @@ schema 层的节点类型名仍沿用历史命名 `"p"`，与 DOM 标签无关�
 
 输入后更新外部 data。固定页面默认不因输入自动改变行高；内容超出时标记溢出。
 
-### 额外属性（params）与点击触发
+#### 图片值 / 多人签名（`valueType: "image"`，2026-09-30 支持多张）
+
+`data[field]` 为图片地址（单值字符串，或**数组**表多张）。渲染分两种形态，
+**按张数择一，不做合并**——目的是让「单张 / 空态」的 DOM 与改动前**逐字节一致**：
+
+| 张数 | DOM |
+|---|---|
+| 1 | `<img class="layout-p__sign" src=…>`（与改动前完全相同的裸 `<img>`） |
+| ≥2 | 一层包裹 `<span class="layout-p__signs">` 内 `v-for` 出 N 个 `img.layout-p__sign` |
+| 0 | 不渲染图片，容器靠 `min-height` 占住 `imageHeight` |
+
+**为什么要按张数分叉，而不是统一用 `<template v-for>`**：`<template v-if>` / `v-for` 会各自
+引入 2 个注释锚点（`<!--v-if-->`），单值场景的子节点数从 `1` 变 `3`，直接打爆
+`YunlvSecondTicketFull.test.ts` 的结构基线。分叉后代价收敛为「N ≥ 2 时多 1 个 `<span>`」，
+单张 / 空态零新增节点。包裹层用 `.layout-p__signs` 而非复用 `.layout-p__signbox`，
+避免改动既有单图布局（`.layout-p__signbox` 保持原样）。
+
+包裹层样式要点（`GridSchemaNode.vue`）：`display:flex; flex:1 1 auto; flex-wrap:wrap;
+align-items:flex-end; align-content:flex-end; min-width:0`——`flex:1 1 auto` + `min-width:0`
+是**换行真正生效的前提**：缺了它，flex 子项按 `max-content` 撑开，只会整体溢出而不折行。
+内层 `img` 置 `flex: 0 0 auto`（不参与伸缩，宽度只由自身比例定）。
+
+高度估算（`src/engine-v2/pagination.ts` 的 `case "p"`，与渲染层同源）：
+`rows = max(1, 实际张数)`，`height = max(baseRowHeight, rows × 图高 + (rows−1) × 间距)`。
+即**每张独占一行**的保守上界——换行位置依赖图宽、设计期不可知，故只保证「不低估」。
+`gap` / `imageHeight` 的默认值（`0.5em` / `1.6em`）与渲染层共用
+`derivation.ts` 的 `SIGN_IMAGE_GAP_EM` / `SIGN_IMAGE_LINE_HEIGHT_EM` 单一真源。
+张数取值与渲染层同一兜底（`data` 无该键 / 为 `null` 时回落节点 `default`，再按 `maxCount` 截断），
+由 `resolveSignImageUrlsV2` 统一实现，避免「带默认值的签名栏」出现渲染 / 分页两套口径。
+
+> **已知边界**：容器是 `border-box` 且带 1px 下划线边框，估高**未含这 1px**（约 0.26mm）。
+> 这是改动前既有口径（单图亦然），不是本次引入；Grid 内的行由渲染层 `measureRow`
+> 实测真实高度二次校正，不依赖此处估算，本分支只覆盖 Grid 外的裸 `p` 节点。
+
+### 额外属性（params）
 
 任何节点（`SchemaNodeBaseV2`）都可带 `params?: Record<string, string>`——设计器里的「额外属性」键值对，
 渲染时**原样插到该节点根元素的 HTML 属性**上（页面节点即纸张 `<main>`）：
@@ -247,23 +281,19 @@ schema 层的节点类型名仍沿用历史命名 `"p"`，与 DOM 标签无关�
 <div class="layout-p" data-node-id="field-plan-start" data-field="计划工作时间_开始" action="datePicker" date-validate="after:计划工作时间_1"></div>
 ```
 
-- 内核**不解释任何键**——`action="datePicker"`、`date-validate="..."` 的语义完全归宿主；宿主在填写态自行扫描属性、接管交互与跨字段校验。这是「内核只做表单设计、不碰业务」的落点。
+- 内核**不解释任何键**——`action="datePicker"`、`date-validate="..."` 的语义完全归宿主；宿主在填写态自行扫描属性、接管交互（如点击、跨字段校验）。这是「内核只做表单设计、不碰业务」的落点。
 - 渲染前统一过黑名单（`src/utils/node-params.ts`）：丢弃 `on*`（事件）、`data-*`（内核寻址）、保留名（`class`/`style`/`id`/`field`/`src`/`contenteditable`…），以及不匹配 `/^[a-z][a-z0-9_-]*$/` 的名字（含大写驼峰，如 `innerHTML`）；空串值不写属性。**这层过滤是必需的**——直接 `v-bind` 原始对象会把 `on*` 键绑成事件监听器，等于开一条脚本注入通道。
 
-字段另有 1 bit 的 `interactive?: boolean`（取代旧 `action` 闭枚举）：
+**点击触发权归属（2026-09-30 起调整）**：内核**不再**为字段绑定点击、不再 emit `field-activate`（历史上以 1 bit 持有、后于 2026-09-30 移除）。宿主基于字段标签上的 `data-field` + `params` 属性自行决定是否点击、如何响应（如识别 `action="signature"` 时弹签名框）。`params` 是宿主识别交互的唯一线索——这是「内核零业务、宿主全权委托」契约的延伸。
 
-- 为 `true` 时，内核在**填写态**由**点击字段元素本身** emit `field-activate`，载荷 `{ nodeId, field, params }`，触发权交还宿主（宿主召唤选择器并在回调里回写 data）；表单上不加任何额外按钮。
-- 内核只持有「要不要绑点击、发不发事件」这 1 bit，**不持有控件类型词表**——`datePicker` / `date-time` / 宿主自定义属开放集，一律经 `params` 表达，故新增控件类型零内核改动。（唯一的词表出现在「读入旧数据」的迁移里，见下一段。）
-- 设计态 / 只读态 / 未配置（或 `false`）不触发；点击与就地输入并存，内核不改 contenteditable 语义。
-
-旧数据的 `action` / `actionParams` 在读入时迁移为 `interactive` + `params`（`src/types/schema-v2-serialization.ts` 的 `migrateLegacyFieldActivation`），导出只写新形态。迁移**顺带把作废的旧词表翻成宿主词表**，存量模板无需宿主改代码即可直接消费：
+旧数据的 `action` / `actionParams` 在读入时迁移为 `params`（`src/types/schema-v2-serialization.ts` 的 `migrateLegacyFieldActivation`），输入中可能残留的 `interactive` 一并丢弃，导出只写新形态（`params`）。迁移**顺带把作废的旧词表翻成宿主词表**，存量模板无需宿主改代码即可直接消费：
 
 | 旧 `action` | 迁移后 `params.action` | 说明 |
 |---|---|---|
 | `date` | `datePicker` | 日期/时间选择器 |
 | `upload` | `uploadImg` | 图片上传 |
 | `signature` | `uploadImg` | 签名扫件复用图片上传通道（宿主无独立签名分支） |
-| `text` / 未配置 | （不写） | 旧内核在 `text` 下本就不触发，故不置 `interactive` |
+| `text` / 未配置 | （不写） | 旧内核在 `text` 下本就不触发，故不写 `params.action` |
 | 其它 | 原样保留 | 不猜宿主词表，交给宿主自行处理 |
 
 键名同样对齐宿主：旧 `actionParams.format` → `params["date-format"]`（宿主 `useFcDesigner.resolveDateFormat` 读的就是标签属性 `date-format`）；未登记的键原样搬入。已是新格式的 `params` 优先，不会被旧值覆盖。
@@ -597,3 +627,161 @@ HTML 宿主本身命中 `[draggable='true']` ⇒ 顺带被打上标；切到预�
 而 light DOM 里没有这类元素）；内联 `user-select` 清理不覆盖别处；`attachShadow` 全仓唯一。
 对**消费方**有两处口径变化需知：① `collectSchemaFields` 现在也枚举 HTML 片段内字段（宿主权限表 / 校验
 `rule` 的键集会随之变大，复杂表 +36）；② HTML 内字段的 `field-change` 由逐键改**失焦一次**（已与 P 字段一致）。
+
+## 23. 缩放视口（PaperViewport）：公共导出与「宿主工具栏接管」契约（2026-10-08）
+
+### 背景
+
+`PaperViewport` 原本只是 `FormRenderer` 的内部实现（`options.zoom` 时包一层），带自己的工具栏。
+实际消费方（工单详情页）**自己有工具栏**：旧设计器（FC）那套票面用的是页顶 `extra-actions__zoom-group`
+（TDesign 按钮 + 百分比文案）+ 自研缩放（CSS `zoom` 属性 / `transform: scale()` 回退 + 外层滚动条 +
+指针拖动），而 FD 票面走的是 `PaperViewport` 自带工具栏 —— **同一张票在两种表单下缩放行为完全不同**，
+且宿主工具栏对 FD 是隐藏的（`v-if` 带 `!formIsFd`，因为那时 FD 没有「宿主侧缩放落点」）。
+
+本次把两条路径收敛到**同一个视口**：`PaperViewport` 提为公共导出，宿主工具栏成为唯一 UI，
+FC 侧的自研缩放整体删除、改用同一个视口。
+
+### 新增 API
+
+**`PaperViewport`（`@cluadwong/form-designer/renderer` 导出）**
+
+| Prop / 方法 | 语义 |
+| --- | --- |
+| `hideBar` | 隐藏内置工具栏（宿主已有自己的工具栏时置真；否则页面上会叠两套 UI、两处百分比各说各话） |
+| `fitPadding` | 「适应宽度」时**左右各留出**的空白（px，默认 `0` = 贴边）。参与比例解算：`s = (视口宽 − 2×fitPadding) / 内容宽`；左右间隔由水平居中自然给出，顶部间隔另有 `TOP_GAP = 18px`（与比例无关） |
+| `fitContentSelector` | 「适应宽度」量**哪个元素**（缩放层内选择器，缺省第一个子元素）。见下「为什么需要它」 |
+| `alignOnMount` | 非 `fitOnMount` 模式下挂载时解算一次落点对齐（见下「为什么必须有」） |
+| `zoomTo(scale)` | **绝对**比例缩放；受 `minScale/maxScale` 钳制；与当前比例几乎相同则幂等返回 |
+| `relayout()` | 显式重排落点（换 schema / 换纸张后调用）。`fitOnMount` 时等价 `fitWidth()`，否则只 `alignContent` |
+
+**`FormRenderer.options` 新增**：`hideZoomBar`、`initialScale`、`minScale`、`maxScale`、`alignOnMount`、`fitPadding`；
+`defineExpose` 新增 `zoomIn / zoomOut / zoomTo / resetZoom / fitWidth / getScale`，
+并新增 `scale-change` 事件（视口比例上行）。
+
+**挂载即上报一次初始比例**：`scale-change` 的语义是「视口当前比例」，因此**挂载时也发一次**
+（`emit("scale-change", initial.scale)`）。不发的后果只在「宿主自带工具栏、`hideBar` 隐藏内置栏」时
+暴露 —— 挂载期的两次缩放写入（构造器 `zoom(startScale)`、兜底的 `fitWidth()`）比例相同，
+`panzoomchange` 不会被转发，宿主的百分比会一直停在它自己的占位数字上（如写死的 110%），
+而视口实际已是按容器算出的比例。
+
+### 为什么需要 `fitContentSelector`：适应宽度量到「包装层」就退化成不缩放
+
+本内核的 DOM 是 `缩放层 > .grid-form-canvas > .grid-form-paper` —— **纸外面还包了一层画布**，
+而画布是铺满视口的（宽 = 100%）。`measureFit` 缺省取缩放层的第一个子元素，于是量到的是**画布**：
+它的 `scrollWidth` 恒等于视口宽 ⇒ 比例恒等于 1。宽容器里 A4 纸只有自然宽 794px、两侧各空 53px，
+**并不铺满**；若同时给了 `fitPadding`，纸反而被**缩小**（留白被放大成 `padding × 视口宽 / 纸宽`）。
+
+无头 Chromium 实测（容器 900×800、A4 纸 793.69px、`fitPadding: 24`，`FormRenderer {bare, zoom,
+fitOnMount}`）：
+
+| 量谁 | scale | 纸宽 | 左右留白 | 顶部 |
+| --- | --- | --- | --- | --- |
+| 画布（缺省） | 0.9467 | 751.36px | 74.32 / 74.32 | 18.0 |
+| 纸（`fitContentSelector: ".grid-form-paper"`） | 1.0730 | 851.66px | 24.17 / 24.17 | 18.0 |
+| 纸 + `fitPadding: 0` | 1.1335 | 899.65px | 0.18 / 0.18 | 18.0 |
+
+（0.17px 的残差来自 `scrollWidth` 是**整数**取整值，而纸的实际宽是 mm 换算来的小数 793.69 —— 亚像素级，可忽略。）
+
+**默认不改**：既有消费页（审批 / 新建 / 表单管理 / 设计预览）用的仍是内核原生的
+「缩到能放下」（不做放大），传选择器会变成「铺满（含放大）」，属另一个形态，由消费方显式声明。
+工单详情页的 FD 票面即显式传 `".grid-form-paper"`（宿主 `FdFormRenderer`）。
+
+> `alignPanFor` 与 `measureFit` 必须用**同一份**内容解析（`resolveFitContent()`）：比例按纸算、
+> 平移按画布算就会偏。二者都只吃布局值（`scrollWidth` / `offsetLeft`，不受 transform 影响），
+> 故「纸比画布窄、画布铺满缩放层」时既有水平居中公式的解不变（实测：换内容后 `x` 与「画布」口径一致，只有比例变）。
+
+### 三条硬契约
+
+1. **视口是比例的唯一真源，百分比只是它的整数投影。**
+   宿主工具栏的 `110%` 只是显示；用户滚一次滚轮，视口比例就从 1.1 变 1.23，宿主必须靠 `scale-change`
+   跟着刷新，**且不得反向下发** —— 回写会把连续小数立刻四舍五入成整数百分比，缩放一跳一跳的。
+   命令方向（按钮 → 视口）走 +10% 的**加法**步进（宿主原有语义），而不是视口自带的 ×1.2 乘法步进。
+
+2. **`zoomTo` / `zoomIn` / `zoomOut` 不动平移，只有 `fitWidth` / `reset` / `relayout` 会重排落点。**
+   围绕视口中心缩放才能保留用户的浏览位置；3× 下微调 ±10% 时被拉回原点会很难用。
+
+3. **`initialScale` 只在挂载时被读取**（改它不会重新缩放），所以宿主切换百分比必须调 `zoomTo`。
+   这样避免「宿主状态 → 视口 → 视口回读 → 宿主状态」的回环。
+
+### `alignOnMount` 为什么必须有
+
+panzoom 的 `transform-origin` 是**缩放元素自身中心**，而 `.paper-viewport__scaler` 的布局盒是
+「视口宽 × 内容高」⇒ 任何 `s ≠ 1` 都会让内容整体偏移 `size/2·(1−s)`（放大时顶出左上角、缩小时右下留白）。
+「适应宽度」靠 `measureFit()` 顺带对齐了；**固定百分比**模式（宿主工具栏按 110% 下发）没有这一步，
+不对齐就得让用户自己把纸张拖回来。
+
+对齐解算仍复用 `paper-viewport-align.ts`（水平居中、垂直顶部留 `TOP_GAP=18px`）；
+但**默认关闭** —— 设计态必须保持「不写起始平移」的既有契约（缩放恒为 1，本就没有偏移），
+故由消费页显式声明。`FormRenderer` 侧默认开（消费页固定比例浏览时必须对齐），`PaperViewport` 侧默认关。
+
+> 注意区分 `fitOnMount`（**重算比例** + 对齐）与 `alignOnMount`（**只对齐**）：`fitOnMount` 为真时后者不参与
+> （挂载与 `relayout` 都走 fit 分支）。此前的宿主形态是「固定百分比 + 只对齐」，2026-10-08 改为
+> 「初始化即按表单宽度铺满」（见下节）。
+
+### 宿主的初始化形态：以表单宽度铺满 + 左右留白（2026-10-08）
+
+工单详情页（`soar-web-v3-td`）的票面要求：**初始化时以表单宽度为准铺满显示区域，左右上方各留一点空间**
+（原形态是写死 `110%` + 只对齐，宽容器下纸张偏小、窄容器下溢出）。
+
+故宿主工具栏模式（`FdFormRenderer` / `TicketA4Preview` 收到 `zoomPercent` 时）的视口配置为：
+
+| 配置 | 值 | 说明 |
+| --- | --- | --- |
+| `fitOnMount` | `true` | 挂载即按容器宽反算比例；容器/内容尺寸变化且用户未手动干预时自动重算（窗口缩放、侧栏开合、分页校正改变内容高） |
+| `fitPadding` | `24` | 左右各留 24px；顶部间隔恒为 `TOP_GAP = 18px` |
+| `fitContentSelector` | `".grid-form-paper"` | 按**纸**的自然宽解算（缺省会量到铺满视口的画布 ⇒ 比例恒 1、铺不满，见上节实测） |
+| `hideZoomBar` | `true` | 宿主顶栏已有缩放组，避免两套 UI / 两个百分比 |
+| `minScale` / `maxScale` | `0.5` / `2` | 与宿主工具栏的 50%~200% 对齐，否则滚轮能跑出工具栏表达不出的区间 |
+| `initialScale` | `zoomPercent / 100` | 仅作**测量不可用时**的回退（`fitOnMount` 在量得到尺寸时恒覆盖它） |
+
+配套语义变化：宿主工具栏的「重置」= **回到初始视图**（即再适应一次宽度），不再是「写死回到 110%」——
+初始既然自适应，重置回到固定百分比就会与首屏不一致。用户一旦手动缩放/平移（`zoomTo` / 滚轮 / 双击捏合），
+自动重算即停止（`userAdjusted`），直到下一次 `fitWidth` / `relayout`。
+
+### 打印安全
+
+`@media print` 下 `.paper-viewport__scaler { transform: none !important }`，且局部打印只序列化
+`.print-container` 子树（视口的 transform 在祖先上），故缩放不进打印流。FC 侧替换后 `.print-container`
+仍是 form-create 的元素，`getPrintSourceElement()` 口径不变。
+
+### 测试守卫
+
+- `PaperViewport.test.ts`：`hideBar` 渲染/不渲染、`zoomTo` 钳制 + 幂等 + 不动平移、`alignOnMount`
+  起始值（含 `alignOnMount` 缺省仍为 0 的对照）、`relayout` 不改比例、**组件 ref 路径**
+  （父组件模板 ref 调 `zoomTo/getScale` —— `@vue/test-utils` 的 `vm` 代理只透出 `<script setup>`
+  顶层绑定，`defineExpose` 的对象字面量成员在 `vm` 上取不到，只有真实 ref 才等价于宿主运行期）、
+  **`fitPadding`**（比例按 `(视口宽 − 2×留白) / 内容宽` 解算、缩放后内容宽 = 视口宽 − 2×留白、
+  负留白归一为 0、顶部间隔不受影响）、**挂载即上报初始比例**。
+- `FormRenderer.test.ts`：`hideZoomBar` / `initialScale` / `minScale·maxScale` / `fitPadding` 透传、
+  `scale-change` 转发（含挂载那次上报）、固定比例模式换 schema 只重排落点不改比例、
+  未开启 `zoom` 时缩放方法安全降级。
+- 宿主侧（`soar-web-v3-td`）：`formZoom.contract.test.ts` 锁「两条票面路径共用同一视口」的形状，
+  含负向锁（自研缩放的标志符号不得回归、缩放组不得再按表单类型隐藏）。
+
+## 24. 放大即糊：缩放层严禁合成层提示（`will-change: transform`）（2026-10-08）
+
+**症状**：纸张视口放大后表单发虚（300% 下尤其明显）。
+
+**根因**：`.paper-viewport__scaler` 上曾有 `will-change: transform`。它把 scaler 提升为**独立合成层**，
+Chrome 按**提升那一刻**的比例（「适应宽度」常是 0.3~0.5×）一次性栅格化图层，之后 `transform: scale()`
+只做**位图放大**。比例越小越明显：移动端 / 侧栏「适应宽度」到 0.4×，再放到 300% 等于把位图放大约 7 倍。
+
+**实测**（无头 Chromium + CDP 真实时序，A4 先「适应宽度」到 0.499× 再放大到 3.000×，
+取页面文字带做 Laplacian 方差对焦度量；两组几何完全一致，唯一变量是 `will-change`）：
+
+| 变体 | `will-change` | 实际 transform | lapVar（越大越锐） | gradMean | midFrac（越小越锐） |
+| --- | --- | --- | --- | --- | --- |
+| 修复前 | `transform` | `matrix(3,0,0,3,−633,1213)` | **158.43** | 3.398 | 0.5253 |
+| 修复后 | `auto` | `matrix(3,0,0,3,−633,1213)` | **920.05** | 4.055 | 0.5084 |
+
+**锐度 ×5.81**，中间调像素同时减少 ⇒ 从「位图放大」变成「按 3× 真实重排重栅格化」。
+
+**结论**：`.paper-viewport__scaler` 严禁任何合成层提示（含 `translateZ(0)` / `backface-visibility`
+等同类写法），理由与实测数字写在该 CSS 规则上方，防止日后被当成性能优化加回来。
+
+**取舍**：去掉提示后平移由重绘承担，重表单在超大比例下拖动可能略不如前。若日后确需兼得，只能在
+**仅平移**（比例不变 ⇒ 栅格比例本就正确）期间临时加提示，且必须在缩放前移除 —— 不可常驻。
+
+**踩坑**：`will-change: none` 是**非法值**（Chrome 只识别 `auto`），用它做「内联覆盖 CSS」的 A/B 探针
+会静默失效（computed 仍是 `transform`），从而得出「不是它的问题」的错结论。做这类对照实验时
+必须先用最小页面验证覆盖是否真的生效。

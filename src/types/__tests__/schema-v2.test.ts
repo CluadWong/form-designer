@@ -392,9 +392,40 @@ describe("Schema V2 serialization", () => {
     expect("align" in bad).toBe(false);
     expect("verticalAlign" in bad).toBe(false);
   });
+
+  it("字段值类型归一化：valueType 只接受 text / image、imageHeight 空串丢弃，均不补默认", () => {
+    const schema = makeSchema();
+    schema.pages[0].children.push(
+      {
+        id: "p-image",
+        type: "p",
+        mode: "field",
+        field: "签名",
+        valueType: "image",
+        imageHeight: "10mm",
+      } as never,
+      // 越界值：`video` 不在值域内；imageHeight 是纯空白
+      {
+        id: "p-bad",
+        type: "p",
+        mode: "field",
+        field: "坏值",
+        valueType: "video",
+        imageHeight: "   ",
+      } as never,
+    );
+    const children = parseFormSchemaV2(serializeFormSchemaV2(schema)).pages[0].children;
+    const ok = children.find(node => node.id === "p-image") as unknown as Record<string, unknown>;
+    expect(ok.valueType).toBe("image");
+    expect(ok.imageHeight).toBe("10mm");
+    const bad = children.find(node => node.id === "p-bad") as unknown as Record<string, unknown>;
+    // 丢弃而非回退默认：缺省即 text / 按图片自身比例，写死会让导出 JSON 多出一层语义
+    expect("valueType" in bad).toBe(false);
+    expect("imageHeight" in bad).toBe(false);
+  });
 });
 
-describe("旧字段触发配置迁移（action / actionParams → interactive / params）", () => {
+describe("旧字段触发配置迁移（action / actionParams → params）", () => {
   /** 以「旧格式 JSON」形态构造 schema——新类型已无 `action` / `actionParams`，故经 unknown 传入。 */
   function legacySchema(field: Record<string, unknown>): unknown {
     return {
@@ -451,9 +482,8 @@ describe("旧字段触发配置迁移（action / actionParams → interactive / 
     return node;
   }
 
-  it("action: date → params.action=\"datePicker\"（对齐宿主词表），并置 interactive", () => {
+  it("action: date → params.action=\"datePicker\"（对齐宿主词表）", () => {
     const node = migratedField({ action: "date" });
-    expect(node.interactive).toBe(true);
     expect(node.params).toEqual({ action: "datePicker" });
   });
 
@@ -484,18 +514,15 @@ describe("旧字段触发配置迁移（action / actionParams → interactive / 
     });
   });
 
-  it("action: text 或未配置 → 不置 interactive、不产生 params", () => {
+  it("action: text 或未配置 → 不产生 params", () => {
     const textNode = migratedField({ action: "text" });
-    expect(textNode.interactive).toBeUndefined();
     expect(textNode.params).toBeUndefined();
     const bareNode = migratedField({});
-    expect(bareNode.interactive).toBeUndefined();
     expect(bareNode.params).toBeUndefined();
   });
 
   it("未登记的 action 值原样保留（不猜宿主词表）", () => {
     const node = migratedField({ action: "someHostWidget" });
-    expect(node.interactive).toBe(true);
     expect(node.params).toEqual({ action: "someHostWidget" });
   });
 
@@ -511,14 +538,19 @@ describe("旧字段触发配置迁移（action / actionParams → interactive / 
     });
   });
 
-  it("导出不再写出 action / actionParams（只剩新形态）", () => {
+  it("导出不再写出 action / actionParams / interactive（只剩新形态）", () => {
     const json = serializeFormSchemaV2(
       normalizeFormSchemaV2(
-        legacySchema({ action: "date", actionParams: { format: "{YYYY}年{MM}月{DD}" } }),
+        legacySchema({
+          action: "date",
+          actionParams: { format: "{YYYY}年{MM}月{DD}" },
+          interactive: true,
+        }),
       ),
     );
     expect(json).not.toContain("actionParams");
     expect(json).not.toContain('"action":"date"');
+    expect(json).not.toContain('"interactive"');
     expect(json).toContain('"action":"datePicker"');
     expect(json).toContain('"date-format":"{YYYY}年{MM}月{DD}"');
   });

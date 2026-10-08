@@ -521,12 +521,31 @@ describe("第38续回归：inspector 静默兜底清零（8 处统一改金标�
     expect(fieldInCell(doc, cellId).params).toBeUndefined();
   });
 
-  it("updateSelectedInteractive：勾选写 true，取消回退 undefined", () => {
+  it("updateSelectedValueType：写 image 并保留 imageHeight；切回 text 时连同高度一并清掉", () => {
     const { doc, edits, cellId } = withFieldInCell();
-    edits.updateSelectedInteractive({ target: { checked: true } } as unknown as Event);
-    expect(fieldInCell(doc, cellId).interactive).toBe(true);
-    edits.updateSelectedInteractive({ target: { checked: false } } as unknown as Event);
-    expect(fieldInCell(doc, cellId).interactive).toBeUndefined();
+    edits.updateSelectedValueType({ target: { value: "image" } } as unknown as Event);
+    expect(fieldInCell(doc, cellId).valueType).toBe("image");
+    edits.updateSelectedImageHeight({ target: { value: " 10mm " } } as unknown as Event);
+    expect(fieldInCell(doc, cellId).imageHeight).toBe("10mm");
+    // 切回文本：imageHeight 只对图片形态有意义，留着会污染导出 JSON
+    edits.updateSelectedValueType({ target: { value: "text" } } as unknown as Event);
+    expect(fieldInCell(doc, cellId).valueType).toBeUndefined();
+    expect(fieldInCell(doc, cellId).imageHeight).toBeUndefined();
+  });
+
+  it("updateSelectedValueType：非法值忽略（保持原值不动）", () => {
+    const { doc, edits, cellId } = withFieldInCell();
+    edits.updateSelectedValueType({ target: { value: "image" } } as unknown as Event);
+    edits.updateSelectedValueType({ target: { value: "video" } } as unknown as Event);
+    expect(fieldInCell(doc, cellId).valueType).toBe("image");
+  });
+
+  it("updateSelectedImageHeight：写值时去除首尾空白；留空 / 纯空白 → undefined", () => {
+    const { doc, edits, cellId } = withFieldInCell();
+    edits.updateSelectedImageHeight({ target: { value: "  12mm " } } as unknown as Event);
+    expect(fieldInCell(doc, cellId).imageHeight).toBe("12mm");
+    edits.updateSelectedImageHeight({ target: { value: "   " } } as unknown as Event);
+    expect(fieldInCell(doc, cellId).imageHeight).toBeUndefined();
   });
 
   it("updateSelectedCellRowHeight：合法写值；空/非法→undefined（且不写 NaN）", () => {

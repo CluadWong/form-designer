@@ -382,7 +382,7 @@ describe("图片列表渲染：布局方式与条目 DOM", () => {
     ).toContain("align-items: flex-start");
   });
 
-  it("额外属性原样落到图片容器（宿主用 params 挂钩签名弹框：action=signature / interactive=true）", () => {
+  it("额外属性原样落到图片容器（宿主按 params 自行挂钩签名弹框：action=signature）", () => {
     const wrapper = render(
       imageNode({ params: { action: "signature", interactive: "true" } }),
     );
