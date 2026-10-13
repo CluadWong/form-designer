@@ -1183,15 +1183,30 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   outline: none;
 }
 
-/* 设计态直接可编辑的 <div>（无前/后标签）：回车插入的 <div> 默认成为 flex 行内子项、
-   被排成一行，导致多行换行失效（前标签非 null 时用 inline-block 的 .layout-p__input
-   包裹，无此问题）。强制每个插入的 div 占满整行并换行，使多行换行生效，
-   即使空字段下回车也能正常换行。复合字段的可编辑区域在 .layout-p__input（非 <div> 直接子级），
+/* 无前/后标签的字段（可编辑区就是 `.layout-p` 自身，flex 容器）：回车插入的内容
+   默认成为 flex 行内子项、被排成一行，导致多行换行失效。强制每个插入的块占满整行
+   并换行，使多行换行生效，即使空字段下回车也能正常换行。
+   复合字段的可编辑区域在 `.layout-p__input`（非直接子级，且已有 `display:block;width:100%`），
    故不受影响。
-   注意：contenteditable 插入的 <div> 是浏览器运行时塞入、不带 scoped 的 data-v 属性，
+   注意：contenteditable 插入的元素是浏览器运行时塞入、不带 scoped 的 data-v 属性，
    普通 `.layout-p > div`（编译为 `.layout-p[data-v] > div[data-v]`）匹配不到——
-   故用 :deep() 去掉子选择器的 scope 属性，才能命中这些运行时 div。 */
+   故用 :deep() 去掉子选择器的 scope 属性，才能命中这些运行时元素。 */
 .layout-p :deep(div) {
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+/* ⚠️ 2026-10-13 无头实测（Chromium 115 + 真键盘回车，见 `headless-layout-geometry-probe`）：
+   上面那条 `:deep(div)` **在本场景根本不生效** —— Chrome 在 contenteditable 里回车时
+   **不插 `<div>`**，而是**克隆光标所在内联上下文的元素**，此处即 `<span class="layout-p__value">`。
+   于是两个值 span 作为 flex item 并排在同一视觉行上（实测两元素 `top` 完全相同、
+   `distinctTops.length === 1`），而 `innerText` 里其实已经有 `\n` ——
+   这就是「没有前后标签的输入框回车不换行」的根因（有前标签的字段因为值元素在
+   `.layout-p__input` 内、被下面的 `display:block;width:100%` 兜住，所以看着正常）。
+   这里按**实际被插入的元素**再补一条：让直接挂在 `.layout-p` 下的值元素占满整行，
+   连续多个自然折行。`div` 那条保留（Firefox 等插入块元素 / innerBorder 的逐行 `<div>` 仍会命中）。 */
+.layout-p :deep(> .layout-p__value) {
   flex: 1 1 100%;
   width: 100%;
   min-width: 0;

@@ -14,6 +14,7 @@ import {
 import GridSchemaNode from "./GridSchemaNode.vue";
 import { registerPageSizeStyle, setPageSizeStyle } from "./page-size-style";
 import { measureHeightMm } from "./measure-rows";
+import { pageHasVisibleContent } from "./paper-visibility";
 import { resolveNodeParamAttrs } from "@/utils/node-params";
 import type { PhysicalPage } from "@/engine-v2/pagination";
 import { gridRowHeightMm, paginatePage, paginateSchema } from "@/engine-v2/pagination";
@@ -59,6 +60,22 @@ const props = withDefaults(
      */
     paginate?: boolean;
     /**
+     * 隐藏「渲染后无可打印内容」的物理页的开关（判定见 `paper-visibility.ts`）。
+     *
+     * - `"auto"`（缺省）：按渲染模式自动 —— **非设计态隐藏、设计态保留**。
+     *   非设计态（`mode="preview"`，或未传 `mode` 且有 `data`）：屏幕所见即打印所得，
+     *   不会出现「看着 2 页、只出 1 张」的错配。
+     *   设计态（`mode="design"`，或未传 `mode` 且无 `data`）：**保留**，画布上每一页都要能
+     *   点中、能编辑 —— 哪怕它此刻还没有任何可见内容（空白页也可能带着 Grid 行列结构等着填）。
+     * - `"hide"`：强制隐藏。设计器的「打印」按钮用它 —— `printForm` 序列化的就是设计画布，
+     *   此刻必须把空白纸挡在打印流之外（见 `FormDesigner.printDocument`）。
+     * - `"keep"`：强制保留。
+     *
+     * 为什么是字符串三态而不是布尔：布尔 prop 缺省时会被 Vue 强制转成 `false`，无法表达
+     * 「缺省跟着 `mode` 走」这层语义（`withDefaults` 给的 `default: undefined` 又被类型推断拒绝）。
+     */
+    blankPageMode?: "auto" | "hide" | "keep";
+    /**
      * 字段级运行时权限（P9.2a/P9.2b，与 `data` 同轨经 props 注入，不进 schema）：
      * `{ 字段名: "READ" | "EDIT" | "HIDDEN" }`。EDIT=可输入（缺省）；READ=只读回显；
      * HIDDEN=隐藏且保留固定空间（visibility:hidden，占位/分页高度不变，值仍可采集）。
@@ -66,7 +83,7 @@ const props = withDefaults(
      */
     fieldPermissions?: Record<string, FieldPermissionV2>;
   }>(),
-  { paginate: true },
+  { paginate: true, blankPageMode: "auto" },
 );
 
 /** 纸张物理尺寸（mm），方向由纸张尺寸派生（A4 纵向 / A3 横向）。
@@ -234,6 +251,54 @@ onMounted(() => nextTick(correctPagination));
 /** 最终渲染的物理页：浏览器里经真实高度校正，否则用确定性分页（测试 / SSR 回退）。 */
 const displayedPages = computed<PhysicalPage[]>(() => measuredPages.value ?? renderedPages.value);
 
+/**
+ * 设计态判定：显式 `mode="design"` 为准；未传 `mode` 时向后兼容 props 文档约定的口径
+ * ——有 `data` 视为 preview，否则视为 design。
+ */
+const isDesignMode = computed(() =>
+  props.mode ? props.mode === "design" : props.data == null,
+);
+
+/**
+ * 是否隐藏「无可见内容」的纸：显式 `blankPageMode` 优先，`"auto"` 时按 {@link isDesignMode}
+ * 自动（设计态保留、非设计态隐藏）。
+ */
+const hideBlankPapers = computed(() => {
+  if (props.blankPageMode === "hide") return true;
+  if (props.blankPageMode === "keep") return false;
+  return !isDesignMode.value;
+});
+
+/**
+ * 实际出纸的物理页：在 {@link displayedPages} 基础上剔除「渲染后无可打印内容」的纸
+ * （判定见 `paper-visibility.ts`）。
+ *
+ * 场景：分页引擎只按高度切页，会把「无来源图片」或「无边框空 Grid」单独切成一张纸
+ * —— 前者 `@media print` 下隐藏、后者没有任何痕迹，打印出来就是一张空白纸。
+ *
+ * 四个关键约束：
+ * 1. **不删任何节点**：判定是 `computed`，依赖 `props.data`。宿主脚本填入数据后，
+ *    原本为空的图片列表 / 字段变得有内容，判定自动翻转、纸张自动回来。
+ * 2. **设计态不过滤**（`mode === "design"`，由 {@link hideBlankPapers} 在 `"auto"` 下给出）：
+ *    画布上每一页都要能点中、能编辑。**注意设计态默认是分页的**（`paginate` 默认 true、
+ *    由 Inspector 开关控制），所以这里必须按 `mode` 判定而**不能**按 `paginate` 判定
+ *    —— 否则设计画布会把空白页藏掉，且与状态栏「实际会打印几张纸」的计数对不上。
+ * 3. **连续编辑视图（`paginate === false`）不过滤**：它本就是「整页不切分」的编辑版式。
+ * 4. **兜底**：若全部纸张都被判为空（全空表单），保留原列表 —— 避免「一张纸都不剩」
+ *    导致画布空白、打印按钮无反应。
+ *
+ * 过滤后按新顺序重编 `index`（`{page}` / `{total}` 占位符取的就是它），否则删掉中间的纸
+ * 会让页码出现空洞。
+ */
+const visiblePages = computed<PhysicalPage[]>(() => {
+  const all = displayedPages.value;
+  if (!props.paginate) return all;
+  if (!hideBlankPapers.value) return all;
+  const kept = all.filter((pp) => pageHasVisibleContent(pp, props.data));
+  if (!kept.length) return all;
+  return kept.map((pp, idx) => (pp.index === idx + 1 ? pp : { ...pp, index: idx + 1 }));
+});
+
 // ── 页眉 / 页脚（paper 级全局配置，默认随每个物理页重复渲染，含打印）──────────
 /**
  * 页眉/页脚是**纸张装饰**，不是 SchemaNode：不参与选中 / 拖拽 / 结构树，只能经
@@ -333,7 +398,7 @@ function pageParamAttrs(sourcePageId: string): Record<string, string> {
 <template>
   <div class="grid-form-canvas" :class="{ 'grid-form-canvas--bare': bare }">
     <main
-      v-for="(pp, pageIdx) in displayedPages"
+      v-for="(pp, pageIdx) in visiblePages"
       :key="pp.id"
       class="grid-form-paper"
       :style="paperStyle(pp.margin)"
@@ -345,9 +410,9 @@ function pageParamAttrs(sourcePageId: string): Record<string, string> {
         class="grid-form-band grid-form-band--header"
         :style="bandStyle(schema.paper.header, pp.margin, 'top')"
       >
-        <span class="grid-form-band__zone">{{ resolveBandText(schema.paper.header?.content?.left, pp, displayedPages.length) }}</span>
-        <span class="grid-form-band__zone grid-form-band__zone--center">{{ resolveBandText(schema.paper.header?.content?.center, pp, displayedPages.length) }}</span>
-        <span class="grid-form-band__zone grid-form-band__zone--right">{{ resolveBandText(schema.paper.header?.content?.right, pp, displayedPages.length) }}</span>
+        <span class="grid-form-band__zone">{{ resolveBandText(schema.paper.header?.content?.left, pp, visiblePages.length) }}</span>
+        <span class="grid-form-band__zone grid-form-band__zone--center">{{ resolveBandText(schema.paper.header?.content?.center, pp, visiblePages.length) }}</span>
+        <span class="grid-form-band__zone grid-form-band__zone--right">{{ resolveBandText(schema.paper.header?.content?.right, pp, visiblePages.length) }}</span>
       </div>
       <GridSchemaNode
         v-for="(child, index) in pp.children"
@@ -366,9 +431,9 @@ function pageParamAttrs(sourcePageId: string): Record<string, string> {
         class="grid-form-band grid-form-band--footer"
         :style="bandStyle(schema.paper.footer, pp.margin, 'bottom')"
       >
-        <span class="grid-form-band__zone">{{ resolveBandText(schema.paper.footer?.content?.left, pp, displayedPages.length) }}</span>
-        <span class="grid-form-band__zone grid-form-band__zone--center">{{ resolveBandText(schema.paper.footer?.content?.center, pp, displayedPages.length) }}</span>
-        <span class="grid-form-band__zone grid-form-band__zone--right">{{ resolveBandText(schema.paper.footer?.content?.right, pp, displayedPages.length) }}</span>
+        <span class="grid-form-band__zone">{{ resolveBandText(schema.paper.footer?.content?.left, pp, visiblePages.length) }}</span>
+        <span class="grid-form-band__zone grid-form-band__zone--center">{{ resolveBandText(schema.paper.footer?.content?.center, pp, visiblePages.length) }}</span>
+        <span class="grid-form-band__zone grid-form-band__zone--right">{{ resolveBandText(schema.paper.footer?.content?.right, pp, visiblePages.length) }}</span>
       </div>
     </main>
   </div>
