@@ -43,6 +43,11 @@ const props = withDefaults(
     bare?: boolean;
     /** 分页开关（预览/填写/打印强制分页；设计态可关为整页连续）。 */
     paginate?: boolean;
+    /**
+     * 空白纸开关，透传给内核：`"auto"`（缺省）按 `mode` 自动 —— 设计态保留（可选可编辑）、
+     * 预览态隐藏；`"hide"` 强制隐藏（设计器打印窗口用）；`"keep"` 强制保留。
+     */
+    blankPageMode?: "auto" | "hide" | "keep";
   }>(),
   { paginate: true },
 );
@@ -397,6 +402,7 @@ function onDragEnd(): void {
       :readonly="readonly"
       :bare="bare"
       :paginate="paginate"
+      :blank-page-mode="blankPageMode"
       @field-change="(field: string, value: string) => emit('field-change', field, value)"
     />
     <!-- D3：插入指示线由表面层 overlay 绘制，内核不输出任何拖拽 DOM 分支 -->

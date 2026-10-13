@@ -79,6 +79,13 @@ const editable = computed(() => !previewMode.value);
  * 此开关只影响设计态画布。
  */
 const paginate = ref(true);
+/**
+ * 打印窗口标记（仅 `printDocument` 置位，见其内说明）。
+ *
+ * 平时 `false` ⇒ 画布按内核「`auto`」渲染：设计态**保留**空白纸（可选可编辑）；
+ * 打印时置 `true` ⇒ 让画布按「`hide`」渲染，把空白纸挡在打印流之外。
+ */
+const printing = ref(false);
 /** localStorage 键：帮助面板「已看过首次引导」标记（命名跟随 ticket-designer-* 惯例）。 */
 const HELP_SEEN_STORAGE_KEY = "ticket-designer-help-seen-v1";
 
@@ -326,6 +333,9 @@ function redo(): void {
  * 但若直接打印那张单张、超高的纸，内容会溢出 `@page` 尺寸、多出空白尾页（即「纸越来越高、不分页、
  * 打印多一页空白」的根因）。故打印前临时把分页打开，等 `printForm` 同步完成纸张序列化后再还原，
  * 屏幕编辑态不受影响。
+ *
+ * ⚠️ 同时让画布按 `hide` 渲染空白纸：设计画布要保留空白纸以便选中编辑（`auto` 的默认行为），
+ * 但打印流里不要空白纸。两个开关都只在打印窗口内生效，序列化一结束立即还原。
  */
 async function printDocument(): Promise<void> {
   const wasPaginating = paginate.value;
@@ -334,7 +344,13 @@ async function printDocument(): Promise<void> {
     await nextTick();
     await nextTick();
   }
+  // 空白纸：设计态**默认保留**（画布上每一页都要能点中、能编辑，见内核 `blankPageMode`），
+  // 但打印是「设计态下的输出动作」—— 此刻必须让画布按 `hide` 渲染，否则被挤出来的空白纸会
+  // 原样印出去（本机制要解决的就是这个）。与临时开分页同理：只覆盖打印窗口，屏幕编辑态不受影响。
+  printing.value = true;
+  await nextTick();
   printForm({ root: canvasEl.value });
+  printing.value = false;
   if (!wasPaginating) {
     paginate.value = false;
   }
@@ -551,6 +567,7 @@ defineExpose<FormDesignerExposed>({
             :readonly="false"
             :bare="true"
             :paginate="previewMode || paginate"
+            :blank-page-mode="printing ? 'hide' : 'auto'"
             @node-drag-start="onCanvasNodeDragStart"
             @drop-node="onDropNode"
             @drop-palette="onDropPalette"

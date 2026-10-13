@@ -785,3 +785,180 @@ Chrome 按**提升那一刻**的比例（「适应宽度」常是 0.3~0.5×）�
 **踩坑**：`will-change: none` 是**非法值**（Chrome 只识别 `auto`），用它做「内联覆盖 CSS」的 A/B 探针
 会静默失效（computed 仍是 `transform`），从而得出「不是它的问题」的错结论。做这类对照实验时
 必须先用最小页面验证覆盖是否真的生效。
+
+## 25. 分页「空白纸」过滤：渲染期判定物理页是否留下可见内容（2026-10-10）
+
+### 现象
+
+表单打印时多出「看起来全白」的一页。
+
+### 根因（两层叠加）
+
+1. **分页引擎只按高度切页** —— `gridRowHeightMm` 取 `row.height × baseRowHeight`，**空行照样算**。
+   实测报障 schema：一个 34 行 Grid，第 1 行有文本、后 **33 行全空** ⇒ 33 × 8 = 264mm，格高约
+   272.5mm，几乎占满正文区（A4 − 上下边距 12×2 = 273mm）⇒ 尾部节点放不下，被切成**第 2 张纸**。
+2. **被挤出去的那张纸恰好「打印不显影」** —— 它的唯一内容是**无来源图片列表**，而
+   `.layout-image--blank` 在 `@media print` 下 `display:none`（既定语义，见 `ImageBlankPrint.test.ts`）
+   ⇒ 纸面全白。
+
+即：**分页引擎知道「有多高」，不知道「打印出来有没有东西」**，于是会为一张实际什么都不印的纸单独开页。
+
+### 修法：渲染期过滤，且不删任何节点
+
+- `src/components/renderer-v2/paper-visibility.ts` —— 纯函数 `pageHasVisibleContent(page, data)` /
+  `nodeHasVisibleContent(node, data)`，判定「该节点 / 该纸在该 `data` 下是否留下可见内容」。
+- `GridFormRenderer.vue` 新增 `visiblePages = computed(...)`，在 `displayedPages` 之后剔除判为空的纸；
+  模板 `v-for` 改用它，页眉页脚的 `{total}` 取过滤后的长度。
+
+**闸门（2026-10-10 二次调整）**：`GridFormRenderer` 的 prop `blankPageMode?: "auto" | "hide" | "keep"`
+（缺省 `"auto"`，经 `CanvasSurface` 透传）：
+
+| 取值 | 行为 |
+| --- | --- |
+| `"auto"`（缺省） | 按渲染模式自动：**非设计态隐藏、设计态保留** |
+| `"hide"` | 强制隐藏（设计器打印窗口用） |
+| `"keep"` | 强制保留 |
+
+原先闸门是「`paginate === false` 才不过滤」，**这是错的** —— 设计画布**默认就是分页的**
+（`FormDesigner` 的 `paginate` ref 默认 `true`，由 Inspector 开关控制），所以上一版会把空白页
+在设计态也藏掉 ⇒ 那一页无法点中、无法编辑，且画布张数与状态栏「实际会打印几张纸」的计数对不上。
+必须按 `mode` 判定。三态用字符串而非布尔，是因为布尔 prop 缺省时会被 Vue 强制转成 `false`
+（`resolvePropValue`：`isAbsent && !hasDefault ⇒ value = false`），表达不了「缺省跟着 `mode` 走」。
+
+四条硬约束：
+
+1. **不删节点** —— 判定是 `computed` 且依赖 `props.data`。宿主脚本在渲染后填入数据时，原本为空的
+   图片列表 / 字段变得有内容 ⇒ 判定自动翻转、**纸张自动回来**。「无内容」只表示「这一帧这张纸不出」，
+   **绝不允许**据此移除 schema 节点或 DOM 节点（否则数据一到就丢了内容）。
+2. **设计态不过滤**（`mode === "design"`）—— 设计器画布必须能看见、能点中并编辑每一页；
+   空白页也可能带着 Grid 行列结构等着填内容。唯一例外是设计器的「打印」按钮：`printForm` 序列化的
+   就是设计画布，故 `FormDesigner.printDocument()` 在打印窗口内把 prop 切到 `"hide"`
+   （与它临时把 `paginate` 打开同一处、同一手法），序列化一结束立即还原。
+3. **连续编辑视图不过滤**（`paginate === false`）—— 它本就是「整页不切分」的编辑版式。
+4. **兜底** —— 若全部纸张都被判为空（全空表单），保留原列表，避免「一张纸都不剩」导致画布空白、
+   打印按钮无反应。
+
+过滤后按新顺序重编 `index`（`{page}` / `{total}` 取的就是它），否则删掉中间的纸会让页码出现空洞。
+
+### 判定口径（**宁保守勿误删**）
+
+判不准一律算「有内容」——误删会让用户丢内容，多留一张纸只是不好看。
+
+| 节点 | 判为「有内容」的条件 |
+| --- | --- |
+| Grid | `border !== "none"`（框线会打印，哪怕每格全空）；否则递归 cell 子树，任一后代有内容即算 |
+| 字段 P | 恒为有内容（标签 / 下划线 / 可填控件都在纸面留痕） |
+| Table | 恒为有内容（表头必然打印） |
+| Text | 去空白后非空 |
+| Html | 去标签 + 去 `&nbsp;` 后非空 |
+| Image | `resolveImageItemsV2` + `hasImageSourceV2` —— 与渲染层 / 分页引擎**同一真源**，无来源即判空 |
+| 无子节点的纸 | 判空（分页引擎为空逻辑页产出的兜底空纸） |
+| 其它 / 未知类型 | 恒为有内容（向前兼容：新增节点类型默认保留） |
+
+### 为什么不放在另外两个位置
+
+- **不在 `printForm()` 里做**：那是「送印前一瞬」的 DOM 后处理，只能改打印结果；而宿主数据是**渲染后**
+  才填的，判定必须能随 `data` 自动翻转 —— 放在 `computed` 里才成立（也更早暴露在预览态）。
+- **不在分页引擎里做**：引擎的职责是高度切分，把「可见性」塞进去会让 `paginatePage` 需要感知
+  `@media print` 语义，且设计态（`paginate=false`）也依赖同一引擎。分页照旧切、渲染层负责出纸，
+  职责不混。
+
+`printForm()` **无需改动**：设计器打印窗口内已把 prop 切到 `"hide"`，纸张此刻不在 DOM 里，
+`scope.querySelectorAll(PRINT_PAPER_SELECTOR)` 自然选不到它。
+
+### 实测（2026-10-10）
+
+报障文件 `src/dev/formdesigner-schema-v2-1791592480299.json`（1 个逻辑页）：
+
+| 层级 | 结果 |
+| --- | --- |
+| `paginateSchema` 确定性分页 | **2 张纸** |
+| 逐纸可见性 `pageHasVisibleContent` | `[true, false]` |
+| `mode="design"`（设计画布，缺省 `"auto"`） | **2 张**（保留，可选中编辑） |
+| `mode="preview"`（非设计态） | **1 张** |
+| `mode="design"` + `blankPageMode="hide"`（打印窗口） | **1 张** |
+| 非设计态下注入 `data: { shot: ["…"] }` | **2 张**（纸自动回来） |
+
+### 测试守卫
+
+`src/components/renderer-v2/__tests__/PaperVisibility.test.ts`（13 例）锁定：判定口径（空 Grid / 无来源图片
+/ 有边框 Grid / 字段 P / Table / 文本）、`data` 驱动的翻转、非设计态 2 张出 1 张、**设计态保留 2 张**、
+未传 `mode` 且无 `data` 的向后兼容口径、打印窗口 `"hide"` 生效、`"keep"` 反向开关、连续编辑视图不切分、
+全空兜底。
+
+**反向验证**：把 `visiblePages` 里的 `all.filter(pageHasVisibleContent)` 换成 `all`（停掉过滤）后，
+该文件 **3 failed / 10 passed** ⇒ 用例确实咬住了这条逻辑，不是空跑。
+
+
+## 26. 字段 P 回车不换行：无前后标签的字段（2026-10-13）
+
+### 现象
+
+设计器导出的模板（`formdesigner-schema-v2-1791857577958.json`）里两个字段 P：
+
+| 字段 | 配置 | 回车 |
+| --- | --- | --- |
+| 第一行 | `mode:"field"`、`underline:true`，**无 prefix/suffix** | **不换行** ❌ |
+| 第二行 | 同上 + `prefix:"1"` | 换行 ✓ |
+
+### 根因：Chrome 回车「克隆内联元素」，不是插入 `<div>`
+
+内核里那条为「无前后标签的字段」准备的规则写的是 `.layout-p :deep(div){flex:1 1 100%}` —— 它
+**假设浏览器会在回车时插入 `<div>`**。实测（无头 Chromium 115 + CDP 真键盘）**并非如此**：
+
+| 场景 | 可编辑宿主 | 宿主 computed display | 回车后插入 | 子元素 `top` |
+| --- | --- | --- | --- | --- |
+| 无 prefix/suffix | `.layout-p` 自身 | `flex` | **克隆 `<span class="layout-p__value">`** | 两元素 `top` 相同（同一行） |
+| 有 prefix | `.layout-p__input` | `block`（flex item 块化） | 同上 | 两元素 `top` 相差一行高 |
+
+Chrome 做的是**切分光标所在的内联上下文元素并复制其属性**，于是插进来的是
+`<span class="layout-p__value">`，`div` 那条规则永远不命中；两个值元素作为 flex item
+（`.layout-p__value{flex:1 1 auto}`）并排 ⇒ 挤在同一视觉行上各占一半宽度。
+注意 `innerText` 里**已经有 `\n`**（取值口径没问题），坏的只是**渲染**。
+
+有 prefix 的字段之所以正常：它的值元素在 `.layout-p__input` 内，被
+`.layout-p__input > .layout-p__value{display:block;width:100%}` 兜住 ⇒ 天然堆叠。
+
+### 修法
+
+```css
+.layout-p :deep(> .layout-p__value) { flex: 1 1 100%; width: 100%; min-width: 0; }
+```
+
+让**直接挂在 `.layout-p` 下**的值元素占满整行，连续多个自然折行。`:deep()` 是必须的
+（运行时克隆的元素不带 scoped 属性）；**直接子级**限定也是必须的（否则会改掉复合字段
+值元素的宽度语义）。原 `div` 规则保留：Firefox 等插入块元素、`innerBorder` 的逐行 `<div>`
+仍会命中。
+
+### 实测（2026-10-13，真组件集成探针 + 真键盘）
+
+真 `GridFormRenderer` + 真模板 JSON，`mode="preview"`（字段可编辑）：
+
+| 字段 | 修复前 | 修复后 |
+| --- | --- | --- |
+| 无 prefix（`.layout-p` 直接承载值） | 2 个值 span `top` 均 `74.06`，宿主高 `21.8` ⇒ **1 行** ❌ | `top` `70.34` / `91.14`，宿主高 `42.59` ⇒ **2 行** ✓ |
+| 有 prefix（值在 `.layout-p__input` 内） | 2 行 | 2 行（**逐值一致，零回归**） |
+
+零影响验证（同一构建 + 运行时覆盖样式做 A/B）：
+
+- 单行值 / 空字段：截图 **md5 完全相同**（`3ec6540a…` / `2fa9b34e…`）⇒ 既有版式像素级不变；
+- 弹性单元格（`.layout-grid__cell--flex`，`.layout-p` 收缩到内容宽）：`.layout-p` 宽 13 / 39px
+  **前后一致** ⇒ `flex-basis:100%` 在收缩到内容宽的容器里按 `auto` 兜底，不把内容撑成满行。
+
+**CDP 复现要点**（两个坑，否则会得到假结论）：回车必须带 `text:"\r"`（`rawKeyDown` 不触发插入）；
+用 `"AB|CD"` 这类字符串描述输入序列时必须**显式写出空段**（`"AB||CD"` = AB → 回车 → CD），
+否则 `split('|')` 根本没有空串、回车从未派发。
+
+### 测试守卫
+
+`src/components/renderer-v2/__tests__/FieldPLineBreak.test.ts`（5 例）。jsdom 没有编辑管线
+（插不了、也量不出），故锁**成因侧**两条：
+
+1. 编译后的 scoped 样式里确有 `.layout-p[data-v-…] > .layout-p__value{flex:1 1 100%}`，
+   且**不**波及 `.layout-p__input` 内的值元素；复合字段那半条机制（`display:block;width:100%`）仍在；
+2. 真渲染的 DOM 里，无前后标签字段的值元素确实是**可编辑宿主 `.layout-p` 的直接子级**
+   （结构变了 ① 就永远匹配不到 —— 上一版 `:deep(div)` 失效正是这个原因）。
+
+**反向验证**：把该规则的选择器改成不命中的形态后，该文件 **1 failed / 4 passed**，
+且恰好红在 ① 上 ⇒ 不是空跑。
+
