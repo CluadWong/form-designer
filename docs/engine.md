@@ -962,3 +962,321 @@ Chrome 做的是**切分光标所在的内联上下文元素并复制其属性**
 **反向验证**：把该规则的选择器改成不命中的形态后，该文件 **1 failed / 4 passed**，
 且恰好红在 ① 上 ⇒ 不是空跑。
 
+---
+
+## 27. 签名图手势归属：签名图纳入视口平移排除（2026-10-13）
+
+### 问题
+
+签名图（字段 P 且 `valueType === "image"`）**不是可编辑控件** —— 它的 `contenteditable` 一律关闭
+（`GridSchemaNode` 的图片分支），所以它既不在 `EDITABLE_SELECTOR` 里、也没有 `draggable="true"`，
+于是**完全落在平移手势的接管范围内**。
+
+宿主侧却把「按住签名图」当作正经手势的起点：PC 端悬停删除角标、移动端点击弹「重签 / 删除」菜单。
+不排除的症状是「想按住这张签名图，画布却跟着平移了」。
+
+### 改法
+
+`PaperViewport.vue` 的排除选择器新增一段（单图与多人容器都覆盖）：
+
+```ts
+const SIGN_IMAGE_SELECTOR = ".layout-p__sign, .layout-p__signs";
+const EXCLUDE_SELECTOR = `${EDITABLE_SELECTOR}, [draggable='true'], ${SIGN_IMAGE_SELECTOR}`;
+```
+
+为什么两个类都要：单图时 `<img>` 直接挂在字段根 `.layout-p` 或 `.layout-p__input` 下，两条分支的图
+**都带 `.layout-p__sign`**；两人以上时图被包进 `.layout-p__signs`（`flex-wrap`、图间有 `gap`），
+容器一并打标才不会「在两张图之间的空隙按下仍然平移」。
+
+打标本身走的还是既有 `tagExclusions()`（先清后打 + MutationObserver 驱动），**没有新增机制**。
+
+### 实测（真 `@panzoom/panzoom` 4.6.2 + 真实 `PointerEvent`，无头 Chromium 1071）
+
+信号取 panzoom 自己的 `getPan()`：`pan()` 在 `setTransformWithEvent` **之前**同步更新内部 `x`/`y`，
+而样式写入被包在 `requestAnimationFrame` 里（无头 `--dump-dom` 不保证跑得到，第一版探针就因此
+得到「全都没平移」的假结论）。内部状态变了，样式必随之写 —— 故 `getPan()` 是可靠的同步判据。
+
+| 场景 | `panzoom-exclude` | 拖拽 (60,40) 后的平移量 | 结论 |
+|---|---|---|---|
+| ① 普通图片（`.layout-image__img`） | 否 | `dx=60 dy=40` | **平移发生**（现状对照） |
+| ② 签名图 `.layout-p__sign` | 是 | `dx=0 dy=0` | 未平移 |
+| ③ `input`（既有口径） | 是 | `dx=0 dy=0` | 未平移 |
+| ④ 签名图**摘掉排除类**（负向对照） | 否 | `dx=60 dy=40` | **平移发生** |
+| ⑤ 签名图重新打标 | 是 | `dx=0 dy=0` | 未平移 |
+
+①②④⑤ 两条负向对照都能复现「平移发生」，证明探针是活的、不是恒绿。
+
+### 宿主删除角标**不能**靠内核打标（配套事实）
+
+宿主的删除角标挂在「与 `<form-renderer>` 同级」的位置（`.fd-form-renderer > button`）——
+它在 scaler 内、但在内核算布之外，而 `tagExclusions()` 是**先清空全部 `panzoom-exclude` 再按自己的
+选择器重打**，所以宿主自加的排除类会被抹掉。角标必须自己挡手势（`@pointerdown.stop`）。
+实测对照：
+
+| 角标 | 拖拽后的平移量 |
+|---|---|
+| 带 `pointerdown` 的 `stopPropagation`（= Vue `@pointerdown.stop`） | `dx=0 dy=0`（未平移） |
+| 不带（负向对照） | `dx=60 dy=40`（平移发生） |
+
+### 测试守卫
+
+`src/components/renderer-v2/__tests__/PaperViewport.test.ts` 新增 1 例：单图 / 多人容器 / 容器内的图
+**都被打标**；普通图片 `.layout-image__img` **不打标**（负向：本次只收签名图，不吃掉别的图片的
+平移手感）；且签名图不得被顺带写 `user-select: text`（它走「排除手势」这条路径，不是「可编辑」）。
+
+**反向验证**：把 `SIGN_IMAGE_SELECTOR` 从 `EXCLUDE_SELECTOR` 里抽掉后该文件 **1 failed / 43 passed**，
+且恰好红在「单图被打标」那条断言上 ⇒ 锁有效。
+
+### 刻意不做
+
+- **图片组（`.layout-image__img`）不排除**：本次只针对签名图（它的手势有宿主消费方）。图片组的图
+  目前没有宿主手势，保持「拖到图上即平移」的既有手感；要收进来只是在 `SIGN_IMAGE_SELECTOR` 那一行加个类。
+- **不给签名图设 `user-select: text`**：`<img>` 是替换元素，没有文本可选；把它塞进
+  `EDITABLE_SELECTOR` 会顺带改变 `tagExclusions` 的清理与用户选择行为，与本改动无关。
+
+---
+
+## 28. 图片列表「删除单张」角标：内核渲染 + 事件回宿主（2026-10-14）
+
+### 背景与口径
+
+字段 P 的签名图此前走「宿主自摆绝对定位角标」（§27 落地内核手势排除的那套）。用户要求把入口
+**收进内核**：图片自身右上角出一个删除按钮，点一下发事件，**删除业务仍由宿主做**。
+
+本轮先拿**图片列表**（`image` 节点，`.layout-image` / `.layout-image__item`）当先行改造例子。
+
+三条拍板口径：
+
+1. **内核只渲染 + 发事件，绝不改 `data`**——图片列表的删除往往还要走宿主的鉴权 / 留痕 / 提交接口；
+2. **入口条件 = 有 `field` + 非设计态 + 非只读 + 字段权限非 `READ`·`HIDDEN`**（内核已有
+   `fieldPermissions` prop，不必再让宿主自己藏按钮）；
+3. **悬停浮现**（不做常显）——票面要干净，与签名图形态 A 的手感统一。
+
+### 实现
+
+**渲染（`GridSchemaNode.vue`）**：每个 `.layout-image__item` 内追加一个
+`<button class="layout-image__del" type="button">×</button>`：
+
+- `.layout-image__item` 加 `position: relative`，角标 `position: absolute; top:0; right:0; 16×16`
+  ⇒ **不参与布局**，条目盒的 `data-*` 与分页估高都不受影响；
+- 显隐走 `visibility` + `opacity`（**不是 `display`**）：元素保留盒模型、几何可量、悬停不抖，
+  隐藏态 `visibility:hidden` 不接收指针 ⇒ 点不到；
+- `@media print { display: none !important }`：它是交互不是票面内容；
+- **不带 `data-field`**：`collectFieldValues` 按 `[data-field]` 采集，角标不参与；
+- `@click.stop`：宿主在根上的点击委托（`onFormClick` 一类）不该收到这次点击。
+
+**入口条件（`imageDeletable`）**：`node.field` 存在（静态图节点只有模板 `images`，没有可删的
+**数据**）+ `canFill`（非设计态 + 非只读）+ `fieldPermissions[field]` 不是 `READ`/`HIDDEN`。
+
+**事件链**：`GridSchemaNode → GridFormRenderer → FormRenderer` 逐层转发
+`image-remove`（与既有 `field-change` 同构），载荷 `ImageRemovePayloadV2`
+（`src/types/schema-v2.ts`）：
+
+```ts
+{ nodeId, field, index, item }
+```
+
+- `index` = **值数组下标**：`resolveImageItemsV2` 只在**尾部**按 `maxCount` 截断 ⇒ 渲染下标与
+  值数组下标前缀对齐，宿主直接 `splice(index, 1)` 即可；
+- `item` 取**显式条目**（`applyDefaults: false`），即 `data[field][index]` 那一份本身，
+  不掺节点级默认宽高——宿主拿它跟值数组逐条比对时不会因默认值错位。
+
+**手势**：`.layout-image__del` 并进 `PaperViewport` 的 `EXCLUDE_SELECTOR`。与宿主角标的关键差别是
+**这个按钮长在内核自己的渲染树里**，所以可以直接被 `tagExclusions` 打标；宿主的角标在树外，
+会被「先清空全部 `panzoom-exclude` 再重打」抹掉（§27），只能自己 `pointerdown.stop`。
+角标另外也带了 `@pointerdown.stop` / `@mousedown.prevent` 作为第二道。
+
+### 实测（真组件 + 真 scoped CSS + CDP 真鼠标 + 真打印媒体）
+
+无头 Chromium 1071，挂**真 `GridSchemaNode`**（`mode="preview"`, `readonly=false`, 2 张图），
+CDP `Input.dispatchMouseEvent` 真移动鼠标、`Emulation.setEmulatedMedia` 切真打印媒体：
+
+| 观测 | 结果 |
+|---|---|
+| 条目盒 `position` | `relative` |
+| 角标 `gapRight` / `gapTop`（条目右边 / 上边 − 角标同侧） | **0 / 0**（正好贴右上角） |
+| 角标尺寸 | 16×16 |
+| 角标 `position` | `absolute` |
+| 角标文本 | `×`；`data-field` 不存在 |
+| 默认（未悬停）`visibility` | `hidden` |
+| 鼠标移到第 0 张图中心 | 角标 0 → `visible`，角标 1 仍 `hidden`（只浮现被悬停那张） |
+| 鼠标移开到空白（负向对照） | 角标 0 → 回到 `hidden`（证明是真 `:hover`，不是粘住） |
+| `Emulation.setEmulatedMedia('print')` | 角标 `display: none`、尺寸 0×0（不印到纸上） |
+
+截图（悬停第 0 张）肉眼复核：红色圆形 × 落在该图右上角，未悬停的图没有角标。
+
+### 测试守卫
+
+- `__tests__/ImageDelete.test.ts`（新增 13 例）：入口条件 5 例（预览/只读/设计态/权限 4 态/静态图）、
+  载荷 3 例（含「点哪个删哪个」「内核不改 data」）、不污染采集 / 不冒泡 2 例、
+  样式契约 3 例（绝对定位 + 条目为定位容器 / 悬停用 `visibility` / `@media print` 隐藏）。
+- `__tests__/PaperViewport.test.ts`：+1 例（45 例）——角标打上 `panzoom-exclude`，
+  且**图片本身（`.layout-image__img`）与条目盒仍不打标**（负向：不吃掉图片的平移手感）。
+
+**反向验证**（8 条探针，逐条就地破坏 → 跑测试 → 字节还原）：基线 `0 失败 / 13`、`0 失败 / 45`；
+P1 去掉 `v-if` → 4 失败；P2 去掉 field 判据 → 1；P3 放开权限 → 1；P4 `index` 恒 0 → 2；
+P5 `item` 置空 → 2；P6 去掉 `click.stop` → 1；P7 去掉打印隐藏 → 1；P8 抽掉手势排除 → 1。
+8/8 变红，且两个源文件 sha256 复原一致。
+
+### 刻意不做
+
+- **签名图不并入本次**：签名图的值是 `string[]`（只取地址、无 name/尺寸），与图片列表的
+  `ImageItemV2[]` 不同源；它的删除入口由**单独一轮**按同一「内核渲染 + 事件回宿主」口径补上
+  ——见 §29。
+- **内核不改 `data`**：不给「自动删掉」的便利写法——删除后的写回涉及宿主鉴权与提交，
+  内核代劳会让宿主失去插入业务规则的时机。
+- **不做常显 / 不做批量删除**：常显会污染票面观感；批量删除属宿主工具栏职责。
+- **图片本身仍不打 `panzoom-exclude`**：只有角标排除手势，拖到图上仍是平移（保持既有手感）。
+
+---
+
+## 29. 签名图「删除单张」角标：与图片列表同一口径（2026-10-14）
+
+### 背景与口径
+
+§28 先拿图片列表当先行改造例子，留下的第一条「刻意不做」正是签名图。本轮把它按**同一套口径**
+补上。用户拍板原话：「**保持现状**，签名图照此口径改造」——「保持现状」指**不放宽** §28 的入口条件
+（无 `field` 的静态图节点仍然不给入口）。
+
+三条口径与 §28 逐条一致：内核只渲染 + 发事件、**绝不改 `data`**；入口 = 有字段 + 非设计态 +
+非只读 + 字段权限非 `READ`·`HIDDEN`；悬停浮现。
+
+差异只有两处，都源自签名图自身的形态：
+
+| | 图片列表 | 签名图 |
+|---|---|---|
+| 值域 | `ImageItemV2[]`（`{name, src, width, height}`） | `string[]`（只有地址） |
+| 载荷 `item` | 条目对象 | 地址字符串 |
+| 能否直接挂角标 | 条目盒 `.layout-image__item` 本就是图片的包裹层 | **原本没有包裹层** ⇒ 本轮新增 `.layout-p__signcell` |
+
+### 实现
+
+#### 1. 新增包裹层 `.layout-p__signcell`（角标要贴「图片自身」的右上角）
+
+角标必须贴在**图片自身**的右上角，而不是字段 / 下划线的右上角；而 `position: absolute` 只认最近的
+定位祖先，所以图片外面必须有一层盒子。签名图此前**单张时不带任何包裹层**（`<img>` 直接是
+`.layout-p__input` / `.layout-p` 的子项，2026-09-30 为「DOM 与升级前逐字节一致」刻意保留），
+故本轮新增：
+
+```html
+<span class="layout-p__signcell"
+  ><img class="layout-p__sign" … /><button v-if="signDeletable" class="layout-p__sign-del" …>×</button></span
+>
+```
+
+`.layout-p__signcell { position: relative; display: inline-flex; max-width: 100%; min-width: 0 }`
+—— 盒型收缩到图片尺寸，`top:0; right:0` 恰好落在图片右上角（实测单元盒与图片盒逐边相等，
+见下方实测表）。贴底对齐随之从图片挪到单元盒
+（`.layout-p__signcell--inline { align-self: flex-end }`），
+`.layout-p__signs > .layout-p__signcell { flex: 0 0 auto }` 承接原有的「并排图不参与伸缩」。
+
+4 处 `<img>`（复合字段内单图 / 复合字段内多图 / 非复合单图 / 非复合多图）都按此包裹，且**仍然各在
+原来那条 `v-if` 链的同一个分支里**——没加独立 `v-if`、没加 `<template v-for>`，「每个分支一个节点」
+这条不变式原样保留（独立分支会留下注释占位 / Fragment 锚点，正是 `FieldContainerHtmlRoundTrip`
+与 §26 反复强调的坑）。
+
+#### 2. 角标 `.layout-p__sign-del`
+
+与 `.layout-image__del` 同源：`position: absolute; top:0; right:0`、16×16 圆形、
+`rgba(220,38,38,.92)`、`visibility: hidden → visible` + `opacity` 悬停浮现、
+`@media print { display: none !important }`（**与图片列表角标拆成两条独立规则**，避免任一条改
+选择器时让另一条的打印断言静默失配）、不带 `data-field`（不被 `collectFieldValues` 采集）、
+`@click.stop`（不冒泡给宿主根上的点击委托）。
+
+入口条件 `signDeletable` = `p` + `mode: "field"` + `valueType: "image"` + 有 `field` + `canFill`
++ `fieldPermissions[field]` 非 `READ`/`HIDDEN`。
+
+#### 3. 事件链与载荷：`index` 必须是**值数组下标**
+
+`GridSchemaNode → GridFormRenderer → FormRenderer` 逐层转发 `sign-remove`，载荷
+`SignImageRemovePayloadV2`（`src/types/schema-v2.ts`）：`{ nodeId, field, index, item }`。
+
+**`index` 是值数组下标，不是渲染下标** —— 这是本轮唯一有真实正确性风险的地方：
+`resolveSignImageUrlsV2` 会**剔除空串**（避免空占位渲染破图），`["", "a"]` 里 `"a"` 的渲染下标是
+0、值数组下标却是 1；宿主若直接 `splice(渲染下标, 1)` 就会**删错人**。
+
+故在 `engine-v2/derivation.ts` 把归一化收敛成**唯一实现**
+`resolveSignImageEntriesV2(raw, maxCount) → {index, src}[]`，两个对外解析器从它派生：
+
+- `resolveSignImageUrlsV2` → 只要 `src`（渲染 / 分页沿用，行为逐字节不变）；
+- `resolveSignImageUrlIndexesV2` → 只要 `index`（本轮新增，删除事件用）。
+
+渲染层另抽出 `rawSignValue(node)` 给两条路径共用同一份 raw，杜绝「渲染顺序」与「回写下标」
+各算各的。`item` 取同一渲染位置的地址，供宿主在值被外部改动后按内容二次定位；边界都写进类型注释：
+值本身是单个字符串时 `index` 恒为 0（宿主需先转数组再 `splice`）、`maxCount` 只从尾部截断
+（被截掉的项不可能被点到）。
+
+#### 4. 手势排除
+
+`PaperViewport`：`SIGN_IMAGE_SELECTOR` 纳入新增的 `.layout-p__signcell`；另加
+`SIGN_DELETE_SELECTOR = ".layout-p__sign-del"` 并进 `EXCLUDE_SELECTOR`。**必须单独列**：角标与
+`<img>` 是单元盒下的**兄弟**节点，不在 `.layout-p__sign` 的子树里——`collectExcludeTargets` 用的是
+`querySelectorAll`（只匹配后代），单图时签名图选择器兜不住它。
+
+#### 5. 顺带修掉一个既有缺口
+
+`FormRenderer` 的**裸渲染分支**（不带 `PaperViewport` 的那条 `<GridFormRenderer v-else>`）只转发了
+`field-change`，漏了 `image-remove`——症状即「关掉视口时图片列表角标点了没反应」。本轮把
+`image-remove` 与 `sign-remove` 一并补上。
+
+### 实测（真组件 + 真 scoped CSS + CDP 真鼠标 + 真打印媒体 + before/after 对照）
+
+无头 Chromium 1071 挂**真 `GridSchemaNode`**（`mode="preview"`, `readonly=false`）。为了让
+「多包一层盒子不改版式」这句话有证据，同一个组件、同样 props 渲染两份：一份保留新结构（after），
+另一份 `cloneNode` 后把 `.layout-p__signcell` **拆掉**（before，等价于升级前的 DOM），分别量几何。
+
+| 观测 | after | before | 结论 |
+|---|---|---|---|
+| 图片盒（`imageHeight` 缺省） | 69.31 × 20.8 | 69.31 × 20.8 | 一致 |
+| 图片内联样式 | `height: 1.6em; max-width: 100%` | 同 | 一致 |
+| 图片 `object-fit` / `display` | `contain` / `block` | 同 | 一致 |
+| 图片盒（`imageHeight: 12mm`） | 151.14 × 45.34 | 151.14 × 45.34 | 一致 |
+| 字段盒 `.layout-p` | 714.13 × 21.8 | 714.13 × 21.8 | 一致 |
+| 下划线盒宽（`border-bottom: solid 1px`，复合字段） | 632.36 | 632.36 | 一致 |
+| 图底 vs 下划线底 | 差 1.0px（= 那 1px 边框） | 差 1.0px | 一致 |
+| 单元盒 vs 图片盒 | dx/dy/dw/dh **全 0** | — | `top/right:0` 即图片右上角 |
+| 角标 vs 图片 | `gapRight 0` / `gapTop 0`，16×16，`position: absolute` | — | 正贴右上角 |
+| 默认 `visibility` / `opacity` | `hidden` / `0` | — | 悬停才浮现 |
+| 真鼠标移到第 2 张图（`elementFromPoint` = `IMG.layout-p__sign`） | 角标 1 → `visible` / `opacity 1`，角标 0 仍 `hidden` | — | 只浮现被悬停的那张 |
+| `Emulation.setEmulatedMedia('print')` | 角标 `display: none`、0×0；图仍 69.31 × 20.8 | — | 角标不印、签名照印 |
+
+截图肉眼复核：红色 × 落在被悬停那张签名图的右上角，同组其余图没有角标；after 组与 before 组的
+图片尺寸及「图底压在下划线上」的相对位置一致。
+
+### 基线变更（唯一一处）
+
+`FieldPImageValue.test.ts` 的「单张与空值不引入额外锚点节点」曾断言
+`shapeOf(.layout-p__input) === ["<img>"]`、且单张图**直接**是容器子项。新增单元盒后这两条不再成立，
+已改述为：「容器直接子项仍是**唯一一个** `<span>`（与空态的 `.layout-p__value` 一一对应）」+
+「单元盒内过滤掉角标按钮后就是那一个 `<img>`」。**「不引入额外锚点」这条不变式本身没动**——
+只是多了一个**有意为之**的盒子。`FieldContainerHtmlRoundTrip` / `FullTicketSnapshot` /
+`collectFieldValues` 等既有基线全部不受影响（全票快照里没有签名图，且它按设计态渲染、
+角标本就不渲染）。
+
+### 测试守卫
+
+- `__tests__/SignImageDelete.test.ts`（新增 25 例）：入口条件 8 例（预览 / 只读 / 设计态 /
+  权限 4 态 / 非签名字段 / 无 `field` / 空值 / 单张结构）、事件载荷 8 例（载荷形状、点哪个删哪个、
+  **剔空项后的值数组下标**、单值简写、`maxCount`、内核不改 `data`、无角标不发事件）、
+  不污染采集 / 不冒泡 3 例、样式契约 4 例、值下标解析器 2 例。
+- `__tests__/PaperViewport.test.ts`：+1 例（46 例）——签名角标与单元盒都打上 `panzoom-exclude`。
+- `__tests__/FieldPImageValue.test.ts`：形态断言按上面的「基线变更」更新（19 例仍全绿）。
+
+**反向验证**（9 条探针，逐条在 `src` 的一次性副本上破坏 → 跑测试 → 从 `src` 回写复位；
+刻意**不改动受版本控制的文件**，本环境对该类就地改写不可靠）：基线 `0 失败 / 71`；
+P1 去掉角标入口闸门 → 5 失败；P2 去掉 `field` 判据 → 1；P3 放开权限闸门 → 1；
+P4 `index` 退回渲染下标 → 1；P5 `item` 置空 → 5；P6 去掉 `click.stop` → 1；
+P7 去掉打印隐藏 → 1；P8 抽掉手势排除 → 1；P9 去掉单元盒 `position: relative` → 1。
+**9/9 变红**，复位后回到 `0 失败 / 71`，且真源码 blob 与探针前逐字节一致。
+
+### 刻意不做
+
+- **不放宽入口条件**：用户拍板「保持现状」——无 `field` 的静态图节点仍然不给删除入口
+  （删的是**数据**，不是模板配置）。
+- **内核不改 `data`**：同 §28，签名的删除还要走宿主的鉴权 / 留痕 / 提交接口。
+- **不合并两条角标规则**：图片列表与签名图各持自己的绝对定位 / 悬停 / 打印规则，
+  改一条不会静默影响另一条。
+- **宿主侧旧浮动角标（`FdFormRenderer.vue` 的 `.fd-sign-delete`）本轮不动**：那是宿主仓的事。
+  内核先把入口做出来，但两套入口并存会导致「同一张签名图上出现两个 ×」——是否撤掉宿主那套、
+  或让宿主改用 `sign-remove`，留给宿主侧单独一轮决定。
+

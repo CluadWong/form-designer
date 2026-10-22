@@ -55,6 +55,7 @@ import {
   resolveBaseFontSizeV2,
   resolveImageItemsV2,
   resolveSignImageUrlsV2,
+  resolveSignPlaceholderLineCountV2,
   resolveTableRowCount,
 } from "@/engine-v2/derivation";
 
@@ -250,10 +251,23 @@ function atomicNodeHeightMm(
       // 注：Grid 内的行由渲染层 `measureRow` 实测真实高度二次校正，不依赖此处估算；
       // 本分支只覆盖 Grid 外的裸 p 节点。
       const isSignImage = node.mode === "field" && node.valueType === "image";
-      const rows = isSignImage ? Math.max(1, signImageRowCount(node, ctx)) : 0;
-      if (rows === 0) return ctx.baseRowHeight;
       const fontMm =
         resolveBaseFontSizeV2({ baseFontSize: ctx.baseFontSize }) * ONE_PX_MM;
+      // 内部边框 + 图片值（2026-10-21 线与图共存）：行盒由「占位行数 × 行高」决定，
+      // 图压在最后一行内、不额外占行 —— 末行取 max(行高, 图高)，其余行就是行高。
+      // 行数取自 `default` 的换行数（与渲染层同一个解析器），故「屏幕 3 行 / 分页 1 行」
+      // 这种高度错配不会发生。注意与下面的「每张独占一行」口径互斥，必须先判。
+      if (isSignImage && node.innerBorder) {
+        const lineMm = SIGN_IMAGE_LINE_HEIGHT_EM * fontMm;
+        const imageMm = cssLengthToMm(node.imageHeight) ?? lineMm;
+        const lines = resolveSignPlaceholderLineCountV2(node.default);
+        return Math.max(
+          ctx.baseRowHeight,
+          (lines - 1) * lineMm + Math.max(lineMm, imageMm),
+        );
+      }
+      const rows = isSignImage ? Math.max(1, signImageRowCount(node, ctx)) : 0;
+      if (rows === 0) return ctx.baseRowHeight;
       const imageMm =
         cssLengthToMm(node.imageHeight) ?? SIGN_IMAGE_LINE_HEIGHT_EM * fontMm;
       const gapMm = cssLengthToMm(node.gap) ?? SIGN_IMAGE_GAP_EM * fontMm;

@@ -553,6 +553,77 @@ export function splitGridCellV2(
   });
 }
 
+/**
+ * 把**单列普通格**（`colspan` ≤ 1）一分为二。
+ *
+ * 与 {@link splitGridCellV2} 的分工：那个是「还原跨列合并」，格数变多但**列数不变**；
+ * 这里是「凭空多出一格」，必须**给整张网格加一列** —— 所有行共用同一组列轨
+ * （`grid.columns`），只给某一行多塞一格会让该行越过列轨、错位换行。
+ *
+ * 因此其它每一行都要在**同一列位**补一个空格：
+ * - 该列位落在某格内部（该格 `colspan` 跨过插入点）→ 给它 `colspan + 1`，格数不变；
+ * - 否则在该列位的格之前插入一个空格；
+ * - 列位在行末 → 追加空格。
+ *
+ * `grid.columns` 同步在该列位插入一条 `1fr` 轨道；缺省时按首行派生后插入。
+ * 被拆的原格保留自己的子节点与样式，新格为空。
+ *
+ * 非 grid-cell、找不到所在行 / 网格时返回原 schema 引用。
+ */
+export function splitGridCellInTwoV2(schema: FormSchemaV2, cellId: string): FormSchemaV2 {
+  const index = buildEditorNodeIndexV2(schema);
+  const entry = index.get(cellId);
+  if (entry?.node.type !== "grid-cell") return schema;
+  const row = entry.parent;
+  if (!row || row.type !== "grid-row") return schema;
+  const gridEntry = index.get(row.id)?.parent;
+  if (gridEntry?.type !== "grid") return schema;
+  // `parent` 存的就是节点本身（不是索引项），无需再取 `.node`
+  const grid = gridEntry;
+  const targetIndex = row.cells.findIndex(cell => cell.id === cellId);
+  if (targetIndex < 0) return schema;
+
+  // 插入点 = 被拆格所在轨的下一条轨（列位从 0 起算）
+  const insPos = row.cells
+    .slice(0, targetIndex)
+    .reduce((track, cell) => track + (cell.colspan ?? 1), 0) + 1;
+
+  const newCell = (): GridCellV2 => ({
+    id: createSchemaNodeIdV2("cell"),
+    type: "grid-cell",
+    children: [],
+  });
+
+  /** 在列位 `insPos` 补一格（跨列格撑开，否则插入/追加）。 */
+  const insertAtTrack = (cells: GridCellV2[]): GridCellV2[] => {
+    let track = 0;
+    for (let i = 0; i < cells.length; i += 1) {
+      const cell = cells[i];
+      const span = cell.colspan ?? 1;
+      if (track === insPos) {
+        return [...cells.slice(0, i), newCell(), ...cells.slice(i)];
+      }
+      if (insPos > track && insPos < track + span) {
+        const next = [...cells];
+        next[i] = { ...cell, colspan: span + 1 };
+        return next;
+      }
+      track += span;
+    }
+    return [...cells, newCell()];
+  };
+
+  const rows = grid.rows.map(current => ({ ...current, cells: insertAtTrack(current.cells) }));
+  const baseColumns = grid.columns && grid.columns.length > 0
+    ? [...grid.columns]
+    : deriveGridColumnsV2(grid);
+  baseColumns.splice(Math.max(0, Math.min(insPos, baseColumns.length)), 0, "1fr");
+
+  return updateSchemaNodeV2(schema, grid.id, node =>
+    node.type === "grid" ? { ...node, rows, columns: baseColumns } : node,
+  );
+}
+
 export function wrapCellChildrenWithGridV2(schema: FormSchemaV2, cellId: string): FormSchemaV2 {
   return updateSchemaNodeV2(schema, cellId, node => {
     if (node.type !== "grid-cell" || node.children.length === 0) return node;

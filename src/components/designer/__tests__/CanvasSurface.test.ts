@@ -75,3 +75,47 @@ describe("CanvasSurface selection highlight (A5)", () => {
     expect(findSelected(wrapper)).toContain("unit-field");
   });
 });
+
+/**
+ * 面板拖拽的落点上抛（2026-10-21 交互规则）：落在格子上带 `cellId`；
+ * 落在**格子之外**（页面空白 / 网格间隙）不再丢弃，而是 `cellId: null` 上抛，
+ * 由编辑层「页面末尾新建网格 + 放进首格」兜底。
+ */
+describe("CanvasSurface 面板拖拽落点（drop-palette）", () => {
+  const schema = makeYunlvSecondTicketFirstFiveRowsSchema();
+  /** jsdom 没有 DataTransfer，按内核读取的 MIME 键造一个最小替身。 */
+  const PALETTE_MIME = "application/x-ticket-node-kind";
+
+  function dropEvent(target: Element): Event {
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", {
+      value: {
+        getData: (mime: string) => (mime === PALETTE_MIME ? "text" : ""),
+      },
+    });
+    Object.defineProperty(event, "target", { value: target });
+    return event;
+  }
+
+  it("落在格子上：emit drop-palette 携带该格 id", async () => {
+    const wrapper = mount(CanvasSurface, { props: { schema, mode: "design" } });
+    const cell = wrapper.find("[data-layout-id]").element;
+    const cellId = cell.getAttribute("data-layout-id");
+    expect(cellId).toBeTruthy();
+
+    wrapper.element.dispatchEvent(dropEvent(cell));
+    await nextTick();
+
+    expect(wrapper.emitted("drop-palette")?.[0]).toEqual([{ kind: "text", cellId }]);
+  });
+
+  it("落在格子之外：emit drop-palette 且 cellId 为 null", async () => {
+    const wrapper = mount(CanvasSurface, { props: { schema, mode: "design" } });
+
+    // 画布根元素自身不在任何 [data-layout-id] 之内
+    wrapper.element.dispatchEvent(dropEvent(wrapper.element));
+    await nextTick();
+
+    expect(wrapper.emitted("drop-palette")?.[0]).toEqual([{ kind: "text", cellId: null }]);
+  });
+});

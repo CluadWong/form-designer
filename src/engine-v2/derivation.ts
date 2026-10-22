@@ -187,6 +187,41 @@ export function hasImageSourceV2(items: readonly ImageItemV2[]): boolean {
 }
 
 /**
+ * 图片型字段值 → **删掉第 `index` 条**后的新值（纯函数，不改入参）。
+ *
+ * 供两条删除链共用（内核只发 `image-remove` / `sign-remove` 信号，删位与写回由消费方做）：
+ * 图片列表（`ImageNodeV2`）与签名图（`FieldPNodeV2.valueType === "image"`）。两条链的 `index`
+ * **都已是「值数组下标」**，故此处可直接按位删：
+ * - `image-remove.index`：渲染层 v-for 的下标。`resolveImageItemsV2` 逐项 `toImageItem` 后
+ *   **只丢 `null` 非法项、不剔空地址**（`{ src: '' }` 照留），且仅在**尾部**按 `maxCount`
+ *   截断 ⇒ 渲染下标与值数组下标**前缀对齐**；
+ * - `sign-remove.index`：渲染层已用 `resolveSignImageUrlIndexesV2` 换成原始数组下标（该链的
+ *   归一化会剔空项，直传渲染下标会删错人）。
+ *
+ * 形态保持（与 `resolveImageItemsV2` 的读值口径对齐）：
+ * | 入参 | 删掉后 | 删空后 |
+ * |---|---|---|
+ * | 单串（单图字段） | 只有一条，`index === 0` 时删掉 | `""` |
+ * | 地址数组 `ImageListValueV2` | 新数组，其余元素原样 | `[]` |
+ *
+ * **「什么都没删」用返回原引用表示**（越界 / 非整数 / 负数 / 非图片值）⇒ 调用方据此短路、
+ * 不写回数据：宁可让用户再点一次，也不写一份与原值等价的假数据。故不得把越界分支改成
+ * `raw.slice()` 这类等值新数组 —— 那会让「没删」被当成「删了」。
+ *
+ * 不写 `null`、不删键：值为空时保持**显式空值**（`[]` / `""`），与字段「存在但为空」的语义一致。
+ */
+export function removeImageValueItemV2(raw: unknown, index: number): unknown {
+  if (!Number.isInteger(index) || index < 0) return raw;
+  if (Array.isArray(raw)) {
+    if (index >= raw.length) return raw;
+    return raw.filter((_item, i) => i !== index);
+  }
+  // 单串 = 只有一张图（读值侧按 `[raw]` 处理），故只有删第 0 条才成立。
+  if (typeof raw === "string") return index === 0 ? "" : raw;
+  return raw;
+}
+
+/**
  * 图片列表的**有效水平对齐**解析（渲染层与设计器面板共用，保证「面板显示的选项」
  * 就是「画布上生效的选项」）。
  *
@@ -287,29 +322,77 @@ export const DEFAULT_SIGN_IMAGE_GAP_V2 = "0.5em";
 export const SIGN_IMAGE_GAP_EM = 0.5;
 
 /**
- * 字段值 → 签名图地址列表（**单值与多值同一条路径**）。
+ * 字段值 → 签名图条目（**同时保留原始下标**）：`{ index, src }`。
  *
- * 多人签名（2026-09-30）：`data[field]` 传数组即得多张。归一化规则：
+ * 归一化规则的**唯一实现**——两个对外解析器（只取地址的 `resolveSignImageUrlsV2` 与
+ * 只取下标的 `resolveSignImageUrlIndexesV2`）都从它派生，避免「渲染顺序」与
+ * 「回写下标」两套规则各自漂移。规则：
  * - 数组：逐项 `String()` 化并**剔除空串**（避免空占位渲染出破图）；
  * - 字符串：包成单元素数组（`""` → 空数组，即空态）；
- * - `null` / `undefined` / 其它：空数组。
+ * - `null` / `undefined` / 其它：空数组；
+ * - `maxCount`：**尾部**截断（前缀对齐，故被截掉的项不可能被点到）。
+ *
+ * 「空串」的判定用 `trim()`（2026-10-21）：`default: "\n"` 这类**纯空白**值此前被判成
+ * 「一张图地址」→ 渲染 `<img src="\n">` 变缺省图，多行下划线也永远轮不到。
+ * ⚠️ `trim()` **只用于判空，不改写地址本身**（`" https://x "` 仍原样输出）。
+ *
+ * ⚠️ 剔除空项会让**渲染下标与原始数组下标错位**：`["", "a"]` 渲染第 0 张是 `"a"`，
+ * 而它在值数组里是下标 1。删除事件必须回写下标，故 `index` 一律取**原始数组下标**。
+ */
+function resolveSignImageEntriesV2(
+  raw: unknown,
+  maxCount?: number,
+): { index: number; src: string }[] {
+  const entries: { index: number; src: string }[] = [];
+  if (Array.isArray(raw)) {
+    raw.forEach((item, index) => {
+      const src = item == null ? "" : String(item);
+      if (src.trim() !== "") entries.push({ index, src });
+    });
+  } else if (raw != null) {
+    const src = String(raw);
+    if (src.trim() !== "") entries.push({ index: 0, src });
+  }
+  if (typeof maxCount === "number" && Number.isFinite(maxCount) && maxCount > 0) {
+    return entries.slice(0, Math.floor(maxCount));
+  }
+  return entries;
+}
+
+/**
+ * 字段值 → 签名图地址列表（**单值与多值同一条路径**）。
+ *
+ * 多人签名（2026-09-30）：`data[field]` 传数组即得多张。归一化规则见
+ * {@link resolveSignImageEntriesV2}。
  *
  * 单值（字符串）走此函数得到长度 1 的数组，渲染结果与单图时代**逐字节相同**。
  */
 export function resolveSignImageUrlsV2(raw: unknown, maxCount?: number): string[] {
-  let urls: string[];
-  if (Array.isArray(raw)) {
-    urls = raw.map((item) => (item == null ? "" : String(item))).filter((src) => src !== "");
-  } else if (raw == null) {
-    urls = [];
-  } else {
-    const single = String(raw);
-    urls = single === "" ? [] : [single];
-  }
-  if (typeof maxCount === "number" && Number.isFinite(maxCount) && maxCount > 0) {
-    return urls.slice(0, Math.floor(maxCount));
-  }
-  return urls;
+  return resolveSignImageEntriesV2(raw, maxCount).map((entry) => entry.src);
+}
+
+/**
+ * 字段值 → 每张签名图在**值数组里的下标**（与 {@link resolveSignImageUrlsV2} 同序等长）。
+ *
+ * 渲染层为第 n 张签名图渲染删除角标时，`[n]` 就是宿主应当 `splice` 的下标——
+ * 不能直接用渲染下标：归一化会剔空项，`["", "a"]` 里 `"a"` 的渲染下标是 0、值下标是 1。
+ */
+export function resolveSignImageUrlIndexesV2(raw: unknown, maxCount?: number): number[] {
+  return resolveSignImageEntriesV2(raw, maxCount).map((entry) => entry.index);
+}
+
+/**
+ * 图片值字段（电子签名）在**内部边框**打开时的占位行数。
+ *
+ * 语义：`default` 不再当「一张图」，而是当「签名栏占几行」——`"\n"` → 2 行、`"\n\n"` → 3 行；
+ * 空 / 未设 → 1 行；`default` 是图片地址时也是 1 行（地址本身不参与行数）。
+ *
+ * 渲染层（`GridSchemaNode` 铺 N 条 `.layout-p__line`）与分页估算（`pagination` 算行盒高度）
+ * 共用本函数，避免「屏上 3 行、分页按 1 行」的高度错配（那会导致溢出纸外或提前分页）。
+ */
+export function resolveSignPlaceholderLineCountV2(defaultValue?: string): number {
+  const raw = typeof defaultValue === "string" ? defaultValue : "";
+  return Math.max(1, raw.split("\n").length);
 }
 
 /** 签名图**有效高度**：配了 `imageHeight` 用它，留空回落到与标签等高的 `1.6em`。 */

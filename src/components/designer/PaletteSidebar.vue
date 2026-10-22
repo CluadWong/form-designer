@@ -23,6 +23,9 @@ const props = defineProps<{
   editable: boolean;
   /** 删除按钮完整禁用态（含 page/grid-cell 不可删判定），由宿主计算。 */
   canRemove: boolean;
+  /** 上移 / 下移可用态（同级首末位、父容器不支持时禁用），由宿主计算，口径与动作同源。 */
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   nodeTree: TreeNode[];
   selectedNodeId: string | null;
 }>();
@@ -79,6 +82,7 @@ const emit = defineEmits<{
   (e: "add-grid"): void;
   (e: "palette-drag", kind: NodeKind, event: DragEvent): void;
   (e: "select", id: string): void;
+  (e: "move-selected", direction: "up" | "down"): void;
   (e: "remove-selected"): void;
   (e: "collapse-all"): void;
   (e: "expand-all"): void;
@@ -161,15 +165,37 @@ const emit = defineEmits<{
 
     <div class="v2-sidebar__heading v2-sidebar__heading--tree v2-tree-head">
       <span>结构</span>
-      <button
-        class="v2-tree__delete"
-        type="button"
-        :disabled="!canRemove"
-        :title="editable ? '删除选中的组件' : '预览状态下不可编辑结构'"
-        @click="emit('remove-selected')"
-      >
-        删除
-      </button>
+      <div class="v2-tree-head__actions">
+        <button
+          class="v2-tree__move"
+          type="button"
+          data-tree-move="up"
+          :disabled="!canMoveUp"
+          :title="editable ? '在同级中上移一位' : '预览状态下不可编辑结构'"
+          @click="emit('move-selected', 'up')"
+        >
+          上移
+        </button>
+        <button
+          class="v2-tree__move"
+          type="button"
+          data-tree-move="down"
+          :disabled="!canMoveDown"
+          :title="editable ? '在同级中下移一位' : '预览状态下不可编辑结构'"
+          @click="emit('move-selected', 'down')"
+        >
+          下移
+        </button>
+        <button
+          class="v2-tree__delete"
+          type="button"
+          :disabled="!canRemove"
+          :title="editable ? '删除选中的组件' : '预览状态下不可编辑结构'"
+          @click="emit('remove-selected')"
+        >
+          删除
+        </button>
+      </div>
     </div>
     <div ref="treeRef" class="v2-tree">
       <NodeTreeItem
@@ -207,11 +233,37 @@ const emit = defineEmits<{
   border-top: 1px solid #e2e8f0;
 }
 
-/* 结构行：标题居左、删除按钮靠右（节点删除按钮从右侧 Inspector 移入此处） */
+/* 结构行：标题居左、操作按钮靠右（上移 / 下移 / 删除同排，删除仍在最右） */
 .v2-tree-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.v2-tree-head__actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.v2-tree__move {
+  padding: 3px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #334155;
+  background: #f8fafc;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.v2-tree__move:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.v2-tree__move:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .v2-tree__delete {

@@ -10,9 +10,11 @@ import type {
   ImageItemV2,
   ImageLayoutV2,
   ImageNodeV2,
+  ImageRemovePayloadV2,
   ImageVerticalAlignV2,
   PNodeV2,
   SchemaNodeBaseV2,
+  SignImageRemovePayloadV2,
   TextNodeV2,
   TextStyleV2,
   TableColumnV2,
@@ -31,7 +33,9 @@ import {
   resolveImageVerticalAlignV2,
   resolveSignImageGapV2,
   resolveSignImageHeightV2,
+  resolveSignImageUrlIndexesV2,
   resolveSignImageUrlsV2,
+  resolveSignPlaceholderLineCountV2,
   resolveTableRowCount,
   withImageDefaultsV2,
 } from "@/engine-v2/derivation";
@@ -49,6 +53,21 @@ defineOptions({ name: "GridSchemaNodeV2" });
 
 const emit = defineEmits<{
   (e: "field-change", field: string, value: string): void;
+  /**
+   * 图片列表「删除某一张」（2026-10-14）。
+   *
+   * 内核**只发事件、不改 `data`**：删除后的值怎么写回是宿主的业务规则（鉴权 / 留痕 / 提交）。
+   * 本事件在 `readonly` / 设计态 / 字段权限为 `READ`·`HIDDEN` 时不会发出——那些态下按钮不渲染。
+   */
+  (e: "image-remove", payload: ImageRemovePayloadV2): void;
+  /**
+   * 签名图「删除某一张」（2026-10-14）。
+   *
+   * 与 `image-remove` 同口径（内核**只发事件、不改 `data`**），差异只有载荷形态：
+   * 签名值域是 `string[]`，故载荷带的是地址字符串而非条目对象。
+   * 同样在 `readonly` / 设计态 / 字段权限为 `READ`·`HIDDEN` 时不发——那些态下角标不渲染。
+   */
+  (e: "sign-remove", payload: SignImageRemovePayloadV2): void;
 }>();
 
 const props = defineProps<{
@@ -280,7 +299,11 @@ function tableHeaderCellStyle(
   const align = headerStyle?.align ?? column.align;
   return {
     justifyContent:
-      align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start",
+      align === "center"
+        ? "center"
+        : align === "right"
+          ? "flex-end"
+          : "flex-start",
     fontSize: headerStyle?.fontSize ? `${headerStyle.fontSize}px` : undefined,
     fontWeight: headerStyle?.fontWeight ?? undefined,
   };
@@ -349,13 +372,34 @@ function isImageValue(node: PNodeV2): boolean {
  * 归一化规则（空项剔除、`maxCount` 截断）见 `resolveSignImageUrlsV2`。
  */
 function signImageUrls(node: PNodeV2): string[] {
+  return resolveSignImageUrlsV2(rawSignValue(node), node.maxCount);
+}
+
+/**
+ * 签名图的**原始字段值**（未归一化）：`data[field]` 优先，缺 / `null` 回落到 `node.default`。
+ *
+ * 抽出来是为了让「地址列表」与「值数组下标」两条派生路径读到**同一份 raw**——
+ * `resolveSignImageUrlsV2` 与 `resolveSignImageUrlIndexesV2` 的归一化必须同源，
+ * 否则渲染第 n 张与「第 n 张在值数组里的下标」会各算各的、删除时删错人。
+ */
+function rawSignValue(node: PNodeV2): unknown {
   const data = props.data;
   let raw: unknown = node.default ?? "";
   if (data != null && node.field in data) {
     raw = data[node.field];
     if (raw == null) raw = node.default ?? "";
   }
-  return resolveSignImageUrlsV2(raw, node.maxCount);
+  return raw;
+}
+
+/**
+ * 第 n 张签名图在**值数组里的下标**（与 `signImageUrls(node)` 同序等长）。
+ *
+ * 归一化会剔除空项，故两者并不相等：`["", "a"]` 渲染第 0 张是 `"a"`、值下标是 1。
+ * 删除角标必须回报**值下标**，宿主拿到直接 `splice` 才是删对了人。
+ */
+function signImageValueIndexes(node: PNodeV2): number[] {
+  return resolveSignImageUrlIndexesV2(rawSignValue(node), node.maxCount);
 }
 
 /**
@@ -369,6 +413,26 @@ function signImageUrls(node: PNodeV2): string[] {
 function signImageCount(node: PNodeV2): number {
   if (!isImageValue(node) || fieldMasked.value) return 0;
   return signImageUrls(node).length;
+}
+
+/**
+ * 图片值字段在**内部边框**打开时的占位行数（= `default` 的换行数，至少 1 行）。
+ *
+ * 这与 `displayLines` 是两条口径，不能混用：文本字段按「字段值」拆行并逐行显示文字；
+ * 签名栏按「模板想要几行下划线」拆行、**行内不显示任何文字**（值本身是图片地址，
+ * 显示出来只会是 `https://...`）。
+ *
+ * 模板侧据此渲染「**线与图共存**」分支（复合字段在 `.layout-p__input` 内、非复合字段
+ * 作为 `.layout-p__lines`）——铺 N 条 `.layout-p__line`，签名图放进**最后一行**里，
+ * 图坐在该行 div 自己的 border-bottom 上：既是签名线又不额外多出一条线；多张时在这一行内
+ * flex 换行、继续向下排（末行随之变高）。这样 `default: "\n"`（2 行）即得到「两条下划线 +
+ * 压在末行的签名图」，而非此前「1 条线 + 缺省图片」。
+ *
+ * 说明只写在这里而不写进模板：模板里的 HTML 注释在 dev 下会渲染成**真实注释节点**，
+ * 每个复合字段都多一个锚点，污染 `.layout-p__input` 的子节点数（实测会整票快照失配）。
+ */
+function signPlaceholderLines(node: PNodeV2): number {
+  return resolveSignPlaceholderLineCountV2(node.default);
 }
 
 /** 签名图**有效高度**：`imageHeight` 缺省即与标签（文字行盒）等高——解析逻辑与分页估算
@@ -389,7 +453,9 @@ function signImageStyle(node: PNodeV2): CSSProperties {
  *  留空 `imageHeight` 时无需任何额外样式：`.layout-p__input` 自带的 `min-height: 1.6em`
  *  与默认图片高度同值，两态天然等高（实测 5.77mm 对 5.77mm）。 */
 function signBoxStyle(node: PNodeV2): CSSProperties {
-  return isImageValue(node) && node.imageHeight ? { minHeight: node.imageHeight } : {};
+  return isImageValue(node) && node.imageHeight
+    ? { minHeight: node.imageHeight }
+    : {};
 }
 
 /**
@@ -483,9 +549,115 @@ function readEditableText(el: HTMLElement): string {
   const inner = el.innerText;
   return typeof inner === "string" ? inner : (el.textContent ?? "");
 }
+
+/**
+ * 失焦归一化：把可编辑容器的 DOM 收缩回「一个值容器」。
+ *
+ * **背景（2026-10-21 无头 Chromium 实测）**：Chrome 在 contenteditable 里按 Enter **不插 `<div>`**，
+ * 而是**克隆光标所在的内联元素**（该结论与 `FieldPLineBreak` 的成因记录一致）。此处即克隆
+ * `.layout-p__value`，输入四行后 DOM 变成四个并列 span：
+ *
+ *   <span class="layout-p__value">1</span><span class="layout-p__value">2</span>
+ *   <span class="layout-p__value">3</span><span class="layout-p__value">4</span>
+ *   → innerText = "1\n2\n3\n4"（此时采集正确，第一次回写的数据是干净的）
+ *
+ * Vue 只 patch **第一个** span（`{{ displayValue(node) }}` 对应的那个），克隆出来的兄弟节点
+ * 它既不认识也不删。于是回写后再读：
+ *
+ *   <span class="layout-p__value">1\n2\n3\n4</span><span ...>2</span><span ...>3</span><span ...>4</span>
+ *   → innerText = "1\n2\n3\n4\n2\n3\n4"   ← 用户报的「输入 1/2/3/4 变成 1,2,3,4,2,3,4」
+ *
+ * 因为输入过程不逐键回写，首段不会被克隆，重复的恰好是「换行之后的每一段」—— 与现象吻合。
+ *
+ * **为什么不能靠响应式自愈**：① 回写值与当前值相同时 Vue 不 patch；② innerBorder 分支是
+ * `v-once`（永不 patch）。故只能在 DOM 层命令式归一。
+ *
+ * **顺序必须是「先读、后归一、再 emit」**：克隆出来的兄弟 span 里装的是用户真的输入过的内容，
+ * 先删就丢字。归一后第一个容器承载完整值，Vue 后续 patch 读到同值即为空操作。
+ */
+function normalizeEditableDom(container: HTMLElement, text: string): void {
+  const linesEl = container.querySelector<HTMLElement>(".layout-p__lines");
+  const valueEl = linesEl ? null : container.querySelector<HTMLElement>(".layout-p__value");
+
+  if (linesEl) {
+    // innerBorder：`v-once` 结构，Vue 永不再 patch，只能按行重建（不能用 displayLines：
+    // 它读的是 emit 前的旧 data）
+    while (linesEl.firstChild) linesEl.removeChild(linesEl.firstChild);
+    for (const line of text.split("\n")) {
+      const d = document.createElement("div");
+      d.className = "layout-p__line";
+      d.textContent = line;
+      linesEl.appendChild(d);
+    }
+  } else if (valueEl) {
+    valueEl.textContent = text;
+  }
+
+  // 删掉非值容器的直接子节点：浏览器克隆出来的兄弟 `__value` / `__line`、裸文本、无 class 的块。
+  // 白名单判据用「它不是我们刚写入的那个容器」，而不是列 class 名 —— 克隆出来的节点
+  // **class 与原节点完全相同**，靠 class 区分不出来。
+  Array.from(container.childNodes).forEach((child) => {
+    if (child.nodeType === Node.TEXT_NODE) {
+      container.removeChild(child);
+      return;
+    }
+    if (child.nodeType !== Node.ELEMENT_NODE) return;
+    const el = child as HTMLElement;
+    if (el === valueEl || el === linesEl) return;
+    if (el.classList.length === 0 || el.matches(".layout-p__value, .layout-p__line")) {
+      el.remove();
+    }
+  });
+}
+
 function onFillBlur(field: string | undefined, event: Event): void {
   if (!canFill.value || !field) return;
-  emit("field-change", field, readEditableText(event.target as HTMLElement));
+  const container = event.target as HTMLElement;
+  // 先读（含浏览器克隆出的兄弟容器里的内容），再归一，最后回写 —— 顺序不可调换
+  const text = readEditableText(container);
+  normalizeEditableDom(container, text);
+  emit("field-change", field, text);
+}
+
+/** 清空按钮的无障碍文案（`title` / `aria-label` 共用）。 */
+const CLEAR_VALUE_TITLE = "清空";
+
+/**
+ * 文本值字段是否显示「清空」按钮（2026-10-21）。
+ *
+ * 出现条件全部满足才渲染，缺一不可：
+ * - **填写态**（`canFill`：preview 且非 `readonly`）—— 设计态没有值可清、打印/只读回显也不该有交互；
+ * - 字段权限 `EDIT`（`READ` / `HIDDEN` 一律不给改值入口，HIDDEN 更不能借清空探出真值形态）；
+ * - **不是图片值**（`valueType === "image"` 的删除角标由 `sign-del` 承担，语义不同：删某一张 ≠ 清空）；
+ * - **当前显示的文本非空**（`trim()` 后仍有内容）：没内容可清时不出按钮（避免空字段上一个点了没反应的 ×）。
+ *
+ * ⚠️ 判定用「显示值」而不是「值 ≠ 默认值」：预览态 `data` 里通常没有该键，显示值回退的正是
+ * 模板 `default`（如 `"   年  月  日"`）—— 按「值 ≠ 默认值」判会让**带默认值的字段在预览态
+ * 永远看不到按钮**（2026-10-21 实测反馈）。此时点 × 的行为是「清空 → 恢复默认」，视觉不变，
+ * 因为屏幕上本来就还是默认值；录入过内容后点 × 才会看到回退。
+ *
+ * ⚠️ 按钮**不写文本节点**（字形由 CSS `::before` 生成）：`.layout-p[data-field]` 的
+ * `innerText` 就是字段值（`collectFieldValues`），凭空多一个 `×` 会把值污染成 `"值×"`。
+ */
+function isClearable(node: PNodeV2): boolean {
+  if (node.mode !== "field" || !node.field) return false;
+  if (isImageValue(node)) return false;
+  if (!canFill.value || fieldMasked.value) return false;
+  if (fieldPermission.value !== "EDIT") return false;
+  return fieldValue(node).trim() !== "";
+}
+
+/**
+ * 清空当前值并**恢复显示默认值**：直接 emit `field-change(field, default)`，
+ * 由宿主写回 data（与 `sign-remove` / `image-remove` 同一契约——内核只发事件、不改数据）。
+ *
+ * 为什么不是 emit 空串：`fieldValue` 对「键存在但值为 `""`」**不回退 default**（G16：用户主动
+ * 清空要能清掉默认值），故 emit `""` 只会把字段显示成空，拿不到「恢复默认值」的语义。
+ * 无 `default` 时退化为 `""`，即真正的清空。
+ */
+function onClearValue(node: PNodeV2): void {
+  if (!node.field) return;
+  emit("field-change", node.field, node.default ?? "");
 }
 
 /**
@@ -579,11 +751,16 @@ const imageExplicitItems = computed<ImageItemV2[]>(() =>
     : [],
 );
 /** 条目盒 `data-*` 上的显式尺寸（没显式配 → 空串，采集时不回写该维度）。 */
-function explicitSize(index: number, dimension: "width" | "height"): number | "" {
+function explicitSize(
+  index: number,
+  dimension: "width" | "height",
+): number | "" {
   const value = imageExplicitItems.value[index]?.[dimension];
   return typeof value === "number" && value > 0 ? value : "";
 }
-const imageLayout = computed<ImageLayoutV2>(() => imageNode.value?.layout ?? "vertical");
+const imageLayout = computed<ImageLayoutV2>(
+  () => imageNode.value?.layout ?? "vertical",
+);
 /**
  * 整组图的**有效水平对齐**（`align` 未设时按布局取默认：垂直居中、水平/填充靠左）。
  * 与设计器面板同源（`resolveImageAlignV2`），面板显示什么就是这里生效什么。
@@ -608,7 +785,8 @@ const imageShowName = computed(() => imageNode.value?.showName === true);
  * 既看不见也点不中（画布上无法再选中它）。预览 / 打印不补——那里没有可编辑的东西。
  */
 const imageRenderItems = computed<ImageItemV2[]>(() => {
-  if (imageItems.value.length > 0 || resolvedMode.value !== "design") return imageItems.value;
+  if (imageItems.value.length > 0 || resolvedMode.value !== "design")
+    return imageItems.value;
   const node = imageNode.value;
   // 占位条目同样吃节点级默认宽高，否则「只配了默认尺寸」的图在设计态量不出该尺寸。
   return [node ? withImageDefaultsV2(node, {}) : {}];
@@ -634,20 +812,104 @@ watch(
   { deep: true },
 );
 
+/** 删除角标的无障碍文案（`title` / `aria-label` 共用）。 */
+const IMAGE_DELETE_TITLE = "删除该图片";
+
+/**
+ * 该图片列表是否给出「删除单张」入口（2026-10-14，内核侧口径）。
+ *
+ * 三条同时成立才渲染角标：
+ * - **有 `field`**：静态图节点（只有模板 `images`）没有可删的**数据**，删的是配置 —— 那是
+ *   设计器 inspector 的事，不该由渲染内核提供；
+ * - **非设计态 + 非只读**（= `canFill`）：设计态不存在数据值；只读态是回显 / 打印，不给入口；
+ * - **字段权限非 `READ` / `HIDDEN`**：与内核既有的 `fieldPermissions` 口径一致 —— `HIDDEN`
+ *   渲染的是脱敏占位、`READ` 是只读回显，两者都不该出现删除入口；未配置（`undefined`）= EDIT。
+ *
+ * 真正「能不能删」仍由宿主在收到 `image-remove` 后判（宿主还可能要求 EDIT / 流程状态等）。
+ */
+const imageDeletable = computed(() => {
+  const node = imageNode.value;
+  if (!node?.field) return false;
+  if (!canFill.value) return false;
+  const permission = props.fieldPermissions?.[node.field];
+  return permission !== "READ" && permission !== "HIDDEN";
+});
+
+/**
+ * 点击角标：只把「点了哪张」抛给宿主，**不动 `data`**。
+ *
+ * `item` 取**显式条目**（`applyDefaults: false`）——即 `data[field][index]` 那一份本身，
+ * 不掺节点级默认宽高，宿主拿它跟值数组逐条比对时不会因默认值而错位。
+ */
+function onRemoveImageItem(index: number): void {
+  const node = imageNode.value;
+  if (!node?.field || !imageDeletable.value) return;
+  emit("image-remove", {
+    nodeId: node.id,
+    field: node.field,
+    index,
+    item: imageExplicitItems.value[index] ?? {},
+  });
+}
+
+/** 签名图删除角标的无障碍文案（`title` / `aria-label` 共用）。 */
+const SIGN_DELETE_TITLE = "删除该签名图";
+
+/**
+ * 该签名图是否给出「删除单张」入口（2026-10-14）。
+ *
+ * 与 `imageDeletable` 同口径，按签名图重述三条：
+ * - **是签名字段**（`p` + `mode: "field"` + `valueType: "image"`）：签名字段由设计器产出、
+ *   必带 `field`（无 `field` 的 `p` 不是字段，没有可删的**数据**）；
+ * - **非设计态 + 非只读**（= `canFill`）：设计态在编辑模板、只读态是回显 / 打印，都不给入口；
+ * - **字段权限非 `READ` / `HIDDEN`**：`HIDDEN` 已整栏走 `***`（连图都不渲染）、
+ *   `READ` 是只读回显；未配置（`undefined`）= EDIT。
+ *
+ * 真正「能不能删」仍由宿主在收到 `sign-remove` 后判（宿主还可能要求 EDIT / 流程状态等）。
+ */
+const signDeletable = computed(() => {
+  const node = props.node;
+  if (node.type !== "p" || !isImageValue(node)) return false;
+  if (!node.field) return false;
+  if (!canFill.value) return false;
+  const permission = props.fieldPermissions?.[node.field];
+  return permission !== "READ" && permission !== "HIDDEN";
+});
+
+/**
+ * 点击签名图角标：只把「点了哪张」抛给宿主，**不动 `data`**。
+ *
+ * `renderIndex` 是模板 `v-for` 的渲染下标；载荷里的 `index` 换成**值数组下标**
+ * （`signImageValueIndexes`）——归一化剔空项会让两者错位，直传渲染下标会删错人。
+ * `item` 取同一渲染位置的地址，供宿主按内容再定位一次。
+ */
+function onRemoveSignImage(node: PNodeV2, renderIndex: number): void {
+  if (!node.field || !signDeletable.value) return;
+  emit("sign-remove", {
+    nodeId: node.id,
+    field: node.field,
+    index: signImageValueIndexes(node)[renderIndex] ?? renderIndex,
+    item: signImageUrls(node)[renderIndex] ?? "",
+  });
+}
+
 /** 条目地址：加载失败时退回占位图（单张失败不影响同一列表里的其它图）。 */
 function itemSrc(item: ImageItemV2, index: number): string {
-  if (!item.src || brokenIndexes.value.includes(index)) return BROKEN_PLACEHOLDER;
+  if (!item.src || brokenIndexes.value.includes(index))
+    return BROKEN_PLACEHOLDER;
   return item.src;
 }
 function onImgError(index: number): void {
-  if (!brokenIndexes.value.includes(index)) brokenIndexes.value = [...brokenIndexes.value, index];
+  if (!brokenIndexes.value.includes(index))
+    brokenIndexes.value = [...brokenIndexes.value, index];
 }
 /** 记录自然宽高比，供「填充」布局在未配置尺寸时按真实比例分配行内空间。 */
 function onImgLoad(index: number, event: Event): void {
   const img = event.target as HTMLImageElement | null;
   const w = img?.naturalWidth ?? 0;
   const h = img?.naturalHeight ?? 0;
-  if (w > 0 && h > 0) naturalRatios.value = { ...naturalRatios.value, [index]: w / h };
+  if (w > 0 && h > 0)
+    naturalRatios.value = { ...naturalRatios.value, [index]: w / h };
 }
 
 /** 已知宽高比：配置尺寸优先，其次实测自然比例，最后缺省 1（正方形）。 */
@@ -681,7 +943,9 @@ const IMAGE_VERTICAL_ALIGN_FLEX: Record<ImageVerticalAlignV2, string> = {
  *   「同一条目行等高、图片按比例铺满」的前提，故这里**不写垂直对齐**，避免把行内撑满破坏掉。
  */
 function imageContainerStyle(): CSSProperties {
-  const horizontal = IMAGE_ALIGN_FLEX[imageAlign.value] as CSSProperties["alignItems"];
+  const horizontal = IMAGE_ALIGN_FLEX[
+    imageAlign.value
+  ] as CSSProperties["alignItems"];
   const vertical = IMAGE_VERTICAL_ALIGN_FLEX[
     imageVerticalAlign.value
   ] as CSSProperties["alignItems"];
@@ -733,7 +997,9 @@ function imageItemStyle(item: ImageItemV2, index: number): CSSProperties {
 function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   const objectFit = imageNode.value?.objectFit;
   if (imageLayout.value === "fill") {
-    const hasKnownRatio = Boolean(item.width && item.height) || naturalRatios.value[index] !== undefined;
+    const hasKnownRatio =
+      Boolean(item.width && item.height) ||
+      naturalRatios.value[index] !== undefined;
     return {
       width: "100%",
       height: "auto",
@@ -746,7 +1012,8 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   const height = hasHeight ? `${item.height}mm` : undefined;
   if (hasWidth && hasHeight) return { width: "100%", height, objectFit };
   if (hasWidth) return { width: "100%", height: "auto", objectFit };
-  if (hasHeight) return { width: "auto", height, alignSelf: "center", objectFit };
+  if (hasHeight)
+    return { width: "auto", height, alignSelf: "center", objectFit };
   return { objectFit };
 }
 </script>
@@ -812,6 +1079,13 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
               (field: string, value: string) =>
                 emit('field-change', field, value)
             "
+            @image-remove="
+              (payload: ImageRemovePayloadV2) => emit('image-remove', payload)
+            "
+            @sign-remove="
+              (payload: SignImageRemovePayloadV2) =>
+                emit('sign-remove', payload)
+            "
           />
         </template>
       </div>
@@ -835,7 +1109,10 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
     :class="{
       'layout-p--field': true,
       'layout-p--composite': isCompositeField(node),
-      'layout-p--underline': node.underline && !isCompositeField(node),
+      /* 下划线是「这里可填写」的提示线；勾了「内部边框」时由逐行 .layout-p__line 的底边框
+         承担同样的作用。两者同时命中会在末行叠出两条底边（单行值最明显，像加粗双线）→
+         **只有 innerBorder 打开时才隐藏下划线**，其余情况一律照旧。 */
+      'layout-p--underline': node.underline && !isCompositeField(node) && !node.innerBorder,
       'layout-p--inner-border': node.innerBorder,
       'layout-p--hidden': fieldPermission === 'HIDDEN',
     }"
@@ -866,7 +1143,11 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
     <span
       v-if="isCompositeField(node)"
       class="layout-p__input"
-      :class="{ 'layout-p--underline': node.underline, 'layout-p__signbox': isImageValue(node) }"
+      :class="{
+        /* 同非复合字段：只有 innerBorder 打开时才隐藏下划线，其余情况照旧。 */
+        'layout-p--underline': node.underline && !node.innerBorder,
+        'layout-p__signbox': isImageValue(node),
+      }"
       :style="[fieldInputStyle(node), signBoxStyle(node)]"
       :contenteditable="
         isImageValue(node)
@@ -881,24 +1162,108 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
       "
       :data-field="node.field"
       @blur="onFillBlur(node.field, $event)"
-      ><img
-        v-if="signImageCount(node) === 1"
-        class="layout-p__sign"
-        :src="signImageUrls(node)[0]"
-        :style="signImageStyle(node)"
-        :alt="node.prefix ?? node.field"
-      /><span
+      ><template v-if="node.innerBorder && isImageValue(node)"
+        ><div
+          v-for="li in signPlaceholderLines(node)"
+          :key="li"
+          class="layout-p__line"
+        ><span
+          v-if="li === signPlaceholderLines(node) && signImageCount(node) === 1"
+          class="layout-p__signcell layout-p__signcell--line"
+          ><img
+            class="layout-p__sign"
+            :src="signImageUrls(node)[0]"
+            :style="signImageStyle(node)"
+            :alt="node.prefix ?? node.field"
+          /><button
+            v-if="signDeletable"
+            class="layout-p__sign-del"
+            type="button"
+            :data-sign-index="0"
+            :title="SIGN_DELETE_TITLE"
+            :aria-label="SIGN_DELETE_TITLE"
+            @pointerdown.stop
+            @mousedown.prevent
+            @click.stop="onRemoveSignImage(node, 0)"
+          >
+            ×
+          </button></span
+        ><span
+          v-else-if="li === signPlaceholderLines(node) && signImageCount(node) > 1"
+          class="layout-p__signs layout-p__signs--line"
+          :style="signWrapStyle(node)"
+          ><span
+            v-for="(signUrl, signIndex) in signImageUrls(node)"
+            :key="signIndex"
+            class="layout-p__signcell"
+            ><img
+              class="layout-p__sign"
+              :src="signUrl"
+              :style="signImageStyle(node)"
+              :alt="node.prefix ?? node.field"
+            /><button
+              v-if="signDeletable"
+              class="layout-p__sign-del"
+              type="button"
+              :data-sign-index="signIndex"
+              :title="SIGN_DELETE_TITLE"
+              :aria-label="SIGN_DELETE_TITLE"
+              @pointerdown.stop
+              @mousedown.prevent
+              @click.stop="onRemoveSignImage(node, signIndex)"
+            >
+              ×
+            </button></span
+          ></span
+        ></div
+        ></template
+      ><span v-else-if="signImageCount(node) === 1" class="layout-p__signcell"
+        ><img
+          class="layout-p__sign"
+          :src="signImageUrls(node)[0]"
+          :style="signImageStyle(node)"
+          :alt="node.prefix ?? node.field"
+        /><button
+          v-if="signDeletable"
+          class="layout-p__sign-del"
+          type="button"
+          :data-sign-index="0"
+          :title="SIGN_DELETE_TITLE"
+          :aria-label="SIGN_DELETE_TITLE"
+          @pointerdown.stop
+          @mousedown.prevent
+          @click.stop="onRemoveSignImage(node, 0)"
+        >
+          ×
+        </button></span
+      ><span
         v-else-if="signImageCount(node) > 1"
         class="layout-p__signs"
         :style="signWrapStyle(node)"
-        ><img
+        ><span
           v-for="(signUrl, signIndex) in signImageUrls(node)"
           :key="signIndex"
-          class="layout-p__sign"
-          :src="signUrl"
-          :style="signImageStyle(node)"
-          :alt="node.prefix ?? node.field"
-      /></span><template v-else-if="node.innerBorder"
+          class="layout-p__signcell"
+          ><img
+            class="layout-p__sign"
+            :src="signUrl"
+            :style="signImageStyle(node)"
+            :alt="node.prefix ?? node.field"
+          /><button
+            v-if="signDeletable"
+            class="layout-p__sign-del"
+            type="button"
+            :data-sign-index="signIndex"
+            :title="SIGN_DELETE_TITLE"
+            :aria-label="SIGN_DELETE_TITLE"
+            @pointerdown.stop
+            @mousedown.prevent
+            @click.stop="onRemoveSignImage(node, signIndex)"
+          >
+            ×
+          </button></span
+        ></span
+      ><template v-else-if="node.innerBorder"
         ><div
           v-for="(line, li) in displayLines(node)"
           :key="li"
@@ -906,35 +1271,130 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
         >
           {{ line }}
         </div></template
-      ><span v-else class="layout-p__value">{{ displayValue(node) }}</span></span
+      ><span v-else class="layout-p__value">{{
+        displayValue(node)
+      }}</span></span
     >
 
     <!-- 图片值（非复合字段）：签名图作为 .layout-p 的直接子项贴底排布，坐落在字段
          自身的 border-bottom（签名线）上。必须接成同一条 v-if 链（v-else-if）——
          独立写 v-if 时条件不满足会留下注释占位节点，把容器子元素数从 3 顶成 4，
          破坏字段容器 HTML 往返与整票快照基线。空值不渲染此图，走下面的空态分支。
-         多人签名（2026-09-30）：**单张仍走单 <img> 分支**（DOM 与升级前逐字节一致），
-         仅 N > 1 时换成 `.layout-p__signs` 容器承载并排多图——用 <template v-for> 直接
-         接在链上会引入 Fragment 锚点（实测每个空文本节点 ×2），同样会顶掉子元素数。 -->
-    <img
+         多人签名（2026-09-30）：**每张图各自包进 `.layout-p__signcell`**（`--inline` 变体
+         仍是 `.layout-p` 的直接子项，贴底对齐改由该单元承担），仅 N > 1 时外面再套一层
+         `.layout-p__signs` 承载并排多图——用 <template v-for> 直接接在链上会引入
+         Fragment 锚点（实测每个空文本节点 ×2），同样会顶掉子元素数。
+         2026-10-14：`.layout-p__signcell` 是删除角标的定位参照物（角标要贴在**图片自身**
+         的右上角，而不是字段 / 下划线的右上角），故单张不再直接是容器子项——链上
+         「每个分支一个节点」的不变式保持不变。 -->
+    <span
+      v-else-if="node.innerBorder && isImageValue(node)"
+      class="layout-p__lines"
+      ><div
+        v-for="li in signPlaceholderLines(node)"
+        :key="li"
+        class="layout-p__line"
+        ><span
+          v-if="li === signPlaceholderLines(node) && signImageCount(node) === 1"
+          class="layout-p__signcell layout-p__signcell--line"
+          ><img
+            class="layout-p__sign"
+            :src="signImageUrls(node)[0]"
+            :style="signImageStyle(node)"
+            :alt="node.field"
+          /><button
+            v-if="signDeletable"
+            class="layout-p__sign-del"
+            type="button"
+            :data-sign-index="0"
+            :title="SIGN_DELETE_TITLE"
+            :aria-label="SIGN_DELETE_TITLE"
+            @pointerdown.stop
+            @mousedown.prevent
+            @click.stop="onRemoveSignImage(node, 0)"
+          >
+            ×
+          </button></span
+        ><span
+          v-else-if="li === signPlaceholderLines(node) && signImageCount(node) > 1"
+          class="layout-p__signs layout-p__signs--line"
+          :style="signWrapStyle(node)"
+          ><span
+            v-for="(signUrl, signIndex) in signImageUrls(node)"
+            :key="signIndex"
+            class="layout-p__signcell"
+            ><img
+              class="layout-p__sign"
+              :src="signUrl"
+              :style="signImageStyle(node)"
+              :alt="node.field"
+            /><button
+              v-if="signDeletable"
+              class="layout-p__sign-del"
+              type="button"
+              :data-sign-index="signIndex"
+              :title="SIGN_DELETE_TITLE"
+              :aria-label="SIGN_DELETE_TITLE"
+              @pointerdown.stop
+              @mousedown.prevent
+              @click.stop="onRemoveSignImage(node, signIndex)"
+            >
+              ×
+            </button></span
+          ></span
+        ></div
+      ></span
+    >
+    <span
       v-else-if="signImageCount(node) === 1"
-      class="layout-p__sign layout-p__sign--inline"
-      :src="signImageUrls(node)[0]"
-      :style="signImageStyle(node)"
-      :alt="node.field"
-    />
+      class="layout-p__signcell layout-p__signcell--inline"
+      ><img
+        class="layout-p__sign layout-p__sign--inline"
+        :src="signImageUrls(node)[0]"
+        :style="signImageStyle(node)"
+        :alt="node.field"
+      /><button
+        v-if="signDeletable"
+        class="layout-p__sign-del"
+        type="button"
+        :data-sign-index="0"
+        :title="SIGN_DELETE_TITLE"
+        :aria-label="SIGN_DELETE_TITLE"
+        @pointerdown.stop
+        @mousedown.prevent
+        @click.stop="onRemoveSignImage(node, 0)"
+      >
+        ×
+      </button></span
+    >
     <span
       v-else-if="signImageCount(node) > 1"
       class="layout-p__signs layout-p__signs--inline"
       :style="signWrapStyle(node)"
-      ><img
+      ><span
         v-for="(signUrl, signIndex) in signImageUrls(node)"
         :key="signIndex"
-        class="layout-p__sign"
-        :src="signUrl"
-        :style="signImageStyle(node)"
-        :alt="node.field"
-    /></span>
+        class="layout-p__signcell"
+        ><img
+          class="layout-p__sign"
+          :src="signUrl"
+          :style="signImageStyle(node)"
+          :alt="node.field"
+        /><button
+          v-if="signDeletable"
+          class="layout-p__sign-del"
+          type="button"
+          :data-sign-index="signIndex"
+          :title="SIGN_DELETE_TITLE"
+          :aria-label="SIGN_DELETE_TITLE"
+          @pointerdown.stop
+          @mousedown.prevent
+          @click.stop="onRemoveSignImage(node, signIndex)"
+        >
+          ×
+        </button></span
+      ></span
+    >
 
     <!-- 非复合字段：innerBorder 时逐行渲染（v-once 静态 + 填写态 DOM 重建）。 -->
     <span
@@ -955,7 +1415,18 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 -->
     <span v-else class="layout-p__value">{{ displayValue(node) }}</span>
 
-    <span v-if="node.suffix" class="layout-p__label">{{ node.suffix }}</span>
+    <span v-if="node.suffix" class="layout-p__label">{{ node.suffix }}</span
+    ><button
+      v-if="isClearable(node)"
+      class="layout-p__clear"
+      type="button"
+      contenteditable="false"
+      :title="CLEAR_VALUE_TITLE"
+      :aria-label="CLEAR_VALUE_TITLE"
+      @pointerdown.stop
+      @mousedown.prevent
+      @click.stop="onClearValue(node)"
+    ></button>
   </div>
 
   <table
@@ -1015,6 +1486,13 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
                 (field: string, value: string) =>
                   emit('field-change', field, value)
               "
+              @image-remove="
+                (payload: ImageRemovePayloadV2) => emit('image-remove', payload)
+              "
+              @sign-remove="
+                (payload: SignImageRemovePayloadV2) =>
+                  emit('sign-remove', payload)
+              "
             />
           </template>
         </td>
@@ -1029,7 +1507,9 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
     :readonly="props.readonly"
     :field-permissions="props.fieldPermissions"
     v-bind="nodeParamAttrs(node)"
-    @field-change="(field: string, value: string) => emit('field-change', field, value)"
+    @field-change="
+      (field: string, value: string) => emit('field-change', field, value)
+    "
   />
 
   <!-- 图片列表：容器持有节点级 `data-field`（列表整体是那个字段），
@@ -1037,7 +1517,10 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   <div
     v-else
     class="layout-image"
-    :class="[`layout-image--${imageLayout}`, { 'layout-image--blank': imageBlank }]"
+    :class="[
+      `layout-image--${imageLayout}`,
+      { 'layout-image--blank': imageBlank },
+    ]"
     :data-node-id="node.id"
     :data-field="node.field"
     :data-image-align="imageAlign"
@@ -1061,12 +1544,33 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
         class="layout-image__img"
         :src="itemSrc(item, index)"
         :alt="item.name ?? node.field ?? ''"
-        :data-fallback="item.src && !brokenIndexes.includes(index) ? null : 'true'"
+        :data-fallback="
+          item.src && !brokenIndexes.includes(index) ? null : 'true'
+        "
         :style="imageStyle(item, index)"
         @error="onImgError(index)"
         @load="onImgLoad(index, $event)"
       />
-      <span v-if="imageShowName && item.name" class="layout-image__name">{{ item.name }}</span>
+      <span v-if="imageShowName && item.name" class="layout-image__name">{{
+        item.name
+      }}</span>
+      <!-- 删除角标（2026-10-14）：绝对定位在条目右上角，悬停浮现。
+           - 不参与布局：`position:absolute` ⇒ 不影响条目盒高度，也不进分页估高；
+           - 不带 `data-field`：它不是字段值元素，`collectFieldValues` 不该采到它；
+           - 打印隐藏：它是交互不是票面内容。 -->
+      <button
+        v-if="imageDeletable"
+        class="layout-image__del"
+        type="button"
+        :data-image-index="index"
+        :title="IMAGE_DELETE_TITLE"
+        :aria-label="IMAGE_DELETE_TITLE"
+        @pointerdown.stop
+        @mousedown.prevent
+        @click.stop="onRemoveImageItem(index)"
+      >
+        ×
+      </button>
     </div>
   </div>
 </template>
@@ -1165,6 +1669,7 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   display: flex;
   flex-wrap: wrap;
   width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   align-self: center;
@@ -1172,6 +1677,9 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   padding: 0;
   align-items: center;
   box-sizing: border-box;
+  /* 清空按钮（`.layout-p__clear`）绝对定位的参照物。相对定位不改变自身布局，
+     也不接管内部已定位元素（`.layout-p__sign-del` 的参照物仍是 `.layout-p__signcell`）。 */
+  position: relative;
   color: #111827;
   /* 字号默认值来自页面属性的「基础字号」：`--v2-base-font-size` 由 `GridFormRenderer.paperStyle`
      下发到纸张根（含打印序列化 DOM），未注入时回退 13px。`.layout-text` 同为 var(...)，
@@ -1329,13 +1837,32 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   object-fit: contain;
 }
 
+/* 签名图单元（2026-10-14）：把**每一张**签名图包成相对定位的盒子，作为删除角标的
+   定位参照物——角标要贴在**图片自身**的右上角，不是字段 / 下划线的右上角。
+
+   盒子的盒型是 `inline-flex` 且只含图片本身 ⇒ **收缩到图片尺寸**，故 `top:0; right:0`
+   恰好就是图片右上角；`max-width:100%` + `min-width:0` 保证超宽图仍能按比例缩进容器，
+   与升级前 `.layout-p__sign` 自身的 `max-width:100%` 同一口径。
+
+   ⚠️ 这层盒子是**新增节点**：`.layout-p__input` / `.layout-p` 的直接子项由 `<img>`
+   变成 `<span>`（`FieldPImageValue.test.ts` 的「容器子元素形态」断言随之更新）。
+   之所以仍然包在链上的**同一个分支里**（而不是加一条独立 `v-if`），是为了不动
+   「每个分支一个节点」这条不变式——独立 `v-if` / `<template>` 会留下注释占位节点或
+   Fragment 锚点，把字段容器的子元素数顶掉、破坏 HTML 往返与整票快照基线。 */
+.layout-p__signcell {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+}
+
 /* 多人签名（2026-09-30）：一条下划线上并排多张签名图，一行放不下即换行、多行整体贴底。
-   该容器**只在 N > 1 时渲染**（单张仍走单 <img> 路径，DOM 与升级前逐字节一致），
-   故这些规则不参与单图 / 空态的任何计算。间距 `gap` 是节点级配置，由 signWrapStyle 下发。
+   该容器**只在 N > 1 时渲染**（单张不进容器），故这些规则不参与单图 / 空态的任何计算。
+   间距 `gap` 是节点级配置，由 signWrapStyle 下发。
 
    flex: 1 1 auto + min-width: 0 是让**换行真正发生**的前提：容器必须被约束到可用宽度，
    否则它会按 max-content 撑开（等于所有图之和）从而永不换行、直接溢出字段。
-   图自身的 max-width: 100% 是相对本容器解析的，故单张超出时也不会溢出。 */
+   图单元的 max-width: 100% 是相对本容器解析的，故单张超出时也不会溢出。 */
 .layout-p__signs {
   display: flex;
   flex: 1 1 auto;
@@ -1346,21 +1873,117 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
 }
 
 /* 非复合字段下容器是 `.layout-p`（align-items: center）的直接子项，需显式贴底才能
-   让图底压在字段自身的下划线上——与 `.layout-p__sign--inline` 同理。 */
+   让图底压在字段自身的下划线上——与 `.layout-p__signcell--inline` 同理。 */
 .layout-p__signs--inline {
   align-self: flex-end;
 }
 
 /* 并排的图不参与伸缩：宽度按图片自身比例，超宽交回容器换行（若允许压缩，多张图会挤成
    一排窄图而非换行，与「多人签名：___________」的票面预期不符）。 */
-.layout-p__signs > .layout-p__sign {
+.layout-p__signs > .layout-p__signcell {
   flex: 0 0 auto;
 }
 
-/* 非复合字段的签名图直接作为 `.layout-p`（flex）的子项，贴底对齐才能落在
-   字段自身的下划线上（`.layout-p` 默认 align-items: center 会把它居中）。 */
+/* 非复合字段的签名图单元是 `.layout-p`（flex）的直接子项，贴底对齐才能落在
+   字段自身的下划线上（`.layout-p` 默认 align-items: center 会把它居中）。
+   `.layout-p__sign--inline` 上的同名规则保留：图片仍是该单元的 flex 子项，
+   多一层盒子不影响它在单元内的位置。 */
+.layout-p__signcell--inline,
 .layout-p__sign--inline {
   align-self: flex-end;
+}
+
+/* 图片值 + 内部边框共存（2026-10-21）：图被放进**最后一行** `.layout-p__line` 内，
+   该行 div 自己的 `border-bottom` 就是签名线（容器不再挂下划线，故不会出现两条底线）。
+   `.layout-p__signcell` 默认是 `inline-flex`，作为行内元素会留下基线以下的空隙，图底会
+   浮在线上方 —— 进到行内时改成块级 flex + 底对齐，让图底正好压住该行的线。
+   多张时 `.layout-p__signs` 在行内换行、继续向下排，末行高度随图增高（不用绝对定位，
+   高度由内容自然撑开，`imageHeight` 大于行高时也不会溢出容器）。 */
+.layout-p__signcell--line {
+  display: flex;
+  align-items: flex-end;
+}
+
+.layout-p__signs--line {
+  width: 100%;
+  align-content: flex-end;
+}
+
+/* 签名图的删除角标（2026-10-14）：图片右上角，悬停浮现。
+   与 `.layout-image__del` 同源（16px 圆形 / 红色 / `visibility` + `opacity`）——
+   「悬停浮现」是内核的统一口径，两个删除入口的观感必须一致。
+   用 `visibility` 而非 `display`：保留盒模型（几何可量、悬停不抖），
+   隐藏态不接收指针事件，点不到。 */
+.layout-p__sign-del {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, 0.92);
+  color: #fff;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.layout-p__signcell:hover .layout-p__sign-del {
+  visibility: visible;
+  opacity: 1;
+}
+
+.layout-p__sign-del:hover {
+  background: rgb(185, 28, 28);
+}
+
+/* 文本值字段的「清空」按钮（2026-10-21）：悬停字段时浮现，点击把值改回默认值。
+   字形用 `::before { content }` 生成 —— **元素内不写文本**：`.layout-p[data-field]` 的
+   `innerText` 就是字段值（`collectFieldValues` 按它采集），多一个 `×` 文本节点会把值
+   污染成 `"值×"`。生成内容不参与 innerText / textContent，故对采集零影响。
+   `visibility` 而非 `display` 切换：避免悬停时按钮出现/消失引起行内重排（票面版式会跳）。 */
+.layout-p__clear {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 3;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(100, 116, 139, 0.85);
+  color: #fff;
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+  cursor: pointer;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.layout-p__clear::before {
+  content: "×";
+}
+
+.layout-p:hover .layout-p__clear {
+  visibility: visible;
+  opacity: 1;
+}
+
+.layout-p__clear:hover {
+  background: rgb(71, 85, 105);
 }
 
 /* 字段 P 已统一渲染为可编辑 <div>（预览 / 填写态与设计态同结构，行高一致），
@@ -1370,8 +1993,15 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
 /* 内部边框逐行：静态/预览/打印态将字段值拆成每行一个 <div class="layout-p__line">，
    min-height 保证空行也有一行的高度（底边框可见）；通用 `.layout-p :deep(div)` 已让其
    占满整行换行，`.layout-p--inner-border :deep(div)` 再为每个 div 画底边框（真实边框，
-   打印必然显示，不依赖背景图形）。 */
-.layout-p__line {
+   打印必然显示，不依赖背景图形）。
+
+   ⚠️ 必须用 `:deep()` 穿透（2026-10-21 真机实测）：逐行 div 有**两条来源**——模板 `v-for`
+   （静态 / 只读 / 打印）与填写态 `syncInnerLinesFromData` 用 `createElement` 重建的行
+   （当 `canFill` 时后者接管，避免 `v-once` 结构不更新）。重建出来的 div **没有 scoped
+   属性**，写成 `.layout-p__line` 时编译为 `.layout-p__line[data-v-x]` 匹配不到 →
+   `min-height` 丢失、空行高 0，两条 1px 底边叠成一条（`default: "\n"` 期望两条线却看到
+   顶部一条，就是这个）。`:deep()` 编译成 `.layout-p[data-v-x] .layout-p__line`，两种来源都命中。 */
+.layout-p :deep(.layout-p__line) {
   min-height: 1.6em;
   width: 100%;
   text-align: inherit;
@@ -1500,6 +2130,9 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   align-items: center;
   min-width: 0;
   box-sizing: border-box;
+  /* 删除角标的定位容器（2026-10-14）：角标绝对定位到条目右上角。
+     `position:relative` 本身不改变盒高，分页估高不受影响。 */
+  position: relative;
 }
 
 .layout-image--fill .layout-image__item,
@@ -1533,6 +2166,40 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   word-break: break-word;
 }
 
+/* 单张图的删除角标（2026-10-14）：条目右上角，悬停浮现。
+   用 `visibility` + `opacity` 而不是 `display`——元素保留盒模型，几何可量（无头环境探针
+   能直接量到落点）、悬停时不触发布局抖动；隐藏态 `visibility:hidden` 不接收指针，点不到。 */
+.layout-image__del {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, 0.92);
+  color: #fff;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.layout-image__item:hover .layout-image__del {
+  visibility: visible;
+  opacity: 1;
+}
+
+.layout-image__del:hover {
+  background: rgb(185, 28, 28);
+}
+
 /* 没配地址的条目：屏幕上保留占位灰框（设计态要靠它选中/编辑），打印时不占版面；
    整块列表都没有来源时容器也带 `--blank`（见下），两层都隐藏，避免挤出一张空白纸。 */
 @media print {
@@ -1540,29 +2207,19 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   .layout-image__item--blank {
     display: none;
   }
-  /* 输入框下划线（.layout-p--underline）是设计/预览态的「可填写」提示线，打印时不输出
-     （手写票应保持干净）。显式勾选「显示内部边框」(innerBorder) 的逐行实线边框由独立的
-     .layout-p--inner-border :deep(div) 绘制、不在本媒体内，故仍正常打印——
-     即「默认无下划线，除非选了内部边框」。 */
-  .layout-p--underline {
-    border-bottom: none;
+  /* 删除角标是交互，不是票面内容：打印一律不输出（悬停态也覆盖）。 */
+  .layout-image__del {
+    display: none !important;
   }
-}
-
-/* D3：插入指示线（`.v2-insertion-line`）与拖拽悬停态（`dragOverCellId` / `dragOverIndex`）
-   已整体移出内核——它们是设计态交互，由设计表面层 `designer/CanvasSurface.vue` 用
-   overlay 绝对定位绘制（内核不认识拖拽/落点，也不再为设计态输出任何 DOM 分支）。
-   内�erit;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* 没配地址的条目：屏幕上保留占位灰框（设计态要靠它选中/编辑），打印时不占版面；
-   整块列表都没有来源时容器也带 `--blank`（见下），两层都隐藏，避免挤出一张空白纸。 */
-@media print {
-  .layout-image--blank,
-  .layout-image__item--blank {
-    display: none;
+  /* 签名图删除角标同口径——签名图本身照常打印，只有角标被抹掉。
+     刻意与上一条**拆成两条规则**（而不是共用选择器列表）：两条角标各自独立演进，
+     合并后任一条改选择器都会让另一条的打印断言静默失配。 */
+  .layout-p__sign-del {
+    display: none !important;
+  }
+  /* 清空按钮同属交互元素，打印一律不输出（悬停态也覆盖）。 */
+  .layout-p__clear {
+    display: none !important;
   }
   /* 输入框下划线（.layout-p--underline）是设计/预览态的「可填写」提示线，打印时不输出
      （手写票应保持干净）。显式勾选「显示内部边框」(innerBorder) 的逐行实线边框由独立的

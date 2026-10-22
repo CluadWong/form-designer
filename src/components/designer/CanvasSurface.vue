@@ -8,7 +8,13 @@ import {
   PALETTE_DRAG_MIME,
 } from "@/engine-v2/node-address";
 import { NODE_MOVE_MIME, buildEditorNodeIndexV2 } from "@/types";
-import type { FormSchemaV2, FormDataV2, FormNodeV2 } from "@/types";
+import type {
+  FormSchemaV2,
+  FormDataV2,
+  FormNodeV2,
+  ImageRemovePayloadV2,
+  SignImageRemovePayloadV2,
+} from "@/types";
 
 /**
  * 设计表面层（A5 + A6 分层重构 · Batch 2 + Batch 3）
@@ -21,8 +27,9 @@ import type { FormSchemaV2, FormDataV2, FormNodeV2 } from "@/types";
  *   设计态字段 p 需 Alt）、写入 NODE_MOVE_MIME，再计算合法投放格与插入下标；
  *   内核不再感知拖拽：落点（dragover / drop / dragend）与**源**（dragstart）均在本层以事件委托处理，
  *   插入指示线也由本层用 overlay 绝对定位绘制（见 `indicatorStyle`），内核模板零拖拽 DOM 分支（D3）。
- * - 透传 `node-drag-start` / `field-change` 给上层 FormDesigner；
+ * - 透传 `node-drag-start` / `field-change` / `image-remove` / `sign-remove` 给上层 FormDesigner；
  *   落点结果以语义事件 `drop-node` / `drop-palette` / `drag-end` 上抛，由 FormDesigner 提交 schema。
+ *   两条删除事件本层同样只转发（不碰 `data`）：删位与写回是**数据**的事，归 `useFillData`。
  *
  * 关键拆分：内核不再持有 `selectedNodeId`、不处理拖拽 DOM 事件（A5/A6）；
  * 选中与拖拽交互均在本表面层完成，内核保持纯净（分层约束见 docs/design.md）。
@@ -55,8 +62,20 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: "node-drag-start", id: string): void;
   (e: "field-change", field: string, value: string): void;
+  /**
+   * 票面删除角标（内核渲染）：本层只转发内核载荷，不做判权 / 不删位。
+   * 载荷里的 `index` 已是**值数组下标**（见 `engine-v2.removeImageValueItemV2` 注释）。
+   */
+  (e: "image-remove", payload: ImageRemovePayloadV2): void;
+  /** 签名图删除角标：与 `image-remove` 同口径，差异只有 `item` 是地址字符串。 */
+  (e: "sign-remove", payload: SignImageRemovePayloadV2): void;
   (e: "drop-node", detail: { moveId: string; cellId: string; index: number }): void;
-  (e: "drop-palette", detail: { kind: NodeKind; cellId: string }): void;
+  /**
+   * 左侧面板拖入组件。`cellId` 为 `null` 表示**落在格子之外**（页面空白、网格间隙等）：
+   * 本层不猜落点，照样上抛，由 FormDesigner / 编辑层按「页面末尾新建网格 + 放进首格」
+   * 兜底（2026-10-21 交互规则）——此前这里直接 return，用户拖到空白处毫无反应。
+   */
+  (e: "drop-palette", detail: { kind: NodeKind; cellId: string | null }): void;
   (e: "drag-end"): void;
 }>();
 
@@ -366,7 +385,7 @@ function onDrop(event: DragEvent): void {
     );
     const cellId = cell?.dataset.layoutId ?? null;
     resetDragState();
-    if (!cellId) return;
+    // 落在格子外不再丢弃这次拖拽：交给上层「新建网格」兜底（见 emit 声明）。
     emit("drop-palette", { kind, cellId });
     return;
   }
@@ -404,6 +423,8 @@ function onDragEnd(): void {
       :paginate="paginate"
       :blank-page-mode="blankPageMode"
       @field-change="(field: string, value: string) => emit('field-change', field, value)"
+      @image-remove="(payload: ImageRemovePayloadV2) => emit('image-remove', payload)"
+      @sign-remove="(payload: SignImageRemovePayloadV2) => emit('sign-remove', payload)"
     />
     <!-- D3：插入指示线由表面层 overlay 绘制，内核不输出任何拖拽 DOM 分支 -->
     <div v-if="indicatorStyle" class="v2-insertion-line" :style="indicatorStyle"></div>

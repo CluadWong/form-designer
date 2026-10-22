@@ -217,6 +217,8 @@ const {
   addGrid,
   addNodeToSelectedCell,
   removeSelectedNode,
+  selectedSiblingMove,
+  moveSelectedNode,
   copySelected,
   cutSelected,
   pasteClipboard,
@@ -290,7 +292,22 @@ const {
   exportFillDataFile,
   saveFillDataToLocal,
   loadFillDataFromLocal,
+  removeFieldItem,
 } = fillData;
+
+/**
+ * 票面删除角标（图片列表 / 签名图）落点。
+ *
+ * 内核只发 `image-remove` / `sign-remove` 信号、**不动 `data`**；两条链的 `index` 都已是
+ * **值数组下标**（见 `engine-v2.removeImageValueItemV2`），故此处共用一个删位入口。
+ * 事件由 `CanvasSurface` 原样转发上来（表面层不碰数据）。
+ */
+function onRemoveFieldItem(payload: {
+  field?: string;
+  index?: number;
+}): void {
+  removeFieldItem(String(payload?.field ?? ""), Number(payload?.index));
+}
 
 /** 载入数据并进入预览态（清选中，避免残留设计态选中）。 */
 function enterPreview(data: FormDataV2): void {
@@ -299,16 +316,28 @@ function enterPreview(data: FormDataV2): void {
   clearSelection();
 }
 
-/** 在「设计 / 预览」之间切换；再次点击同一模式则回到设计态。 */
+/**
+ * 在「设计 / 预览」之间切换；再次点击同一模式则回到设计态。
+ *
+ * 数据**不随切换清空**（2026-10-15 改）：`previewFormData` 承载用户在预览态导入 / 读取 / 输入
+ * 的结果，此前「退出预览即置 `null`」会让来回切一次就把刚导入的数据无声吞掉 —— 表现为
+ * 「点预览按钮后票面还在（模板 `images` 兜底渲染），但删除角标点了没反应」。
+ *
+ * 设计态**不消费**这份数据：`:data` 与分页入参在非预览态显式传 `null`（见 `pagination`
+ * 与 CanvasSurface 的绑定），所以设计态的渲染与估算口径与改动前逐字一致。
+ */
 function toggleViewMode(mode: "preview"): void {
   if (viewMode.value === mode) {
     viewMode.value = "design";
-    previewFormData.value = null;
     return;
   }
-  // 预览不再注入预置种子数据（2026-09-08）：进入预览即为空表单，
-  // 填写值由用户就地输入或经「导入数据 / 读取数据」产生。
-  enterPreview({});
+  // 预览不注入预置种子数据（2026-09-08）：**从未有过数据**时进入预览即为空表单，
+  // 填写值由用户就地输入或经「导入数据 / 读取数据」产生；已有数据则原样带回预览。
+  if (previewFormData.value == null) {
+    previewFormData.value = {};
+  }
+  viewMode.value = "preview";
+  clearSelection();
 }
 
 /** 撤销 / 重做：文档回退后清空选中（旧节点可能已不存在）。 */
@@ -386,9 +415,14 @@ const warningCount = computed(() => issues.value.length);
  *
  * 与渲染内核 `GridFormRenderer` 调的是**同一个** `paginateSchema` 且入参口径一致，
  * 因此状态栏数字与画布物理页必然一致，不会两处各算一套而漂移。
+ *
+ * 非预览态一律传 `null`：设计态看的是**模板本身**（不含数据），数据留在 `previewFormData`
+ * 里也是为了下次进预览不丢，不该反过来改变设计态的估算结果。
  */
 const pagination = computed(() =>
-  paginateSchema(schema.value, { data: previewData.value }),
+  paginateSchema(schema.value, {
+    data: previewMode.value ? previewData.value : null,
+  }),
 );
 
 // ── 快捷键与离开确认 ───────────────────────────────────────
@@ -541,12 +575,15 @@ defineExpose<FormDesignerExposed>({
       <PaletteSidebar
         :editable="editable"
         :can-remove="canRemoveSelected"
+        :can-move-up="selectedSiblingMove.up"
+        :can-move-down="selectedSiblingMove.down"
         :node-tree="nodeTree"
         :selected-node-id="selectedNodeId"
         @add-node="addNodeToSelectedCell"
         @add-grid="addGrid"
         @palette-drag="startPaletteDrag"
         @select="selectNodeById"
+        @move-selected="moveSelectedNode"
         @remove-selected="removeSelectedNode"
         @collapse-all="collapseAll"
         @expand-all="expandAll"
@@ -563,7 +600,7 @@ defineExpose<FormDesignerExposed>({
             :schema="schema"
             :mode="previewMode ? 'preview' : 'design'"
             :selected-node-id="previewMode ? null : selectedNodeId"
-            :data="previewData"
+            :data="previewMode ? previewData : null"
             :readonly="false"
             :bare="true"
             :paginate="previewMode || paginate"
@@ -571,6 +608,8 @@ defineExpose<FormDesignerExposed>({
             @node-drag-start="onCanvasNodeDragStart"
             @drop-node="onDropNode"
             @drop-palette="onDropPalette"
+            @image-remove="onRemoveFieldItem"
+            @sign-remove="onRemoveFieldItem"
           />
         </PaperViewport>
       </main>

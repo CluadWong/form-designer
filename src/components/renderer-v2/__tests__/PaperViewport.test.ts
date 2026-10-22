@@ -748,4 +748,107 @@ describe("PaperViewport（尺寸变化自愈）", () => {
     expect(cell.style.userSelect).toBe("");
     wrapper.unmount();
   });
+
+  /**
+   * 签名图（2026-10-13）：`p` 字段且 `valueType === "image"` —— 它**不是可编辑控件**
+   * （contenteditable 恒关闭），故此前完全不在排除范围内，症状是「按住签名图想触发宿主手势，
+   * 画布却跟着平移」。宿主侧的删除角标（PC 悬停 ×）与移动端「点击弹菜单」都以此为前提。
+   *
+   * 覆盖三点：单图 / 多人容器 / 容器内图都打标；**普通图片（图片组的 `.layout-image__img`）
+   * 不打标**（负向：本次只收签名图，不吃掉别的图片的平移手感）；
+   * 且签名图不得被顺带设成 `user-select: text`（它走的是「排除手势」而非「可编辑」那条路径）。
+   */
+  it("签名图（.layout-p__sign / .layout-p__signs）打上 panzoom-exclude，普通图片不打标", async () => {
+    const wrapper = mount(PaperViewport);
+    const scaler = wrapper.find(".paper-viewport__scaler").element as HTMLElement;
+
+    const single = document.createElement("img");
+    single.className = "layout-p__sign layout-p__sign--inline";
+    const signs = document.createElement("span");
+    signs.className = "layout-p__signs layout-p__signs--inline";
+    const innerOne = document.createElement("img");
+    innerOne.className = "layout-p__sign";
+    const innerTwo = document.createElement("img");
+    innerTwo.className = "layout-p__sign";
+    signs.append(innerOne, innerTwo);
+    /** 负向对照：图片组的图（`.layout-image__img`）不在本次排除口径内。 */
+    const groupImage = document.createElement("img");
+    groupImage.className = "layout-image__img";
+
+    scaler.append(single, signs, groupImage);
+    await flushObserver();
+
+    expect(single.classList.contains("panzoom-exclude")).toBe(true);
+    expect(signs.classList.contains("panzoom-exclude")).toBe(true);
+    expect(innerOne.classList.contains("panzoom-exclude")).toBe(true);
+    expect(innerTwo.classList.contains("panzoom-exclude")).toBe(true);
+    expect(groupImage.classList.contains("panzoom-exclude")).toBe(false);
+    // 排除手势 ≠ 变成可编辑控件：签名图不该被写上 user-select: text
+    expect(single.style.userSelect).toBe("");
+
+    wrapper.unmount();
+  });
+
+  /**
+   * 图片列表删除角标（2026-10-14）：`.layout-image__del` 由**内核自己渲染**（长在渲染树里），
+   * 所以可以直接被本组选择器打标——不像宿主自摆的签名角标（在树外，会被 tagExclusions 的
+   * 「先清空再重打」抹掉，只能靠自己 `pointerdown.stop`）。
+   *
+   * 负向对照同样重要：**图片本身（`.layout-image__img`）与条目盒仍不打标**——本次只收角标，
+   * 不能让「拖拽图片平移画布」这个既有手感失效。
+   */
+  it("图片列表删除角标（.layout-image__del）打上 panzoom-exclude，图片与条目盒不打标", async () => {
+    const wrapper = mount(PaperViewport);
+    const scaler = wrapper.find(".paper-viewport__scaler").element as HTMLElement;
+
+    const item = document.createElement("div");
+    item.className = "layout-image__item";
+    const img = document.createElement("img");
+    img.className = "layout-image__img";
+    const del = document.createElement("button");
+    del.className = "layout-image__del";
+    item.append(img, del);
+    scaler.appendChild(item);
+    await flushObserver();
+
+    expect(del.classList.contains("panzoom-exclude")).toBe(true);
+    expect(img.classList.contains("panzoom-exclude")).toBe(false);
+    expect(item.classList.contains("panzoom-exclude")).toBe(false);
+    // 角标不是可编辑控件：不该被顺带写上 user-select: text
+    expect(del.style.userSelect).toBe("");
+
+    wrapper.unmount();
+  });
+
+  /**
+   * 签名图删除角标（2026-10-14）：`.layout-p__sign-del` 与 `.layout-image__del` 同理——
+   * 由内核自己渲染，可以直接打标。**必须单独列入选择器**：角标与 `<img>` 是
+   * `.layout-p__signcell` 下的**兄弟**节点，不在 `.layout-p__sign` 的子树里，单图时
+   * 靠签名图选择器兜不住。不排除的症状：按住角标想删签名，画布却跟着平移了。
+   *
+   * 同时锁上负向对照之外的第三条：单元盒（`.layout-p__signcell`，本次新增）也在排除范围内，
+   * 否则图与角标之间的过渡区会重新变成「可平移」的缝隙。
+   */
+  it("签名图删除角标（.layout-p__sign-del）打上 panzoom-exclude，单元盒一并覆盖", async () => {
+    const wrapper = mount(PaperViewport);
+    const scaler = wrapper.find(".paper-viewport__scaler").element as HTMLElement;
+
+    const cell = document.createElement("span");
+    cell.className = "layout-p__signcell layout-p__signcell--inline";
+    const img = document.createElement("img");
+    img.className = "layout-p__sign layout-p__sign--inline";
+    const del = document.createElement("button");
+    del.className = "layout-p__sign-del";
+    cell.append(img, del);
+    scaler.appendChild(cell);
+    await flushObserver();
+
+    expect(del.classList.contains("panzoom-exclude")).toBe(true);
+    expect(img.classList.contains("panzoom-exclude")).toBe(true);
+    expect(cell.classList.contains("panzoom-exclude")).toBe(true);
+    // 角标不是可编辑控件：不该被顺带写上 user-select: text
+    expect(del.style.userSelect).toBe("");
+
+    wrapper.unmount();
+  });
 });

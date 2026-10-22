@@ -21,11 +21,13 @@ import {
   insertRootGridV2,
   mergeGridCellsV2,
   moveNodeToIndexV2,
+  moveNodeWithinParentV2,
   removeNodeV2,
   removeTableColumnV2,
   renameTableColumnKeyV2,
   resizeGridV2,
   setGridColumnWidthV2,
+  splitGridCellInTwoV2,
   splitGridCellV2,
   updateBaseRowHeightV2,
   updateBaseFontSizeV2,
@@ -140,10 +142,37 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     }
   }
 
+  /**
+   * 在当前页**末尾追加一个新网格**，并把新建的组件放进该网格的**第一个格子**
+   * （左侧面板「没有落点」时的兜底，2026-10-21 用户口径）。
+   *
+   * 只提交**一次**：先 `insertRootGridV2` 得到含新网格的 schema，再对新格
+   * `appendNodeToCellV2`，最后一并 commit —— 否则「加网格」「加组件」会拆成两条撤销步，
+   * 用户撤销一次只会撤掉组件、留下一个空网格。
+   */
+  function addNodeInNewRootGrid(kind: NodeKind): void {
+    if (!ctx.editable()) return;
+    const grid = createGridNodeV2();
+    const firstCellId = grid.rows[0]?.cells[0]?.id;
+    const child = createNodeByKind(kind);
+    const withGrid = insertRootGridV2(schema.value, grid);
+    commit(firstCellId ? appendNodeToCellV2(withGrid, firstCellId, child) : withGrid);
+    selectedNodeId.value = child.id;
+  }
+
+  /**
+   * 左侧面板「点击」新增组件（`@add-node`）的落点：
+   * - 有插入槽（选中的格 / 选中组件所属格）→ 追加进该格；
+   * - **没有格可落**（选中页面、或选中了根级节点）→ 页面末尾先加一个网格，组件进它的首格
+   *   （见 {@link addNodeInNewRootGrid}）——不再静默不响应。
+   */
   function addNodeToSelectedCell(kind: NodeKind): void {
     if (!ctx.editable()) return;
     const ownerCell = insertionSlot.value;
-    if (!ownerCell) return;
+    if (!ownerCell) {
+      addNodeInNewRootGrid(kind);
+      return;
+    }
     const child = createNodeByKind(kind);
     commit(appendNodeToCellV2(schema.value, ownerCell.id, child));
     selectedNodeId.value = child.id;
@@ -160,11 +189,56 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     ctx.clearSelection();
   }
 
+  /**
+   * 结构树「上移 / 下移」的可用态，供侧栏按钮 `disabled` 使用。
+   *
+   * 与 {@link moveSelectedNode} 共用同一套判定口径（父容器只认 `page` / `grid-cell` /
+   * `table-cell-template` 三类有 `children` 的容器），保证「按钮亮着就一定能动」：
+   * `grid` 与行内 `grid-cell` 存在 `rows` / `cells` 上、不在 `children` 里，
+   * 它们的位置由网格维度（行列数）决定，不在这里重排。
+   */
+  const selectedSiblingMove = computed<{ up: boolean; down: boolean }>(() => {
+    const blocked = { up: false, down: false };
+    const id = selectedNodeId.value;
+    if (!ctx.editable() || !id) return blocked;
+    const parent = ctx.selection.nodeIndex.value.get(id)?.parent;
+    if (!parent) return blocked;
+    const children =
+      parent.type === "page" ||
+      parent.type === "grid-cell" ||
+      parent.type === "table-cell-template"
+        ? parent.children
+        : null;
+    if (!children) return blocked;
+    const at = children.findIndex((child) => child.id === id);
+    if (at < 0) return blocked;
+    return { up: at > 0, down: at < children.length - 1 };
+  });
+
+  /**
+   * 选中节点在**同一父容器内**上移 / 下移一位（结构树「上移 / 下移」按钮的落点）。
+   *
+   * 走 `moveNodeWithinParentV2`：已经是边界（首 / 末位）或父容器不支持时它原样返回
+   * schema 引用，`commit` 据此不产生撤销步 —— 与按钮 `disabled` 是同一条口径。
+   * 选中态保持不变（移动后仍是同一个节点，只是换了位置）。
+   */
+  function moveSelectedNode(direction: "up" | "down"): void {
+    const id = selectedNodeId.value;
+    if (!ctx.editable() || !id) return;
+    const next = moveNodeWithinParentV2(schema.value, id, direction);
+    // 边界（首 / 末位）或父容器不支持时它原样返回 schema 引用 ⇒ 不提交，避免写一条
+    // 「内容与上一版完全相同」的撤销步。`commit` 本身不做引用判等（见 useSchemaDocument）。
+    if (next === schema.value) return;
+    commit(next);
+  }
+
   // ── 复制 / 剪切 / 粘贴 / 原地复制（设计器内部内存缓冲） ──
   // 缓冲只存节点深拷贝（已刷新 ID）；粘贴时再次刷新 ID → 可重复粘贴、不与原件/历史撞 ID。
   let clipboard: FormNodeV2 | null = null;
   // 复制/剪切时的源格 id：cut 后选中被清空，作为粘贴的最终兜底落点。
   let clipboardSourceCellId: string | null = null;
+  // 复制/剪切时的源节点 id：粘贴「整块网格」时用来识别「粘回自己」（此时无变化，不写撤销步）。
+  let clipboardSourceNodeId: string | null = null;
 
   /** 选中节点是否可复制/剪切/原地复制：排除 page 与 grid-cell（无独立复制语义）。 */
   function selectedCopiableNode(): FormNodeV2 | null {
@@ -218,12 +292,74 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     // 无合法落点：丢弃克隆（不 commit）
   }
 
+  /**
+   * 把整块网格插到第一页的**根级**子节点列表：
+   * - `afterId` 命中某个根级节点 → 插到它后面（供「原地复制网格」用，保持相邻）；
+   * - 否则追加到末尾 —— 与 {@link addRootGrid}（选中页面新增网格）同一落点。
+   *
+   * `afterId` 指向嵌套在格内的网格时找不到根级锚点，退化为末尾追加（不留半截状态）。
+   */
+  function placeRootGrid(clone: GridNodeV2, afterId?: string): void {
+    const page = schema.value.pages[0];
+    if (!page) return;
+    const at = afterId ? page.children.findIndex((child) => child.id === afterId) : -1;
+    if (at < 0) {
+      commit(insertRootGridV2(schema.value, clone));
+    } else {
+      const children = [
+        ...page.children.slice(0, at + 1),
+        clone,
+        ...page.children.slice(at + 1),
+      ];
+      commit({
+        ...schema.value,
+        pages: schema.value.pages.map((current, index) =>
+          index === 0 ? { ...current, children } : current,
+        ),
+      });
+    }
+    selectedNodeId.value = clone.id;
+    selectionPathIds.value = [page.id, clone.id];
+    selectionPathIndex.value = 1;
+  }
+
+  /**
+   * **网格剪贴板**的粘贴落点（与普通节点分叉，不走 `insertCloneAfterSelectedOrIntoCell`）：
+   * - 选中网格 → 用源网格的 `rows` **整块替换**目标网格的 `rows`；
+   *   目标网格保留自己的 `id` 与它在父容器里的位置，只换「内部元素」，
+   *   因此行列数 / 列宽 / 行高 / 格内子节点全部变成源网格的样子；
+   * - 其余情况 → 追加到页面最后（= 选中页面新增网格）。
+   *
+   * 「内部元素」为什么是整块照搬而不是逐格合并：网格是行列对齐的整体，逐格合并会在
+   * 行列数不同时产生空洞/错位，且无法表达「源网格的列宽」这一层信息。
+   *
+   * ID 安全：`clone` 已在调用侧经 `cloneNodeWithFreshIdsV2` 递归刷新（row / cell / 格内子节点
+   * 全是新 ID），替换进目标网格不会与任何现存节点撞 ID。
+   */
+  function pasteGrid(clone: GridNodeV2): void {
+    const sel = selectedNode.value;
+    if (sel?.type === "grid") {
+      // 粘回自己：`rows` 内容本就相同，替换只会白刷一遍 ID 并写一条空撤销步 → 直接忽略。
+      if (sel.id === clipboardSourceNodeId) return;
+      commit(
+        updateSchemaNodeV2(schema.value, sel.id, (node) =>
+          node.type === "grid" ? { ...node, rows: clone.rows } : node,
+        ),
+        `gridpaste:${sel.id}`,
+      );
+      selectedNodeId.value = sel.id;
+      return;
+    }
+    placeRootGrid(clone);
+  }
+
   function copySelected(): void {
     if (!ctx.editable()) return;
     const node = selectedCopiableNode();
     if (!node) return;
     clipboard = cloneNodeWithFreshIdsV2(node) as FormNodeV2;
     clipboardSourceCellId = selectedOwnerCell.value?.id ?? null;
+    clipboardSourceNodeId = node.id;
   }
 
   function cutSelected(): void {
@@ -232,20 +368,40 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     if (!node) return;
     clipboard = cloneNodeWithFreshIdsV2(node) as FormNodeV2;
     clipboardSourceCellId = selectedOwnerCell.value?.id ?? null;
+    clipboardSourceNodeId = node.id;
     removeSelectedNode();
   }
 
   function pasteClipboard(): void {
     if (!ctx.editable()) return;
     if (!clipboard) return;
-    insertCloneAfterSelectedOrIntoCell(cloneNodeWithFreshIdsV2(clipboard));
+    const clone = cloneNodeWithFreshIdsV2(clipboard) as FormNodeV2;
+    // 网格走独立落点：普通节点那套「进格 / 插到其后」会把网格塞进格子里，不是这里要的语义。
+    if (clone.type === "grid") {
+      pasteGrid(clone);
+      return;
+    }
+    insertCloneAfterSelectedOrIntoCell(clone);
   }
 
+  /**
+   * 原地复制：普通节点沿用既有落点；**根级网格**落到「自己后面」——
+   * 网格进不了 `insertCloneAfterSelectedOrIntoCell` 的格内落点（根级网格没有 ownerCell，
+   * 会被插入槽塞进某个格子，或直接丢弃），所以单独处理。
+   *
+   * 嵌套在格内的网格**不特判**：它的父容器就是那个格子，既有落点正好「插到原件之后」，
+   * 若也走 `placeRootGrid` 会把它提到页面根级，反而错了。
+   */
   function duplicateSelected(): void {
     if (!ctx.editable()) return;
     const node = selectedCopiableNode();
     if (!node) return;
-    insertCloneAfterSelectedOrIntoCell(cloneNodeWithFreshIdsV2(node) as FormNodeV2);
+    const clone = cloneNodeWithFreshIdsV2(node) as FormNodeV2;
+    if (clone.type === "grid" && nodeIndex.value.get(node.id)?.parent?.type === "page") {
+      placeRootGrid(clone, node.id);
+      return;
+    }
+    insertCloneAfterSelectedOrIntoCell(clone);
   }
 
   // ── 单元格合并 / 拆分 ──
@@ -260,11 +416,26 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     selectedNodeId.value = id;
   }
 
+  /**
+   * 拆分选中的格子。两种语义按当前格形态分派：
+   * - `colspan > 1`（合并过的格）→ {@link splitGridCellV2} **还原**成 N 格，列数不变；
+   * - 普通格 → {@link splitGridCellInTwoV2} **一分为二**，整张网格加一列、其它行在同一列位补格，
+   *   保证所有行仍共用同一组列轨。
+   *
+   * 拆分后选中态保持在原格（左边那格），撤销可一步还原。
+   */
   function splitSelectedCell(): void {
     const id = selectedNodeId.value;
     const cellCtx = selectedCellContext.value;
     if (!id || !cellCtx || !cellCtx.canSplit) return;
-    commit(splitGridCellV2(schema.value, id), `split:${id}`);
+    const node = nodeIndex.value.get(id)?.node;
+    const merged = node?.type === "grid-cell" && (node.colspan ?? 1) > 1;
+    commit(
+      merged
+        ? splitGridCellV2(schema.value, id)
+        : splitGridCellInTwoV2(schema.value, id),
+      `split:${id}`,
+    );
     selectedNodeId.value = id;
   }
 
@@ -280,11 +451,21 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     selectedNodeId.value = detail.moveId;
   }
 
-  function onDropPalette(detail: { kind: NodeKind; cellId: string }): void {
-    const slot = nodeIndex.value.get(detail.cellId)?.node;
-    if (!slot || (slot.type !== "grid-cell" && slot.type !== "table-cell-template")) return;
+  /**
+   * 左侧面板「拖拽」新增组件（`drop-palette`）的落点：
+   * - 落在某个格子上（`cellId` 是 `grid-cell` / `table-cell-template`）→ 追加进该格；
+   * - **落在格子之外**（页面空白处、网格间隙、`cellId` 为 `null` 或已失效）→ 页面末尾
+   *   先追加一个网格，组件进它的首格，与点击新增同一兜底口径（2026-10-21）。
+   */
+  function onDropPalette(detail: { kind: NodeKind; cellId: string | null }): void {
+    if (!ctx.editable()) return;
+    const slot = detail.cellId ? nodeIndex.value.get(detail.cellId)?.node : undefined;
+    if (!slot || (slot.type !== "grid-cell" && slot.type !== "table-cell-template")) {
+      addNodeInNewRootGrid(detail.kind);
+      return;
+    }
     const child = createNodeByKind(detail.kind);
-    commit(appendNodeToCellV2(schema.value, detail.cellId, child));
+    commit(appendNodeToCellV2(schema.value, detail.cellId as string, child));
     selectedNodeId.value = child.id;
   }
 
@@ -1152,6 +1333,8 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     addGrid,
     addNodeToSelectedCell,
     removeSelectedNode,
+    selectedSiblingMove,
+    moveSelectedNode,
     copySelected,
     cutSelected,
     pasteClipboard,

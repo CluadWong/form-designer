@@ -29,6 +29,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="number-label-cell" data-node-id="number-label-cell">
@@ -47,6 +48,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
       </div>
@@ -63,6 +65,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人（监护人）"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="team-field-cell" data-node-id="team-field-cell">
@@ -74,6 +77,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="班组"><span data-v-af1345cc="" class="layout-p__value"></span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>
@@ -99,6 +103,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
       </div>
@@ -115,7 +120,8 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          \`<template v-else>{{ displayValue(node) }}</template>\`：\`<template>\` 分支在
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
-         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作班成员人数"><div data-v-af1345cc="" class="layout-p__line"></div></span><span data-v-af1345cc="" class="layout-p__label">人</span>
+         显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input" contenteditable="true" data-field="工作班成员人数"><div data-v-af1345cc="" class="layout-p__line"></div></span><span data-v-af1345cc="" class="layout-p__label">人</span>
+                  <!--v-if-->
                 </div>
               </div>
             </div>
@@ -134,6 +140,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="电站设备"><span data-v-af1345cc="" class="layout-p__value"></span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>
@@ -167,6 +174,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
+                    <!--v-if-->
                   </div>
                 </td>
                 <td data-v-af1345cc="" class="layout-table__cell" style="justify-content: flex-start;" data-layout-id="work-task-content-tpl">
@@ -181,6 +189,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
+                    <!--v-if-->
                     <!--v-if-->
                   </div>
                 </td>
@@ -199,6 +208,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
+                    <!--v-if-->
                   </div>
                 </td>
                 <td data-v-af1345cc="" class="layout-table__cell" style="justify-content: flex-start;" data-layout-id="work-task-content-tpl">
@@ -213,6 +223,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
+                    <!--v-if-->
                     <!--v-if-->
                   </div>
                 </td>
@@ -231,6 +242,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
+                    <!--v-if-->
                   </div>
                 </td>
                 <td data-v-af1345cc="" class="layout-table__cell" style="justify-content: flex-start;" data-layout-id="work-task-content-tpl">
@@ -245,6 +257,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
+                    <!--v-if-->
                     <!--v-if-->
                   </div>
                 </td>
@@ -263,6 +276,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
                     <!--v-if-->
+                    <!--v-if-->
                   </div>
                 </td>
                 <td data-v-af1345cc="" class="layout-table__cell" style="justify-content: flex-start;" data-layout-id="work-task-content-tpl">
@@ -277,6 +291,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 -->
                     <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
+                    <!--v-if-->
                     <!--v-if-->
                   </div>
                 </td>
@@ -302,6 +317,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="计划工作时间_开始"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
                   <!--v-if-->
+                  <!--v-if-->
                 </div>
               </div>
               <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="schedule-to-cell" data-node-id="schedule-to-cell">
@@ -313,6 +329,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="计划工作时间_截止"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
+                  <!--v-if-->
                   <!--v-if-->
                 </div>
               </div>
@@ -342,6 +359,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
       </div>
@@ -366,6 +384,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
       </div>
@@ -379,6 +398,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="安措备注"><span data-v-af1345cc="" class="layout-p__value"></span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>
@@ -397,6 +417,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作票签发人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
                   <!--v-if-->
+                  <!--v-if-->
                 </div>
               </div>
               <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="issue-date-cell" data-node-id="issue-date-cell">
@@ -408,6 +429,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="签发日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
+                  <!--v-if-->
                   <!--v-if-->
                 </div>
               </div>
@@ -436,6 +458,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
             <!-- 非复合字段：普通展示值。直接作为 <div> 的 v-else 子项（不经 <template v-else>
          包裹，否则 contenteditable <div> 的数据晚到时文本子节点不会重新 patch）。 --><span data-v-af1345cc="" class="layout-p__value"></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
       </div>
@@ -449,6 +472,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="补充安措备注"><span data-v-af1345cc="" class="layout-p__value"></span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>
@@ -472,6 +496,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="confirm-permitter-cell" data-node-id="confirm-permitter-cell">
@@ -483,6 +508,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作许可人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>
@@ -497,6 +523,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="许可工作时间"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>
@@ -520,6 +547,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作班成员签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
       </div>
@@ -542,6 +570,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="有效期延长到"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="extension-expire-spacer-cell" data-node-id="extension-expire-spacer-cell"></div>
@@ -557,6 +586,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作负责人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="extension-owner-date-cell" data-node-id="extension-owner-date-cell">
@@ -568,6 +598,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作负责人签名日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>
@@ -583,6 +614,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作许可人签名"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="extension-permitter-date-cell" data-node-id="extension-permitter-date-cell">
@@ -594,6 +626,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="延期工作许可人签名日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>
@@ -616,6 +649,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作票终结日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span><span data-v-af1345cc="" class="layout-p__label">结束，工作人员已全部撤离，材料工具已清理完毕。</span>
+            <!--v-if-->
           </div>
         </div>
       </div>
@@ -630,6 +664,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人签名-终结"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="completion-owner-date-cell" data-node-id="completion-owner-date-cell">
@@ -641,6 +676,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作负责人签名-终结日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>
@@ -656,6 +692,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作许可人签名-终结"><span data-v-af1345cc="" class="layout-p__value"></span></span>
             <!--v-if-->
+            <!--v-if-->
           </div>
         </div>
         <div data-v-af1345cc="" class="layout-grid__cell" style="padding: 0mm; align-items: center; justify-content: center;" data-layout-id="completion-permitter-date-cell" data-node-id="completion-permitter-date-cell">
@@ -667,6 +704,7 @@ exports[`yunlv-second-ticket-full（P11 完整工作票样例 · 扁平结构）
          contenteditable 宿主内是 Fragment（两侧各有一个空文本锚点），浏览器把键入文本
          插成**新文本节点**、Vue 只认识自己那个值节点 ⇒ 失焦写回重渲染后两者并存，
          显示翻倍（输入 \`11\` 变 \`1111\`）。与非复合字段同一口径，见 .layout-p__value 注释。 --><span data-v-af1345cc="" class="layout-p__input layout-p--underline" contenteditable="true" data-field="工作许可人签名-终结日期"><span data-v-af1345cc="" class="layout-p__value">      年    月    日      时    分</span></span>
+            <!--v-if-->
             <!--v-if-->
           </div>
         </div>

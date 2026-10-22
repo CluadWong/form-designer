@@ -230,6 +230,102 @@ describe("useSchemaEdits 复制/剪切/粘贴/原地复制", () => {
   });
 });
 
+/**
+ * 网格剪贴板（2026-10 批次）：网格不进 `grid-cell.children` 的常规路径，
+ * 普通节点那套「进格 / 插到其后」的落点对它没有意义，因此走独立分支：
+ * 选中网格 → 整块照搬替换 `rows`；否则 → 追加到页面最后。
+ */
+describe("useSchemaEdits 网格剪贴板", () => {
+  /** 根级子节点（页面第一页）。 */
+  function pageChildren(doc: SchemaDocument) {
+    return doc.schema.value.pages[0].children;
+  }
+
+  /** 某个网格下所有 cell 的 id（用于断言「ID 全刷新、不撞源网格」）。 */
+  function cellIdsOf(grid: GridNodeV2): string[] {
+    return grid.rows.flatMap((row) => row.cells.map((cell) => cell.id));
+  }
+
+  it("选中网格 → 内部元素整块照搬：目标网格保留自己的 id，rows 变成源网格的样子", () => {
+    const { doc, selection, edits } = setup(true);
+    const gridA = pageChildren(doc)[0] as GridNodeV2;
+    expect(gridA.type).toBe("grid");
+    selection.selectNodeById(gridA.id);
+    edits.copySelected();
+
+    edits.addRootGrid(); // 在页面末尾新增一个空网格（自动选中）
+    const gridB = pageChildren(doc).at(-1) as GridNodeV2;
+    expect(gridB.id).not.toBe(gridA.id);
+
+    edits.pasteClipboard();
+
+    const target = pageChildren(doc).at(-1) as GridNodeV2;
+    expect(target.id).toBe(gridB.id); // 目标身份不变
+    expect(target.rows).toHaveLength(gridA.rows.length);
+    expect(target.rows[0].cells).toHaveLength(gridA.rows[0].cells.length);
+    // 格内子节点一并照搬
+    expect(target.rows[0].cells[0].children.map((c) => c.type)).toEqual(
+      gridA.rows[0].cells[0].children.map((c) => c.type),
+    );
+    // 克隆经 cloneNodeWithFreshIdsV2 递归刷新：不撞源网格任何 cell id
+    const sourceIds = new Set(cellIdsOf(gridA));
+    expect(cellIdsOf(target).some((id) => sourceIds.has(id))).toBe(false);
+    // 源网格没有被牵连
+    expect(cellIdsOf(pageChildren(doc)[0] as GridNodeV2)).toEqual([...sourceIds]);
+  });
+
+  it("未选中网格 → 追加到页面最后，并选中新网格", () => {
+    const { doc, selection, edits } = setup(true);
+    const gridA = pageChildren(doc)[0] as GridNodeV2;
+    const before = pageChildren(doc).length;
+    selection.selectNodeById(gridA.id);
+    edits.copySelected();
+    selection.clearSelection();
+
+    edits.pasteClipboard();
+
+    expect(pageChildren(doc)).toHaveLength(before + 1);
+    const added = pageChildren(doc).at(-1) as GridNodeV2;
+    expect(added.id).not.toBe(gridA.id);
+    expect(added.rows).toHaveLength(gridA.rows.length);
+    expect(selection.selectedNodeId.value).toBe(added.id);
+  });
+
+  it("复制后粘回自己 → 不提交（rows 本就相同，避免空撤销步）", () => {
+    const { doc, selection, edits } = setup(true);
+    const gridA = pageChildren(doc)[0] as GridNodeV2;
+    selection.selectNodeById(gridA.id);
+    edits.copySelected();
+    const snapshot = doc.schema.value;
+    edits.pasteClipboard();
+    expect(doc.schema.value).toBe(snapshot);
+  });
+
+  it("原地复制网格 → 克隆插在自己后面（不是页面末尾、不被塞进格子）", () => {
+    const { doc, selection, edits } = setup(true);
+    const gridA = pageChildren(doc)[0] as GridNodeV2;
+    selection.selectNodeById(gridA.id);
+    edits.duplicateSelected();
+    const children = pageChildren(doc);
+    expect(children[0].id).toBe(gridA.id); // 原件位置不动
+    const dup = children[1] as GridNodeV2;
+    expect(dup.type).toBe("grid");
+    expect(dup.id).not.toBe(gridA.id);
+    expect(dup.rows).toHaveLength(gridA.rows.length);
+  });
+
+  it("网格剪贴板不影响普通节点粘贴（仍进选中格）", () => {
+    const { doc, selection, edits, cellId } = withTextInCell();
+    edits.copySelected();
+    edits.duplicateSelected(); // 先搅动一次，确认网格分支未误接管
+    edits.copySelected();
+    const before = findCell(doc, cellId).children.length;
+    selection.selectNodeById(cellId);
+    edits.pasteClipboard();
+    expect(findCell(doc, cellId).children).toHaveLength(before + 1);
+  });
+});
+
 describe("列宽解析：不得静默兜底为 24（三十七续回归）", () => {
   function selectGrid() {
     const ctx = setup(true);
