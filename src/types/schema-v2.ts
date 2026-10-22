@@ -393,6 +393,59 @@ export type FormNodeV2 =
 export type ImageListValueV2 = Array<string | ImageItemV2>;
 
 /**
+ * 图片列表「删除某一张」的事件载荷（2026-10-14）。
+ *
+ * 口径：**内核只发事件、不改 `data`**——点击哪张图是渲染层的事，删除后的值怎么写回是宿主
+ * 的业务规则（宿主可能还要鉴权、留痕、走提交接口）。故载荷只描述「谁被点了」，不携带任何
+ * 宿主侧语义。
+ *
+ * 沿 `GridSchemaNode → GridFormRenderer → FormRenderer` 逐层转发（与 `field-change` 同构）。
+ */
+export interface ImageRemovePayloadV2 {
+  /** 被点击图片所属**节点**的 id：同一字段被绑到多个图片节点时用它区分来源。 */
+  nodeId: string;
+  /** 该图片列表节点绑定的字段名（静态图节点无 `field`，内核不会给出本事件）。 */
+  field: string;
+  /**
+   * 被删条目的下标 = **值数组的下标**。
+   *
+   * `resolveImageItemsV2` 只在**尾部**按 `maxCount` 截断，故渲染下标与值数组下标**前缀对齐**，
+   * 宿主直接 `splice(index, 1)` 即可；若宿主自行改过排序则需按 `item` 重新定位。
+   */
+  index: number;
+  /** 被删条目的快照（`src` / `name` / 宽高），供宿主在值已被外部改动时按内容定位。 */
+  item: ImageItemV2;
+}
+
+/**
+ * 签名图「删除某一张」的事件载荷（2026-10-14）。
+ *
+ * 与 {@link ImageRemovePayloadV2} 同构、同口径（**内核只发事件、不改 `data`**），
+ * 唯一差异是**值的形态**：签名字段（`FieldPNodeV2.valueType === "image"`）的值域是
+ * `string[]`（只有地址，没有 name / 宽高），故 `item` 是地址字符串而非条目对象。
+ *
+ * 沿 `GridSchemaNode → GridFormRenderer → FormRenderer` 逐层转发。
+ */
+export interface SignImageRemovePayloadV2 {
+  /** 被点击签名图所属**节点**的 id：同一字段被绑到多个签名节点时用它区分来源。 */
+  nodeId: string;
+  /** 该签名节点绑定的字段名。 */
+  field: string;
+  /**
+   * 被删条目在**值数组里的下标**——即宿主应当 `splice(index, 1)` 的那个下标。
+   *
+   * ⚠️ **不是渲染下标**：`resolveSignImageUrlsV2` 会剔除空项，`["", "a"]` 里 `"a"` 的
+   * 渲染下标是 0、值下标是 1。内核按 `resolveSignImageUrlIndexesV2` 回写真实下标。
+   *
+   * 边界：值本身是**单个字符串**（单值简写）时 `index` 恒为 0，宿主需先把值转成数组
+   * 再 `splice`；`maxCount` 只会从尾部截断，故被截掉的项不可能被点到。
+   */
+  index: number;
+  /** 被删条目的地址快照（即 `img.layout-p__sign` 的 `src`），供宿主按内容二次定位。 */
+  item: string;
+}
+
+/**
  * 字段值：文本类字段是字符串；图片列表字段是 `ImageListValueV2` 或单个地址字符串
  * （渲染层按「一张图」处理，故 `string` 同时服务两类字段）；`null` 表示显式空值。
  */

@@ -10,6 +10,7 @@
  */
 import { computed, reactive, ref, type Ref } from "vue";
 import type { FormDataV2 } from "@/types";
+import { removeImageValueItemV2 } from "@/engine-v2/derivation";
 import {
   collectFormData,
   downloadJsonFile,
@@ -129,6 +130,28 @@ export function useFillData(options: {
     }
   }
 
+  /**
+   * 删掉当前填充数据里某字段值的第 `index` 条（预览态的票面删除角标落点）。
+   *
+   * 两条删除链共用本入口 —— 内核的 `image-remove`（图片列表）与 `sign-remove`（签名图）都只发
+   * 信号、不改 `data`，且两者的 `index` **都已是值数组下标**，故这里只做一次删位。
+   *
+   * 一律整体替换 `previewFormData.value`（新对象）：`previewData` 是它的 computed，下游
+   * `GridFormRenderer` / 分页估算靠引用变化重算。`next === before` 表示**什么都没删**
+   * （越界 / 非整数 / 该字段没有值）⇒ 直接返回，不写一份与原值等价的假数据。
+   *
+   * ⚠️ 字段在数据里**不存在**时删不动（模板 `images` 只是渲染兜底、不是数据）——这是既定口径：
+   * 预览态能删的是「这份数据里的图」，删模板图属于设计态 inspector 的职责。
+   */
+  function removeFieldItem(field: string, index: number): void {
+    const current = previewFormData.value;
+    if (!current || !field) return;
+    const before = current[field];
+    const next = removeImageValueItemV2(before, index);
+    if (next === before) return;
+    previewFormData.value = { ...current, [field]: next } as FormDataV2;
+  }
+
   return {
     previewFormData,
     previewData,
@@ -138,5 +161,6 @@ export function useFillData(options: {
     exportFillDataFile,
     saveFillDataToLocal,
     loadFillDataFromLocal,
+    removeFieldItem,
   };
 }

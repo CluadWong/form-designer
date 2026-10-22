@@ -138,21 +138,37 @@ describe("字段图片值（电子签名）", () => {
  * 多人签名（2026-09-30）：`data[field]` 传**数组**即为多张——多张在同一条下划线上并排，
  * 超出可用宽度自动换行（「多人签名：___________」）。取值仍由宿主回填。
  *
- * 结构不变量：**单张与空值的 DOM 与升级前逐字节一致**（单张走原来的单 `<img>` 路径，
- * 只有 N > 1 才换成 `.layout-p__signs` 容器）。这不是洁癖——历史上独立 `v-if` 与
- * `<template v-if>` 都会留下占位注释 / Fragment 空文本锚点，把容器子元素数顶掉，
- * 破坏字段容器 HTML 往返与整票快照基线（实测 `<template v-if>` 每张多出 2 个锚点）。
+ * 结构不变量：**空值不产生任何多余节点**（走 `.layout-p__value` 空态），单张只多一个承载盒、
+ * 不进 `.layout-p__signs` 容器，只有 N > 1 才换成该容器承载并排多图。这不是洁癖——历史上
+ * 独立 `v-if` 与 `<template v-if>` 都会留下占位注释 / Fragment 空文本锚点，把容器子元素数
+ * 顶掉，破坏字段容器 HTML 往返与整票快照基线（实测 `<template v-if>` 每张多出 2 个锚点）。
+ *
+ * 2026-10-14 起：单张的 `<img>` 外面多包了一层 `.layout-p__signcell`（删除角标的定位参照物，
+ * 见 `SignImageDelete.test.ts`），故「单张时图直接是容器子项」这条不再成立——但
+ * **「链上每个分支只有一个节点、不引入锚点」** 这条不变式原样保留，下方的形态断言据此更新。
  */
 describe("多人签名（值传数组）", () => {
   const A = "data:image/png;base64,AAAA";
   const B = "data:image/png;base64,BBBB";
   const C = "data:image/png;base64,CCCC";
 
-  /** 容器的子节点形态（元素名 / 节点类型），用于断言没有多出锚点节点。 */
+  /**
+   * 容器的子节点形态（元素名 / 节点类型），用于断言没有多出锚点节点。
+   *
+   * 只统计**元素**与非空文本：模板里的 HTML 注释（dev 下保留为 comment 节点）和空文本节点
+   * 会随 `v-if` 链的**分支数量 / 顺序**变化而挂到相邻分支上（Vue 把分支之间的注释与空白
+   * 并进前一个分支的 children），它们既不是元素也不参与版式 —— 计入只会让断言对「链上有几个
+   * 分支」敏感，而不变式本身关心的是**容器子元素数**（空态一个 `.layout-p__value`、单张一个
+   * `.layout-p__signcell`，一一对应，不引入锚点元素）。
+   */
   function shapeOf(wrapper: ReturnType<typeof fill>, selector: string): string[] {
-    return Array.from(wrapper.find(selector).element.childNodes).map((n) =>
-      n.nodeType === 1 ? `<${n.nodeName.toLowerCase()}>` : `#${n.nodeType}`,
-    );
+    return Array.from(wrapper.find(selector).element.childNodes)
+      .filter(
+        (n) =>
+          n.nodeType === 1 ||
+          (n.nodeType === 3 && (n.nodeValue ?? "").trim() !== ""),
+      )
+      .map((n) => (n.nodeType === 1 ? `<${n.nodeName.toLowerCase()}>` : `#${n.nodeType}`));
   }
 
   it("数组 → 每项一张 <img>，按数组顺序落在同一个容器内", () => {
@@ -204,14 +220,28 @@ describe("多人签名（值传数组）", () => {
     const node = fieldNode({ prefix: undefined });
     const isEmpty = shapeOf(fill(node, { 签名: "" }), ".layout-p");
     const isSingle = shapeOf(fill(node, { 签名: A }), ".layout-p");
-    // 同样的节点个数；单张时不带 .layout-p__signs 容器，图直接作为容器子项
+    // 同样的节点个数；单张时不带 .layout-p__signs 容器，图由 `.layout-p__signcell`
+    // 承载并作为容器的**唯一**子项 —— 与空态的 `.layout-p__value` 一一对应。
+    // 2026-10-21：`shapeOf` 只统计元素与非空文本（注释/空文本会随 v-if 分支数漂移，
+    // 见其注释），故此处两个态都是「恰好一个 <span>」。
     expect(isSingle).toHaveLength(isEmpty.length);
-    expect(isSingle.filter((s) => s === "<img>")).toHaveLength(1);
-    expect(isSingle.filter((s) => s !== "<img>")).toEqual(
+    expect(isSingle.filter((s) => s === "<span>")).toHaveLength(1);
+    expect(isSingle).not.toContain("<img>");
+    expect(isSingle.filter((s) => s !== "<span>")).toEqual(
       isEmpty.filter((s) => s !== "<span>"),
     );
-    // 复合字段同理：可输入区里就是那一个 <img>，既无容器也无锚点
-    expect(shapeOf(fill(fieldNode(), { 签名: A }), ".layout-p__input")).toEqual(["<img>"]);
+    // 单元盒里就是那一个 <img>（外加可删时的角标按钮），既无容器也无锚点。
+    // 2026-10-14：`.layout-p__signcell` 是删除角标的定位参照物，故容器直接子项由 <img>
+    // 变成该单元盒——「不引入额外锚点」这条不变式本身不变（每个分支仍只有一个节点）。
+    expect(
+      shapeOf(fill(node, { 签名: A }), ".layout-p__signcell").filter(
+        (s) => s !== "<button>",
+      ),
+    ).toEqual(["<img>"]);
+    // 复合字段同理：可输入区里只有那一个单元盒
+    expect(shapeOf(fill(fieldNode(), { 签名: A }), ".layout-p__input")).toEqual([
+      "<span>",
+    ]);
   });
 
   it("多图：容器是唯一新增元素，图不在容器外重复渲染", () => {

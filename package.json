@@ -1,6 +1,6 @@
 {
   "name": "@cluadwong/form-designer",
-  "version": "0.3.14",
+  "version": "0.3.21",
   "publishConfig": {
     "access": "public"
   },

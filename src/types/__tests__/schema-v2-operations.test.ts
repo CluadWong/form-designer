@@ -39,6 +39,7 @@ import {
   moveNodeWithinParentV2,
   listDropTargetsV2,
   splitGridCellV2,
+  splitGridCellInTwoV2,
   wrapCellChildrenWithGridV2,
 } from "@/types/schema-v2-operations";
 import type { GridCellV2, GridNodeV2 } from "@/types/schema-v2";
@@ -565,6 +566,80 @@ describe("P6.2c/P6.2d 共享列轨 + 合并/拆分", () => {
     const g = split.pages[0].children[0];
     if (g.type !== "grid") throw new Error("grid missing");
     expect(g.rows[0].cells).toHaveLength(3);
+  });
+
+  it("splitGridCellInTwoV2 普通格一分为二：本行多一格、整张网格多一列、其它行同列位补格", () => {
+    const { schema, grid } = buildThreeColGrid();
+    const target = grid.rows[0].cells[0].id;
+    const withChild = appendNodeToCellV2(schema, target, createTextNodeV2("左半"));
+
+    const split = splitGridCellInTwoV2(withChild, target);
+    const g = split.pages[0].children[0];
+    if (g.type !== "grid") throw new Error("grid missing");
+
+    // 列轨 +1，且留在被拆格之后的位置（这里是最左侧 → 新轨在第 2 条）
+    expect(g.columns).toEqual([30, "1fr", 30, 30]);
+    // 本行 3 → 4 格，新格紧跟原格
+    expect(g.rows[0].cells).toHaveLength(4);
+    expect(g.rows[0].cells[0].id).toBe(target);
+    expect(g.rows[0].cells[1].children).toHaveLength(0);
+    // 原格内容留在左边那格，不被搬走
+    expect(g.rows[0].cells[0].children).toHaveLength(1);
+    // 所有行轨道总数一致（列对齐不被破坏）
+    for (const row of g.rows) {
+      const tracks = row.cells.reduce((sum, cell) => sum + (cell.colspan ?? 1), 0);
+      expect(tracks).toBe(4);
+    }
+  });
+
+  it("splitGridCellInTwoV2 插在中间：新格落在第 2 列位，其它行也在同一列位补格", () => {
+    const blank = createEmptyFormSchemaV2();
+    const grid = createGridNodeV2({ rows: 2, columns: 3, cellWidth: 30 });
+    const schema = insertRootGridV2(blank, grid);
+    const g0 = schema.pages[0].children[0];
+    if (g0.type !== "grid") throw new Error("grid missing");
+    const middle = g0.rows[0].cells[1].id;
+
+    const split = splitGridCellInTwoV2(schema, middle);
+    const g = split.pages[0].children[0];
+    if (g.type !== "grid") throw new Error("grid missing");
+
+    expect(g.columns).toEqual([30, 30, "1fr", 30]);
+    expect(g.rows[0].cells).toHaveLength(4);
+    expect(g.rows[0].cells[1].id).toBe(middle);
+    expect(g.rows[0].cells[2].children).toHaveLength(0);
+    // 第二行同样插在第 2 列位（索引 2），不是追加在末尾
+    expect(g.rows[1].cells).toHaveLength(4);
+    expect(g.rows[1].cells.map(cell => cell.children.length)).toEqual([0, 0, 0, 0]);
+  });
+
+  it("splitGridCellInTwoV2 其它行的跨列格跨过插入点：撑 colspan，不新增格", () => {
+    const blank = createEmptyFormSchemaV2();
+    const grid = createGridNodeV2({ rows: 2, columns: 3, cellWidth: 30 });
+    const base = insertRootGridV2(blank, grid);
+    const g0 = base.pages[0].children[0];
+    if (g0.type !== "grid") throw new Error("grid missing");
+    // 第二行把第 1、2 列合并 → 该行 2 格：[0]=1轨、[1]=2轨
+    const merged = mergeGridCellsV2(base, g0.rows[1].cells[1].id, g0.rows[1].cells[2].id);
+    const gm = merged.pages[0].children[0];
+    if (gm.type !== "grid") throw new Error("grid missing");
+    expect(gm.rows[1].cells).toHaveLength(2);
+    expect(gm.rows[1].cells[1].colspan).toBe(2);
+
+    // 拆第一行第 2 格 → 插入点在轨位 2，正落在第二行那个 colspan=2 的格内部
+    const split = splitGridCellInTwoV2(merged, gm.rows[0].cells[1].id);
+    const g = split.pages[0].children[0];
+    if (g.type !== "grid") throw new Error("grid missing");
+
+    expect(g.rows[1].cells).toHaveLength(2); // 未新增格
+    expect(g.rows[1].cells[1].colspan).toBe(3); // 撑开一列
+    expect(g.rows[1].cells.reduce((sum, cell) => sum + (cell.colspan ?? 1), 0)).toBe(4);
+    expect(g.rows[0].cells).toHaveLength(4);
+  });
+
+  it("splitGridCellInTwoV2 目标不存在时返回原 schema 引用", () => {
+    const { schema } = buildThreeColGrid();
+    expect(splitGridCellInTwoV2(schema, "not-exist")).toBe(schema);
   });
 });
 

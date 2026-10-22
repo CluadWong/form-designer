@@ -192,7 +192,8 @@ export function useNodeSelection(
       rowIndex,
       columnIndex,
       hasNextSibling: columnIndex < row.cells.length - 1,
-      canSplit: (entry.node.colspan ?? 1) > 1,
+      // 任何格子都能拆：跨列格（colspan > 1）还原成 N 格，普通格一分为二（整张网格加一列）。
+      canSplit: true,
     };
   });
 

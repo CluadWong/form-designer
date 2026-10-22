@@ -276,8 +276,8 @@ describe("FormDesigner V2 selection and deletion", () => {
 
     expect(wrapper.find('[data-cell-merge="true"]').exists()).toBe(true);
     expect(wrapper.find('[data-cell-merge="true"]').attributes("disabled")).toBeUndefined();
-    // 初始无合并，拆分按钮禁用
-    expect(wrapper.find('[data-cell-split="true"]').attributes("disabled")).toBeDefined();
+    // 普通格也能拆（一分为二 = 整张网格加一列），故拆分按钮不再禁用
+    expect(wrapper.find('[data-cell-split="true"]').attributes("disabled")).toBeUndefined();
 
     await wrapper.find('[data-cell-merge="true"]').trigger("click");
 
@@ -294,6 +294,30 @@ describe("FormDesigner V2 selection and deletion", () => {
     const splitGrid = gridById(schemaOf(wrapper), "ticket-layout");
     expect(splitGrid.rows.find(r => r.id === "row-unit-number")!.cells).toHaveLength(4);
     expect(splitGrid.rows.find(r => r.id === "row-unit-number")!.cells[0].colspan).toBeUndefined();
+  });
+
+  it("splits a plain cell in two by adding one grid column", async () => {
+    const wrapper = mountDesigner();
+    const gridBefore = gridById(schemaOf(wrapper), "ticket-layout");
+    const rowBefore = gridBefore.rows.find(r => r.id === "row-unit-number")!;
+    const columnCountBefore = (gridBefore.columns ?? []).length;
+
+    await wrapper.find('[data-node-id="cell-u-l"]').trigger("click");
+    await wrapper.find('[data-cell-split="true"]').trigger("click");
+
+    const gridAfter = gridById(schemaOf(wrapper), "ticket-layout");
+    const rowAfter = gridAfter.rows.find(r => r.id === "row-unit-number")!;
+    // 本行多一格
+    expect(rowAfter.cells).toHaveLength(rowBefore.cells.length + 1);
+    // 整张网格多一列（所有行共用列轨，否则会错轨换行）
+    expect((gridAfter.columns ?? []).length).toBe(columnCountBefore + 1);
+    // 新格紧跟被拆格，且为空；原格内容留在左边
+    const at = rowAfter.cells.findIndex(c => c.id === "cell-u-l");
+    expect(rowAfter.cells[at + 1].children).toHaveLength(0);
+    // 每一行的轨道总数一致
+    for (const row of gridAfter.rows) {
+      expect(row.cells.reduce((sum, c) => sum + (c.colspan ?? 1), 0)).toBe(columnCountBefore + 1);
+    }
   });
 
   it("clicking a table-internal P selects the table and shows the derived-field hint", async () => {
@@ -737,5 +761,114 @@ describe("FormDesigner 帮助面板接线", () => {
     // 已读标记生效：重新挂载不再弹出。
     const remounted = mountDesigner();
     expect(remounted.find(".v2-help").exists()).toBe(false);
+  });
+});
+
+/**
+ * 面板新增组件的**兜底落点**（2026-10-21 用户口径）：
+ * 点击或拖拽左侧面板的组件时，若放置目标不是网格的格子，则先在当前页末尾追加一个网格，
+ * 再把组件放进该网格的**第一个格子**（此前是静默不响应 / 拖拽被丢弃）。
+ *
+ * 两条通道：`add-node`（点击）、`drop-palette`（拖拽，`cellId` 为 `null` 即落在格子外）。
+ */
+describe("FormDesigner 面板新增组件的兜底落点（无格可落 → 新建网格 + 进首格）", () => {
+  /** 页面末尾那个网格（兜底必然追加在末尾）。 */
+  function lastRootGrid(schema: FormSchemaV2) {
+    const children = schema.pages[0].children;
+    const node = children[children.length - 1];
+    if (node.type !== "grid") throw new Error("页面末尾不是网格");
+    return node;
+  }
+
+  const cases: Array<[string, string]> = [
+    ["text", "text"],
+    ["field", "p"],
+    ["image", "image"],
+    ["table", "table"],
+  ];
+
+  it.each(cases)("未选中任何节点时点击面板「%s」：末尾新增网格，组件进首格", async (kind, expected) => {
+    const wrapper = mountDesigner();
+    const before = schemaOf(wrapper).pages[0].children.length;
+
+    await wrapper.find(`[data-palette="${kind}"]`).trigger("click");
+    await nextTick();
+
+    const page = schemaOf(wrapper).pages[0];
+    expect(page.children).toHaveLength(before + 1);
+    const grid = lastRootGrid(schemaOf(wrapper));
+    const firstCell = grid.rows[0].cells[0];
+    expect(firstCell.children.map((child) => child.type)).toEqual([expected]);
+    // 新组件即为选中节点（右侧面板可直接改它的属性）
+    expect(
+      (wrapper.vm as unknown as { selectedNodeId: string | null }).selectedNodeId,
+    ).toBe(firstCell.children[0].id);
+  });
+
+  it("兜底只写一步撤销：撤销一次即同时撤掉新网格与新组件", async () => {
+    const wrapper = mountDesigner();
+    const before = JSON.stringify(schemaOf(wrapper).pages[0].children);
+
+    await wrapper.find('[data-palette="field"]').trigger("click");
+    await nextTick();
+    expect(schemaOf(wrapper).pages[0].children).toHaveLength(
+      JSON.parse(before).length + 1,
+    );
+
+    (wrapper.vm as unknown as { undo: () => void }).undo();
+    await nextTick();
+    expect(JSON.stringify(schemaOf(wrapper).pages[0].children)).toBe(before);
+  });
+
+  it("拖拽落在格子之外（cellId 为 null）：同样新建网格并放进首格", async () => {
+    const wrapper = mountDesigner();
+    const before = schemaOf(wrapper).pages[0].children.length;
+
+    const vm = wrapper.vm as unknown as {
+      onDropPalette: (detail: { kind: string; cellId: string | null }) => void;
+    };
+    vm.onDropPalette({ kind: "text", cellId: null });
+    await nextTick();
+
+    expect(schemaOf(wrapper).pages[0].children).toHaveLength(before + 1);
+    expect(lastRootGrid(schemaOf(wrapper)).rows[0].cells[0].children[0].type).toBe("text");
+  });
+
+  it("拖拽落在格子上：仍进该格，不新建网格", async () => {
+    const wrapper = mountDesigner();
+    const before = schemaOf(wrapper).pages[0].children.length;
+    const owner = findOwnerCellOfField(schemaOf(wrapper), "unit-field");
+    expect(owner).not.toBeNull();
+    const cellId = owner!.cell.id;
+    const childCountBefore = owner!.cell.children.length;
+
+    const vm = wrapper.vm as unknown as {
+      onDropPalette: (detail: { kind: string; cellId: string | null }) => void;
+    };
+    vm.onDropPalette({ kind: "text", cellId });
+    await nextTick();
+
+    // 页面根节点数不变
+    expect(schemaOf(wrapper).pages[0].children).toHaveLength(before);
+    // 目标格多了一个 text
+    const after = findOwnerCellOfField(schemaOf(wrapper), "unit-field");
+    expect(after!.cell.children).toHaveLength(childCountBefore + 1);
+    expect(after!.cell.children.some((child) => child.type === "text")).toBe(true);
+  });
+
+  it("预览态：这两条兜底通道都不改动结构", async () => {
+    const wrapper = mountDesigner();
+    const before = JSON.stringify(schemaOf(wrapper));
+    await wrapper.find('[data-view-mode="preview"]').trigger("click");
+
+    const vm = wrapper.vm as unknown as {
+      addNodeToSelectedCell: (kind: string) => void;
+      onDropPalette: (detail: { kind: string; cellId: string | null }) => void;
+    };
+    vm.addNodeToSelectedCell("text");
+    vm.onDropPalette({ kind: "field", cellId: null });
+    await nextTick();
+
+    expect(JSON.stringify(schemaOf(wrapper))).toBe(before);
   });
 });

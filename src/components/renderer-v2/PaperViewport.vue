@@ -13,7 +13,8 @@ import { computeAlignPan } from "./paper-viewport-align";
  * 选型：@panzoom/panzoom（timmywil，v4）——
  * - 拖拽平移 + 滚轮缩放（`zoomWithWheel` 需手动绑定，v4 不自动绑 wheel）+ 触屏双指捏合（`pinch` 内置）；
  * - 通过 `excludeClass`（默认 `panzoom-exclude`）排除指定元素上的「平移手势」：被排除元素的指针按下不触发 pan，
- *   从而表单字段可正常编辑/选中、设计态可拖拽节点；其余空白区域照常平移。
+ *   从而表单字段可正常编辑/选中、设计态可拖拽节点、**签名图的手势留给宿主**（悬停删除角标 / 点击弹菜单，
+ *   见 SIGN_IMAGE_SELECTOR）；其余空白区域照常平移。
  * - 缩放变化（滚轮 / 捏合 / 按钮 / reset）统一经原生事件 `panzoomchange`（`detail.scale`）同步百分比显示。
  *
  * 内容对齐（2026-09-18）：panzoom 以「scaler 自身中心」为 transform-origin，而 scaler 的布局盒是
@@ -141,10 +142,46 @@ const scaleText = computed(() => `${Math.round(scale.value * 100)}%`);
 const EDITABLE_SELECTOR =
   'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
 /**
- * 需要打 `panzoom-exclude` 标记（isExcluded 会向上查祖先）的元素：可编辑控件 + 设计态可拖拽节点。
- * 这些元素上的指针手势不触发平移——字段可编辑/选中、设计态可拖拽节点，其余区域照常平移。
+ * 签名图选择器（字段 P 且 `valueType === "image"`，含多人签名容器）。
+ *
+ * 为什么要排除（2026-10-13）：签名图**不是可编辑控件**——它的 `contenteditable` 一律关闭
+ * （见 `GridSchemaNode` 图片分支），故不在 `EDITABLE_SELECTOR` 里；而「按住签名图」在宿主侧
+ * 是一门正经手势的起点（PC 悬停删除角标 / 移动端点击弹「重签·删除」菜单）。不排除的症状是
+ * 「想按住签名图，画布却跟着平移了」。
+ *
+ * 实测（真 panzoom 4.6.2 + CDP 真鼠标，见 `docs/engine.md`）：签名图无标记时**拖拽平移 = 是**，
+ * 打标后 = 否，且纯点击照常抵达（`isExcluded` 只拦 `pointerdown`，不拦 click）。
+ *
+ * 两人以上时图被包进 `.layout-p__signs`（flex-wrap 容器，图与图之间有 `gap`）——容器一并打标，
+ * 否则在两张图之间的空隙按下仍会平移。单图时 `<img>` 直接挂在字段根 / `.layout-p__input` 下，
+ * 两条分支的图都带 `.layout-p__sign`，故一个选择器覆盖单图与多图。
  */
-const EXCLUDE_SELECTOR = `${EDITABLE_SELECTOR}, [draggable='true']`;
+const SIGN_IMAGE_SELECTOR =
+  ".layout-p__sign, .layout-p__signs, .layout-p__signcell";
+/**
+ * 图片列表的单张删除角标（`.layout-image__del`，2026-10-14，**内核自己渲染**）。
+ *
+ * 与宿主自摆的签名角标不同：这个按钮长在内核的渲染树里，所以**可以直接由本组选择器打标**——
+ * 内核 `tagExclusions` 是「先清空全部 `panzoom-exclude` 再按自己的选择器重打」，宿主在树外加的
+ * 标记会被抹掉（宿主签名角标只能自己 `pointerdown.stop`），树内元素不存在这个问题。
+ * 不排除的症状：按住角标想删图，画布却跟着平移了。
+ */
+const IMAGE_DELETE_SELECTOR = ".layout-image__del";
+/**
+ * 签名图的单张删除角标（`.layout-p__sign-del`，2026-10-14，**内核自己渲染**）。
+ *
+ * 与图片列表角标同理可直接打标；但它**不在 `.layout-p__sign` 的子树里**（角标与 `<img>`
+ * 是 `.layout-p__signcell` 下的兄弟节点，见该类的注释），所以单图时无法靠签名图选择器兜住，
+ * 必须显式列入——不排除的症状同样是「按住角标想删签名，画布却跟着平移了」。
+ */
+const SIGN_DELETE_SELECTOR = ".layout-p__sign-del";
+/**
+ * 需要打 `panzoom-exclude` 标记（isExcluded 会向上查祖先）的元素：
+ * 可编辑控件 + 设计态可拖拽节点 + 签名图 + 图片列表删除角标。
+ * 这些元素上的指针手势不触发平移——字段可编辑/选中、设计态可拖拽节点、签名图的手势留给宿主
+ * （悬停删除角标 / 点击弹菜单）、删除角标自己吃掉点击，其余区域照常平移。
+ */
+const EXCLUDE_SELECTOR = `${EDITABLE_SELECTOR}, [draggable='true'], ${SIGN_IMAGE_SELECTOR}, ${IMAGE_DELETE_SELECTOR}, ${SIGN_DELETE_SELECTOR}`;
 /**
  * 收集需要打 `panzoom-exclude` 的元素 = 选择器命中项 + **含可编辑控件的 Shadow 宿主**。
  *

@@ -1,0 +1,1431 @@
+{
+  "version": 2,
+  "paper": {
+    "size": "A4",
+    "header": {
+      "enabled": true,
+      "content": {
+        "left": "版本/修改：A/0",
+        "right": "贮存期限:3年"
+      },
+      "separator": false,
+      "repeatOnEveryPage": false,
+      "height": 8,
+      "style": {
+        "fontSize": 12
+      }
+    },
+    "footer": {
+      "enabled": false
+    }
+  },
+  "baseRowHeight": 5.8,
+  "pages": [
+    {
+      "id": "page-mv5z11g2-kq5i3",
+      "type": "page",
+      "mode": "fixed",
+      "margin": {
+        "top": 8,
+        "right": 8,
+        "bottom": 0,
+        "left": 8
+      },
+      "children": [
+        {
+          "id": "grid-mv5z11g2-ux17i",
+          "type": "grid",
+          "border": "all",
+          "rows": [
+            {
+              "id": "row-mv5z11g2-5yege",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mv5z11g2-7tgs4",
+                  "type": "grid-cell",
+                  "width": 25,
+                  "children": [
+                    {
+                      "id": "image-mv61a5g9-68eac",
+                      "type": "image",
+                      "images": [
+                        {
+                          "name": "金陵石化",
+                          "src": "https://image.qcc.com/logo/5e3127e62774d0861da6c1e83ad3675c.jpg?x-oss-process=style/logo_200"
+                        }
+                      ],
+                      "layout": "vertical",
+                      "objectFit": "contain",
+                      "defaultHeight": 20
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mv619fi9-znubu",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "grid-mv61esu8-6tyc3",
+                      "type": "grid",
+                      "border": "inner",
+                      "rows": [
+                        {
+                          "id": "row-mv61esu8-26ztt",
+                          "type": "grid-row",
+                          "height": 1,
+                          "cells": [
+                            {
+                              "id": "cell-1-mv61esu8-vtlt8",
+                              "type": "grid-cell",
+                              "width": "1fr",
+                              "children": [
+                                {
+                                  "id": "text-mv61fb3s-xlvig",
+                                  "type": "text",
+                                  "text": "金陵石化公司一体化管理体系记录",
+                                  "style": {
+                                    "align": "center"
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "id": "row-mv61f2td-yb9r9",
+                          "type": "grid-row",
+                          "height": 1,
+                          "cells": [
+                            {
+                              "id": "cell-1-mv61f2td-9ktgj",
+                              "type": "grid-cell",
+                              "width": "1fr",
+                              "children": [
+                                {
+                                  "id": "text-mv65dgys-nj8wc",
+                                  "type": "text",
+                                  "text": "电气第二种工作票",
+                                  "style": {
+                                    "align": "center",
+                                    "fontSize": 16,
+                                    "fontWeight": "normal",
+                                    "lineHeight": 2
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "id": "row-mv61f2xn-zts0r",
+                          "type": "grid-row",
+                          "height": 1,
+                          "cells": [
+                            {
+                              "id": "cell-1-mv61f2xn-nrnp5",
+                              "type": "grid-cell",
+                              "width": "1fr",
+                              "children": [
+                                {
+                                  "id": "grid-mvg5mt2j-6xqlk",
+                                  "type": "grid",
+                                  "border": "inner",
+                                  "rows": [
+                                    {
+                                      "id": "row-mvg5mt2j-uq9xu",
+                                      "type": "grid-row",
+                                      "height": 1,
+                                      "cells": [
+                                        {
+                                          "id": "cell-1-mvg5mt2j-azs18",
+                                          "type": "grid-cell",
+                                          "width": 20,
+                                          "children": [
+                                            {
+                                              "id": "text-mvg5n7cf-ohzdj",
+                                              "type": "text",
+                                              "text": "记录编号",
+                                              "style": {
+                                                "align": "center"
+                                              }
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "id": "cell-mvg5n0sj-igyj6",
+                                          "type": "grid-cell",
+                                          "width": "1fr",
+                                          "children": [
+                                            {
+                                              "id": "p-field-mvg5oz25-bgz15",
+                                              "type": "p",
+                                              "mode": "field",
+                                              "field": "记录编号",
+                                              "underline": true
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "id": "cell-mvg5n0xi-fyw0h",
+                                          "type": "grid-cell",
+                                          "width": 20,
+                                          "children": [
+                                            {
+                                              "id": "text-mvg5n8rv-jco0s",
+                                              "type": "text",
+                                              "text": "使用单位",
+                                              "style": {
+                                                "align": "center"
+                                              }
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "id": "cell-mvg5n1g5-gv6jf",
+                                          "type": "grid-cell",
+                                          "width": "1fr",
+                                          "children": [
+                                            {
+                                              "id": "p-field-mvg5p54c-itnj7",
+                                              "type": "p",
+                                              "mode": "field",
+                                              "field": "使用单位",
+                                              "underline": true
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ],
+                                  "columns": [
+                                    20,
+                                    "1fr",
+                                    20,
+                                    "1fr"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ],
+                      "columns": [
+                        "1fr"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            25,
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvg5qem3-ort6u",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvg5qem3-s8dsh",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvg5qem3-82mdw",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": []
+                },
+                {
+                  "id": "cell-mvg5qpp0-7umsa",
+                  "type": "grid-cell",
+                  "width": 60,
+                  "children": [
+                    {
+                      "id": "p-field-mvg5re0q-tj8p1",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "编号",
+                      "underline": true,
+                      "prefix": "编号："
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            60
+          ]
+        },
+        {
+          "id": "grid-mvgb92a9-q33e0",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvgb92a9-iq70f",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgb92a9-oayv0",
+                  "type": "grid-cell",
+                  "width": "auto",
+                  "children": [
+                    {
+                      "id": "text-mvgc41u3-kyrw6",
+                      "type": "text",
+                      "text": "1、"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvgc557u-ebp27",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvgc6hfn-lutjb",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人",
+                      "underline": true,
+                      "params": {
+                        "action": "userPicker"
+                      },
+                      "prefix": "工作负责人(监护人)"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvgc5yh6-l82u9",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-field-mvgc79fi-6e8wh",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "班组",
+                      "underline": true,
+                      "prefix": "班组"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "auto",
+            "1fr",
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvg9ss6w-qrhvp",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvg9ss6w-r087l",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvg9ss6w-udvgi",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvg9teqg-6cd7v",
+                      "type": "text",
+                      "text": "2、工作班人员(不包括工作负责人)",
+                      "style": {
+                        "lineHeight": 1.4
+                      }
+                    }
+                  ],
+                  "colspan": 2
+                }
+              ]
+            },
+            {
+              "id": "row-mvg9stsf-nb2z2",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvg9stsf-vw239",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-field-mvg9tq2x-8dss1",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "操作任务",
+                      "underline": true,
+                      "innerBorder": true,
+                      "params": {
+                        "action": "userPicker"
+                      },
+                      "default": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvgcavny-0r5fp",
+                  "type": "grid-cell",
+                  "width": "auto",
+                  "children": [
+                    {
+                      "id": "p-field-mvgcbd47-jao7q",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作班人数",
+                      "underline": true,
+                      "prefix": "共",
+                      "suffix": "人",
+                      "innerBorder": true,
+                      "style": {
+                        "verticalAlign": "bottom"
+                      }
+                    }
+                  ],
+                  "verticalAlign": "bottom",
+                  "rowHeight": 1,
+                  "padding": 0
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            "auto"
+          ],
+          "cellPadding": 1,
+          "cellVerticalAlign": "top"
+        },
+        {
+          "id": "grid-mvgcrtk6-z8oyh",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvgcrtk6-uyczo",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgcrtk6-5lkr3",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvgcsbr2-wmjzj",
+                      "type": "text",
+                      "text": "3、工作的变配电站名称及设备双重名称"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "row-mvgcs9rs-9gd3f",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgcs9rs-vru21",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-field-mvgcszq0-jb4js",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "电站及设备名称",
+                      "underline": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvg9w555-094i8",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvg9w555-3nf2b",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvg9w555-ej02c",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvgcuadg-evtay",
+                      "type": "text",
+                      "text": "4、工作任务"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "row-mvgctz6z-yno1z",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgctz6z-6jh8c",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "table-mvgcu417-nejd2",
+                      "type": "table",
+                      "columns": [
+                        {
+                          "key": "工作地点",
+                          "title": "工作地点或地段",
+                          "width": "1fr"
+                        },
+                        {
+                          "key": "工作内容",
+                          "title": "工作内容",
+                          "width": "1.5fr"
+                        }
+                      ],
+                      "minRows": 3,
+                      "rowTemplate": [
+                        {
+                          "id": "table-mvgcu417-nejd2-工作地点",
+                          "type": "table-cell-template",
+                          "columnKey": "工作地点",
+                          "children": [
+                            {
+                              "id": "p-mvgcu417-isj83",
+                              "type": "p",
+                              "mode": "field",
+                              "field": "",
+                              "underline": true
+                            }
+                          ]
+                        },
+                        {
+                          "id": "table-mvgcu417-nejd2-工作内容",
+                          "type": "table-cell-template",
+                          "columnKey": "工作内容",
+                          "children": [
+                            {
+                              "id": "p-mvgcu417-qktnx",
+                              "type": "p",
+                              "mode": "field",
+                              "field": "",
+                              "underline": true
+                            }
+                          ]
+                        }
+                      ],
+                      "border": "all",
+                      "headerStyle": {
+                        "align": "center",
+                        "fontWeight": "normal"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvgcx281-1otzc",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvgcx281-ahn0p",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgcx281-cde8c",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "grid-mvgcx4lb-ik3xd",
+                      "type": "grid",
+                      "border": "none",
+                      "rows": [
+                        {
+                          "id": "row-mvgcx4lb-7vk3m",
+                          "type": "grid-row",
+                          "height": 1,
+                          "cells": [
+                            {
+                              "id": "cell-mvgcx4lb-bk6fq",
+                              "type": "grid-cell",
+                              "width": "1fr",
+                              "children": [
+                                {
+                                  "id": "text-mvgcx4lb-nc4cz",
+                                  "type": "text",
+                                  "text": "5、计划工作时间"
+                                }
+                              ]
+                            },
+                            {
+                              "id": "cell-mvgcz20c-h7gxx",
+                              "type": "grid-cell",
+                              "width": "1fr",
+                              "children": []
+                            }
+                          ]
+                        },
+                        {
+                          "id": "row-mvgcx4lb-15gj7",
+                          "type": "grid-row",
+                          "height": 1,
+                          "cells": [
+                            {
+                              "id": "cell-mvgcx4lb-o48db",
+                              "type": "grid-cell",
+                              "width": "1fr",
+                              "children": [
+                                {
+                                  "id": "p-mvgcx4lb-t7ku7",
+                                  "type": "p",
+                                  "mode": "field",
+                                  "field": "计划开始时间",
+                                  "underline": true,
+                                  "prefix": "自",
+                                  "default": "         年        月        日        时       分",
+                                  "params": {
+                                    "action": "datePicker"
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "cell-mvgcz20c-wd5l0",
+                              "type": "grid-cell",
+                              "width": "1fr",
+                              "children": [
+                                {
+                                  "id": "p-mvgd0rzx-by274",
+                                  "type": "p",
+                                  "mode": "field",
+                                  "field": "计划结束时间",
+                                  "underline": true,
+                                  "prefix": "至",
+                                  "default": "         年        月        日        时       分",
+                                  "width": "auto",
+                                  "params": {
+                                    "action": "datePicker"
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ],
+                      "columns": [
+                        "1fr",
+                        "1fr"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "grid-mvgdtrge-5n913",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvgdtrge-qnn43",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvgdtrge-rzqb3",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvgdtrge-s2479",
+                      "type": "text",
+                      "text": "6、工作条件(停电或不停电，或邻近及保留带电设备名称)"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "row-mvgdtrge-ol4ly",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvgdtrge-di10g",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvgdtrge-krb0t",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作条件",
+                      "underline": true,
+                      "innerBorder": true,
+                      "default": "\n\n"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvgdv8yc-7e424",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvgdv8yc-fk560",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvgdv8yc-n6f93",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvgdv8yc-3d01f",
+                      "type": "text",
+                      "text": "7、注意事项(安全措施)"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvgeh9su-1u3fp",
+                  "type": "grid-cell",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "row-mvgdv8yc-bopeb",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvgdv8yc-x8gzg",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvgdv8yc-2xllo",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "注意事项",
+                      "underline": true,
+                      "innerBorder": true,
+                      "default": "\n\n"
+                    }
+                  ],
+                  "colspan": 2
+                }
+              ]
+            },
+            {
+              "id": "row-mvgeh7nv-oj5lg",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgeh7nv-4mdsa",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvgehyoe-c22zz",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作票签发人签名",
+                      "underline": true,
+                      "prefix": "工作票签发人签名：",
+                      "params": {
+                        "action": "signature"
+                      },
+                      "valueType": "image"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvgeh9su-ezjk4",
+                  "type": "grid-cell",
+                  "children": [
+                    {
+                      "id": "p-mvgeierb-cnlma",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "签发日期",
+                      "underline": true,
+                      "prefix": "签发日期",
+                      "default": "        年       月      日       时       分",
+                      "width": "auto",
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvgfif6l-3frcj",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvgfif6l-ttomx",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvgfif6l-i6b8h",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvgfif6l-qj0mk",
+                      "type": "text",
+                      "text": "8、补充安全措施(工作许可人填写)"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "row-mvgfif6l-m44w2",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvgfif6l-k9q9t",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvgfif6l-dp720",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "补充安全措施",
+                      "underline": true,
+                      "innerBorder": true,
+                      "default": "\n\n"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvgfjxle-riso6",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvgfjxle-gj7rc",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgfjxle-5gvnt",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvgfkchs-t97et",
+                      "type": "text",
+                      "text": "9、确认本工作票1~8项"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvgfkny5-4rmp7",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "row-mvgfk50f-6amge",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgfk50f-vs3vl",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvgfl5wm-df31m",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "许可工作时间",
+                      "underline": true,
+                      "prefix": "许可工作时间:",
+                      "default": "         年        月        日        时       分",
+                      "width": "auto",
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "colspan": 2
+                }
+              ]
+            },
+            {
+              "id": "row-mvgfk5k3-8gsiw",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgfk5k3-adiqp",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvgfmqpu-p4vkh",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人签名(确认)",
+                      "underline": true,
+                      "prefix": "工作负责人签名：",
+                      "params": {
+                        "action": "signature"
+                      },
+                      "valueType": "image"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvgfkny5-htaud",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvgfmrju-bjfv9",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作许可人签名(确认)",
+                      "underline": true,
+                      "prefix": "工作许可人签名：",
+                      "params": {
+                        "action": "signature"
+                      },
+                      "valueType": "image"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvgfrein-jozdp",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvgfrein-mtaoy",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgfrein-yopy3",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvgfu84o-l6lgr",
+                      "type": "text",
+                      "text": "10、确认工作负责人布置的任务和本施工项目安全措施"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "row-mvgfu1rg-grnnl",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgfu1rg-h3j3f",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvgfuei0-h9tcj",
+                      "type": "text",
+                      "text": "工作班人员签名:"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "row-mvgfu26e-764nd",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvgfu26e-yiua8",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-field-mvhizx22-vwd0w",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作班人员签名",
+                      "underline": true,
+                      "default": "\n\n",
+                      "innerBorder": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvhj96u7-nyr33",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvhj96u7-rzgf8",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvhj96u7-7s8qb",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvhj96u7-0jn03",
+                      "type": "text",
+                      "text": "11、工作票延期"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvhj96u7-qwygg",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "row-mvhj96u7-th84i",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvhj96u7-xfx03",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhj96u7-ezkn6",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "有效期延长时间",
+                      "underline": true,
+                      "prefix": "有效期延长到",
+                      "default": "         年        月        日        时       分",
+                      "width": "auto",
+                      "params": {
+                        "param1": "datePicker"
+                      }
+                    }
+                  ],
+                  "colspan": 2
+                },
+                {
+                  "id": "cell-mvhji0t9-5fhoq",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "row-mvhj96u7-ylk0c",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvhj96u7-ka4gg",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhj96u7-acrx4",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人签名(延期)",
+                      "underline": true,
+                      "prefix": "工作负责人签名：",
+                      "params": {
+                        "action": "signature"
+                      },
+                      "valueType": "image"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvhj96u7-reg0q",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhjj1yz-dzv8l",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人签名日期(延期)",
+                      "underline": true,
+                      "default": "        年       月      日       时       分",
+                      "width": "auto",
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "align": "left"
+                }
+              ]
+            },
+            {
+              "id": "row-mvhji0t9-ec8qu",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvhji0t9-z5uyh",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhji8qh-hzbls",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作许可人签名(延期)",
+                      "underline": true,
+                      "prefix": "工作许可人签名：",
+                      "params": {
+                        "action": "signature"
+                      },
+                      "valueType": "image"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-2-mvhji0t9-nofcu",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhjl2lq-p6e9a",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作许可人签名日期(延期)",
+                      "underline": true,
+                      "default": "        年       月      日       时       分",
+                      "width": "auto",
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "align": "left"
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvhjqw56-d97ap",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvhjqw56-q4pre",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvhjqw56-n38rw",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvhjqw56-sqn5q",
+                      "type": "text",
+                      "text": "12、工作票终结"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvhjqw56-mex6h",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "row-mvhjqw56-2jed1",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvhjqw56-kyza7",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhjqw56-cswwi",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作票终结时间",
+                      "underline": true,
+                      "prefix": "全部工作于",
+                      "default": "         年        月        日        时       分",
+                      "width": "auto",
+                      "suffix": "结束，工作人员已全部撤离，材料工具己清理完毕。"
+                    }
+                  ],
+                  "colspan": 2
+                },
+                {
+                  "id": "cell-mvhjqw56-gcjsg",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "row-mvhjqw56-8nfpn",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvhjqw56-bynew",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhjqw56-7utev",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人签名(终结)",
+                      "underline": true,
+                      "prefix": "工作负责人签名：",
+                      "params": {
+                        "action": "signature"
+                      },
+                      "valueType": "image"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvhjqw56-vfo2j",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhjqw56-j4j94",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作负责人签名日期(终结)",
+                      "underline": true,
+                      "default": "        年       月      日       时       分",
+                      "width": "auto",
+                      "params": {
+                        "action": "datePicker"
+                      }
+                    }
+                  ],
+                  "align": "left"
+                }
+              ]
+            },
+            {
+              "id": "row-mvhjqw56-5soic",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-mvhjqw56-iuyoh",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhjqw56-1ww51",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作许可人签名(终结)",
+                      "underline": true,
+                      "prefix": "工作许可人签名：",
+                      "params": {
+                        "action": "signature"
+                      },
+                      "valueType": "image"
+                    }
+                  ]
+                },
+                {
+                  "id": "cell-mvhjqw56-w3zbm",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-mvhjqw56-getix",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "工作许可人签名日期(终结)",
+                      "underline": true,
+                      "default": "        年       月      日       时       分",
+                      "width": "auto",
+                      "params": {
+                        "param1": "datePicker"
+                      }
+                    }
+                  ],
+                  "align": "left"
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr",
+            "1fr"
+          ]
+        },
+        {
+          "id": "grid-mvhju254-u6c3j",
+          "type": "grid",
+          "border": "none",
+          "rows": [
+            {
+              "id": "row-mvhju254-sa1oz",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvhju254-281e4",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "text-mvhjudmc-lbdaw",
+                      "type": "text",
+                      "text": "13、备注"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "row-mvhjub12-5vk81",
+              "type": "grid-row",
+              "height": 1,
+              "cells": [
+                {
+                  "id": "cell-1-mvhjub12-nicq7",
+                  "type": "grid-cell",
+                  "width": "1fr",
+                  "children": [
+                    {
+                      "id": "p-field-mvhjukfg-5639m",
+                      "type": "p",
+                      "mode": "field",
+                      "field": "备注",
+                      "underline": true,
+                      "innerBorder": true,
+                      "default": "\n"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "columns": [
+            "1fr"
+          ]
+        }
+      ]
+    }
+  ],
+  "baseFontSize": 12
+}

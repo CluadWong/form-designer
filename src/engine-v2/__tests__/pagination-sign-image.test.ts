@@ -36,6 +36,8 @@ function makeSchema(
     valueType?: "image" | "text";
     maxCount?: number;
     gap?: string;
+    innerBorder?: boolean;
+    defaultContent?: string;
   } = {},
 ): FormSchemaV2 {
   const children = Array.from({ length: count }, (_, index) =>
@@ -44,6 +46,8 @@ function makeSchema(
       ...(opts.imageHeight === undefined ? {} : { imageHeight: opts.imageHeight }),
       ...(opts.maxCount === undefined ? {} : { maxCount: opts.maxCount }),
       ...(opts.gap === undefined ? {} : { gap: opts.gap }),
+      ...(opts.innerBorder === undefined ? {} : { innerBorder: opts.innerBorder }),
+      ...(opts.defaultContent === undefined ? {} : { default: opts.defaultContent }),
     }),
   );
   return {
@@ -153,5 +157,42 @@ describe("多人签名：分页按「每张独占一行」的保守上界估高"
       ),
     }).pages.length;
     expect(capped).toBe(single);
+  });
+});
+
+/**
+ * 图片值 + 内部边框（2026-10-21）：渲染层改成「N 行下划线 + 图压最后一行」，
+ * 分页必须按**同一套行数**估高，否则「屏幕 3 行 / 分页按 1 行」会让签名栏被挤到下一页。
+ *
+ * 口径：`(行数-1) × 行高 + max(行高, 图高)`，行高 = 1.6em 按基础字号换算；
+ * 行数取自 `default` 的换行数（与渲染层共用 `resolveSignPlaceholderLineCountV2`）。
+ * 13px 下 1.6em ≈ 5.50mm，而基准行高 8mm 会托住单行结果。
+ */
+describe("图片值 + 内部边框：按占位行数估高", () => {
+  it("default 为换行符（2 行）：比单行高，30 个字段溢出到第二页", () => {
+    // 1 行 → max(8, 5.5) = 8mm ⇒ 30 × 8 = 240mm ≤ 273mm，单页
+    expect(paginateSchema(makeSchema(30, { innerBorder: true })).pages).toHaveLength(1);
+    // 2 行 → 5.5 + max(5.5, 5.5) = 11mm ⇒ 30 × 11 = 330mm > 273mm，必换页
+    const twoLines = paginateSchema(
+      makeSchema(30, { innerBorder: true, defaultContent: "\n" }),
+    ).pages;
+    expect(twoLines.length).toBeGreaterThan(1);
+  });
+
+  it("显式 imageHeight 只加在最后一行上（不按行数倍增）", () => {
+    // 1 行 + 20mm → 20mm/个 ⇒ 13 × 20 = 260 ≤ 273 单页，14 个溢页
+    expect(
+      paginateSchema(makeSchema(13, { innerBorder: true, imageHeight: "20mm" })).pages,
+    ).toHaveLength(1);
+    // 3 行 + 20mm → 11 + 20 = 31mm/个 ⇒ 9 × 31 = 279 > 273，必换页
+    const threeLines = paginateSchema(
+      makeSchema(9, { innerBorder: true, imageHeight: "20mm", defaultContent: "\n\n" }),
+    ).pages;
+    expect(threeLines.length).toBeGreaterThan(1);
+  });
+
+  it("未开内部边框时口径不变（仍按图片张数估高）", () => {
+    // 不开内边框：无数据 → 1 行图高，30 个字段仍单页（基准行高托底）
+    expect(paginateSchema(makeSchema(30)).pages).toHaveLength(1);
   });
 });

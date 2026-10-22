@@ -5,6 +5,8 @@ import type {
   FieldRuleV2,
   FormDataV2,
   FormSchemaV2,
+  ImageRemovePayloadV2,
+  SignImageRemovePayloadV2,
 } from "@/types";
 import { findEmptyRequiredFields } from "@/engine-v2/derivation";
 import GridFormRenderer from "./GridFormRenderer.vue";
@@ -144,6 +146,23 @@ const emit = defineEmits<{
    * 滚轮后工具栏就会停在旧数字上。仅当 `options.zoom` 为真时有事件。
    */
   (e: "scale-change", scale: number): void;
+  /**
+   * 图片列表「删除某一张」（2026-10-14）。
+   *
+   * 内核**只发信号、不改 `data`**：图片列表的删除往往还要走宿主的鉴权 / 留痕 / 提交接口，
+   * 故由宿主决定删除后的值怎么写回（多数情况是 `splice(index, 1)` 后 `update:data`）。
+   * 触发条件：非设计态 + 非只读 + 字段权限非 `READ`·`HIDDEN`（见 `GridSchemaNode`）。
+   */
+  (e: "image-remove", payload: ImageRemovePayloadV2): void;
+  /**
+   * 签名图「删除某一张」（2026-10-14）。
+   *
+   * 与 `image-remove` 完全同口径（内核只发信号、不改 `data`），差异只有载荷形态：
+   * 签名值域是 `string[]`，故 `item` 是地址字符串。`index` 是**值数组下标**
+   * （归一化会剔除空项，与渲染下标可能不同），宿主直接 `splice(index, 1)` 即可。
+   * 触发条件同 `image-remove`：非设计态 + 非只读 + 字段权限非 `READ`·`HIDDEN`。
+   */
+  (e: "sign-remove", payload: SignImageRemovePayloadV2): void;
 }>();
 
 // 内部持有 data，使填写态输入可回写并被消费页 v-model:data 接管。
@@ -305,6 +324,8 @@ defineExpose({
       :field-permissions="options?.fieldPermissions"
       :bare="true"
       @field-change="onFieldChange"
+      @image-remove="(payload) => emit('image-remove', payload)"
+      @sign-remove="(payload) => emit('sign-remove', payload)"
     />
   </PaperViewport>
   <GridFormRenderer
@@ -317,5 +338,7 @@ defineExpose({
     :field-permissions="options?.fieldPermissions"
     :bare="options?.bare"
     @field-change="onFieldChange"
+    @image-remove="(payload) => emit('image-remove', payload)"
+    @sign-remove="(payload) => emit('sign-remove', payload)"
   />
 </template>

@@ -32,15 +32,47 @@ type RenderCase = {
 };
 
 function renderHtml({ readonly = false, paginate = false }: RenderCase): string {
-  const wrapper = mount(GridFormRenderer, {
-    props: { schema, data, mode: "preview", readonly, paginate },
-  });
-  return wrapper.html();
+  return renderWrapper({ readonly, paginate }).html();
 }
 
-/** 抹掉唯一允许的差异（contenteditable），其余必须逐字符一致。 */
-function stripEditable(html: string): string {
-  return html.replace(/ contenteditable="true"/g, "");
+function renderWrapper({ readonly = false, paginate = false }: RenderCase) {
+  return mount(GridFormRenderer, {
+    props: { schema, data, mode: "preview", readonly, paginate },
+  });
+}
+
+/**
+ * DOM **结构签名**：标签名 + 属性（除 `contenteditable`）+ 非空文本，递归展开。
+ *
+ * 为什么不用 HTML 字符串直接比：可填写态多出的 `.layout-p__clear`（清空按钮，2026-10-21）
+ * 被剔除后，差异还会落在**格式化空白**上（pretty-print 一行一个元素，删元素就多一空行），
+ * 逐字符比必然假报警。结构签名天然忽略注释节点、空文本与缩进，只比真正参与渲染的东西。
+ *
+ * 允许的差异只有两处，均在签名里归一：
+ * 1. `contenteditable`（只读闸门）；
+ * 2. 清空按钮——它是交互元素，只读回显里本就不该存在；按钮绝对定位、不携带版式，
+ *    属「哪一态能改值」的产品差异，不是渲染路径分叉。
+ */
+function signatureOf(el: Element): string {
+  const children: string[] = [];
+  el.childNodes.forEach((child) => {
+    if (child.nodeType === 1) {
+      const element = child as Element;
+      if (element.classList.contains("layout-p__clear")) return;
+      children.push(signatureOf(element));
+      return;
+    }
+    if (child.nodeType === 3) {
+      const text = child.nodeValue ?? "";
+      if (text.trim() !== "") children.push(`#${text}`);
+    }
+  });
+  const attrs = Array.from(el.attributes)
+    .filter((attr) => attr.name !== "contenteditable")
+    .map((attr) => `${attr.name}="${attr.value}"`)
+    .sort()
+    .join(" ");
+  return `<${el.tagName.toLowerCase()} ${attrs}>[${children.join("")}]`;
 }
 
 function countEditable(html: string): number {
@@ -52,12 +84,15 @@ function countPages(html: string): number {
 }
 
 describe("A3 统一渲染路径：消费态（preview）同构", () => {
-  it("可填写（readonly=false）与只读（readonly=true）只差 contenteditable，DOM 结构一致", () => {
+  it("可填写（readonly=false）与只读（readonly=true）只差 contenteditable 与清空按钮，DOM 结构一致", () => {
     const editable = renderHtml({ readonly: false });
     const readonly = renderHtml({ readonly: true });
 
-    expect(stripEditable(editable)).toBe(stripEditable(readonly));
-    // 且确实只差 contenteditable：可填写态每个字段都有，只读态一个都没有
+    // 结构签名：忽略 contenteditable、注释、空白与清空按钮后必须逐节点一致
+    expect(signatureOf(renderWrapper({ readonly: false }).element)).toBe(
+      signatureOf(renderWrapper({ readonly: true }).element),
+    );
+    // 且确实只差这些：可填写态每个字段都有 contenteditable，只读态一个都没有
     expect(countEditable(editable)).toBeGreaterThan(0);
     expect(countEditable(readonly)).toBe(0);
   });

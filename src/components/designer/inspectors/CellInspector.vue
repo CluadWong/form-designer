@@ -47,6 +47,11 @@ defineProps<{
       type="button"
       data-cell-split="true"
       :disabled="!cellContext?.canSplit"
+      :title="
+        (node.colspan ?? 1) > 1
+          ? '把合并过的格子还原成原来的格数（列数不变）'
+          : '把本格一分为二：整张网格加一列，其它行在同一列位补一个空格，保持上下对齐'
+      "
       @click="api.splitSelectedCell"
     >
       拆分此格

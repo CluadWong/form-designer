@@ -193,4 +193,133 @@ describe("字段组件配置：宽度 / 默认内容 / 内部边框", () => {
     });
     expect(empty.findAll(".layout-p__line").length).toBeGreaterThanOrEqual(1);
   });
+
+  /**
+   * 内部边框与下划线互斥（2026-10-20 修复）：
+   * 下划线（`.layout-p--underline` 的 border-bottom）与逐行线（`.layout-p__line` 的
+   * border-bottom）都会画字段底边。两者同时命中时，末行会被叠成两条底边 ——
+   * 单行值最明显（两条线几乎重合，看起来像加粗的双线）。
+   * 口径：**innerBorder 打开时不再挂下划线类**，由逐行线独家承担底边。
+   */
+  it("内部边框打开时不再叠下划线：非复合字段", () => {
+    const both = mount(GridSchemaNode, {
+      props: { node: fieldNode({ underline: true, innerBorder: true }), baseRowHeight: 8 },
+    });
+    expect(both.classes()).toContain("layout-p--inner-border");
+    expect(both.classes()).not.toContain("layout-p--underline");
+
+    // 对照组：只勾下划线（无内部边框）时照旧有下划线
+    const underlineOnly = mount(GridSchemaNode, {
+      props: { node: fieldNode({ underline: true }), baseRowHeight: 8 },
+    });
+    expect(underlineOnly.classes()).toContain("layout-p--underline");
+  });
+
+  it("内部边框打开时不再叠下划线：复合字段（下划线在 .layout-p__input 上）", () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: {
+        node: fieldNode({ prefix: "共", suffix: "人", underline: true, innerBorder: true }),
+        baseRowHeight: 8,
+      },
+    });
+    const input = wrapper.find(".layout-p__input");
+    expect(input.exists()).toBe(true);
+    expect(input.classes()).not.toContain("layout-p--underline");
+  });
+
+  it("单行 + 内部边框：只渲染一条逐行线（底边唯一来源）", () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: {
+        node: fieldNode({ underline: true, innerBorder: true, default: "单行内容" }),
+        baseRowHeight: 8,
+        readonly: true,
+      },
+    });
+    expect(wrapper.findAll(".layout-p__line")).toHaveLength(1);
+    expect(wrapper.classes()).not.toContain("layout-p--underline");
+  });
+});
+
+/**
+ * 图片值（电子签名）+ 内部边框：**线与图共存**（2026-10-21 用户拍板）。
+ *
+ * 规则：
+ * - 行数 = `default` 的换行数（`"\n"` → 2 行），`default` 是图片地址时算 1 行；
+ * - 图固定在**最后一行**内 —— 坐在该行 div 自己的 `border-bottom` 上，不额外多画一条线；
+ * - 多张图在这一行内换行、继续向下排（行数不变，末行随图变高）；
+ * - 行内不渲染文字（值本身是图片地址）。
+ */
+describe("图片值 + 内部边框：线与图共存", () => {
+  const A = "a.png";
+  const B = "b.png";
+
+  it("default 为换行符：铺两行下划线，且不再渲染缺省图", () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: {
+        node: fieldNode({ valueType: "image", innerBorder: true, default: "\n" }),
+        baseRowHeight: 8,
+        readonly: true,
+      },
+    });
+    expect(wrapper.findAll(".layout-p__line")).toHaveLength(2);
+    expect(wrapper.findAll("img")).toHaveLength(0);
+    // 行内不显示任何文字（否则会把 default 的地址/换行打印出来）
+    expect(wrapper.text()).toBe("");
+  });
+
+  it("default 为空：仍保留 1 行（空态也要有签名线）", () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: {
+        node: fieldNode({ valueType: "image", innerBorder: true }),
+        baseRowHeight: 8,
+        readonly: true,
+      },
+    });
+    expect(wrapper.findAll(".layout-p__line")).toHaveLength(1);
+    expect(wrapper.findAll("img")).toHaveLength(0);
+  });
+
+  it("default 是图片地址：1 行 + 图压在该行内（行内 div 的底边即签名线）", () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: {
+        node: fieldNode({ valueType: "image", innerBorder: true, default: A }),
+        baseRowHeight: 8,
+        readonly: true,
+      },
+    });
+    const lines = wrapper.findAll(".layout-p__line");
+    expect(lines).toHaveLength(1);
+    expect(lines[0].findAll("img")).toHaveLength(1);
+    expect(lines[0].find("img").attributes("src")).toBe(A);
+  });
+
+  it("有数据多张图 + default 三行：行数不变，图全部落在最后一行", () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: {
+        node: fieldNode({ valueType: "image", innerBorder: true, default: "\n\n" }),
+        baseRowHeight: 8,
+        readonly: true,
+        data: { 测试字段: [A, B] },
+      },
+    });
+    const lines = wrapper.findAll(".layout-p__line");
+    expect(lines).toHaveLength(3);
+    expect(lines[0].findAll("img")).toHaveLength(0);
+    expect(lines[1].findAll("img")).toHaveLength(0);
+    expect(lines[2].findAll("img")).toHaveLength(2);
+  });
+
+  it("未开内部边框时走原分支：图直接作为容器子项，不出现逐行 div", () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: {
+        node: fieldNode({ valueType: "image", underline: true }),
+        baseRowHeight: 8,
+        readonly: true,
+        data: { 测试字段: [A] },
+      },
+    });
+    expect(wrapper.findAll(".layout-p__line")).toHaveLength(0);
+    expect(wrapper.find(".layout-p__signcell").exists()).toBe(true);
+    expect(wrapper.classes()).toContain("layout-p--underline");
+  });
 });

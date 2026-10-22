@@ -10,6 +10,8 @@ import {
   type FieldPermissionV2,
   type EdgeInsetsV2,
   type HeaderFooterV2,
+  type ImageRemovePayloadV2,
+  type SignImageRemovePayloadV2,
 } from "@/types";
 import GridSchemaNode from "./GridSchemaNode.vue";
 import { registerPageSizeStyle, setPageSizeStyle } from "./page-size-style";
@@ -27,6 +29,10 @@ defineOptions({ name: "GridFormRenderer" });
 
 const emit = defineEmits<{
   (e: "field-change", field: string, value: string): void;
+  /** 图片列表「删除某一张」：内核只转发信号，删除后的写回归宿主（见 `GridSchemaNode` 同名事件）。 */
+  (e: "image-remove", payload: ImageRemovePayloadV2): void;
+  /** 签名图「删除某一张」：同上，唯一差异是载荷里的 `item` 是地址字符串（签名值域是 `string[]`）。 */
+  (e: "sign-remove", payload: SignImageRemovePayloadV2): void;
 }>();
 
 const props = withDefaults(
@@ -425,6 +431,8 @@ function pageParamAttrs(sourcePageId: string): Record<string, string> {
         :field-permissions="props.fieldPermissions"
         :suppress-borders="suppressFor(pp, index, child.suppressBorders)"
         @field-change="(field, value) => emit('field-change', field, value)"
+        @image-remove="(payload) => emit('image-remove', payload)"
+        @sign-remove="(payload) => emit('sign-remove', payload)"
       />
       <div
         v-if="bandVisibleOn(pageIdx, schema.paper.footer)"
