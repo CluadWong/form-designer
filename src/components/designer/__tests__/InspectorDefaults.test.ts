@@ -108,7 +108,7 @@ describe("组件面板：新建节点的默认参数渲染", () => {
     );
     expect(
       (image.find('[data-field-image-height="true"]').element as HTMLInputElement).value,
-    ).toBe("10mm");
+    ).toBe("10"); // 面板单位统一 mm（后缀在右侧分段），故显示数值
     assertNoBareControls(image);
   });
 
@@ -127,7 +127,10 @@ describe("组件面板：新建节点的默认参数渲染", () => {
 
   it("表格：最小行数 / 边框 / 表头样式 / 列配置均有默认", () => {
     const wrapper = mount(TableInspector, { props: { node: createTableNodeV2(), api } });
-    const numbers = wrapper.findAll('input[type="number"]');
+    const numbers = wrapper
+      .findAll('input[type="number"]')
+      // 「表头结构」矩阵每格带 colspan / rowspan 两个数字框，不属于默认值口径（2026-10-23）。
+      .filter((n) => !n.element.closest("[data-table-header-editor]"));
     expect((numbers[0].element as HTMLInputElement).value).toBe("4"); // 最小行数
     expect((numbers[1].element as HTMLInputElement).value).toBe("16"); // 表头字号默认 16（CSS）
     const selects = wrapper.findAll("select");
@@ -135,7 +138,7 @@ describe("组件面板：新建节点的默认参数渲染", () => {
     // 表头粗细的生效默认是「加粗」：`.layout-table__header` CSS 为 600，未设 headerStyle 时
     // 表头视觉即加粗，面板此前显示「常规」与实际不符。
     expect((selects[1].element as HTMLSelectElement).value).toBe("bold");
-    expect(wrapper.findAll('[data-table-columns="true"] .v2-col-table__row').length).toBe(3); // 表头 + 2 列
+    expect(wrapper.findAll('[data-table-columns="true"] [data-table-column]').length).toBe(2);
     assertNoBareControls(wrapper);
   });
 

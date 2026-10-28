@@ -130,18 +130,18 @@ describe("FormDesigner V2 selection and deletion", () => {
       "is-design-selected",
     );
 
-    // 表格面板列出 2 列（location / content），各有删除按钮。
+    // 表格面板的「列带」列出 2 列（location / content），各有删除按钮。
     // 注意：右侧面板底部还有通用的「额外属性」键值表（同为 .v2-col-table），
-    // 故这里用 data-table-columns 钩子限定到「列配置」表。
-    const colTable = wrapper.find('[data-table-columns="true"]');
-    expect(colTable.findAll(".v2-col-table__row")).toHaveLength(3); // 1 表头 + 2 列行
-    const firstColDelete = colTable.find(".v2-col-table__row .v2-inspector__delete--small");
+    // 故这里用 data-table-columns 钩子限定到列带。
+    const colBand = wrapper.find('[data-table-columns="true"]');
+    expect(colBand.findAll("[data-table-column]")).toHaveLength(2);
+    const firstColDelete = colBand.findAll('[data-col-remove="true"]')[0];
     expect(firstColDelete.attributes("disabled")).toBeUndefined();
     await firstColDelete.trigger("click");
     await nextTick();
 
     // 删除后列数减一，渲染层表格只剩 1 列（对应派生字段一并移除）
-    expect(colTable.findAll(".v2-col-table__row")).toHaveLength(2); // 1 表头 + 1 列行
+    expect(colBand.findAll("[data-table-column]")).toHaveLength(1);
     expect(wrapper.findAll("thead th")).toHaveLength(1);
   });
 
@@ -870,5 +870,76 @@ describe("FormDesigner 面板新增组件的兜底落点（无格可落 → 新�
     await nextTick();
 
     expect(JSON.stringify(schemaOf(wrapper))).toBe(before);
+  });
+});
+
+/**
+ * 结构树悬停定位（2026-10-23）：鼠标悬浮左侧结构树的行 → 中间画布高亮同一节点。
+ * 链路：NodeTreeItem(mouseenter) → PaletteSidebar → FormDesigner(hoveredNodeId) →
+ *       CanvasSurface(.is-design-hover)。高亮与选中态互不影响。
+ */
+describe("FormDesigner 结构树悬停定位画布节点", () => {
+  /** 悬停高亮的注入同样走 watch + MutationObserver，需两次 nextTick。 */
+  async function flush(): Promise<void> {
+    await nextTick();
+    await nextTick();
+  }
+
+  function hoveredIds(wrapper: VueWrapper): string[] {
+    return wrapper
+      .findAll(".is-design-hover")
+      .map((el) => el.attributes("data-node-id") ?? "");
+  }
+
+  function selectedIds(wrapper: VueWrapper): string[] {
+    return wrapper
+      .findAll(".is-design-selected")
+      .map((el) => el.attributes("data-node-id") ?? "");
+  }
+
+  it("悬停结构树行 → 画布对应节点获得 .is-design-hover", async () => {
+    const wrapper = mountDesigner();
+    await wrapper.find('[data-tree-node-id="unit-field"]').trigger("mouseenter");
+    await flush();
+
+    expect(hoveredIds(wrapper)).toContain("unit-field");
+  });
+
+  it("移出该行 → 悬停高亮消失", async () => {
+    const wrapper = mountDesigner();
+    const row = wrapper.find('[data-tree-node-id="unit-field"]');
+    await row.trigger("mouseenter");
+    await flush();
+    expect(hoveredIds(wrapper)).toContain("unit-field");
+
+    await row.trigger("mouseleave");
+    await flush();
+    expect(hoveredIds(wrapper)).toHaveLength(0);
+  });
+
+  it("悬停不改变选中态：选中集合与悬停前一致", async () => {
+    const wrapper = mountDesigner();
+    // 挂载时会自动选中首个页面，且该高亮经 MutationObserver 异步落地 ——
+    // 必须先 flush 再取基线，否则拿到的是「还没选中」的空集合。
+    await flush();
+    const before = selectedIds(wrapper);
+    expect(before).toContain("ticket-page-1");
+
+    await wrapper.find('[data-tree-node-id="unit-field"]').trigger("mouseenter");
+    await flush();
+
+    expect(selectedIds(wrapper)).toEqual(before);
+    expect(hoveredIds(wrapper)).toContain("unit-field");
+  });
+
+  it("悬停到另一行时高亮跟着移动（同一时刻只有一个悬停节点）", async () => {
+    const wrapper = mountDesigner();
+    await wrapper.find('[data-tree-node-id="unit-field"]').trigger("mouseenter");
+    await flush();
+
+    await wrapper.find('[data-tree-node-id="work-task-table"]').trigger("mouseenter");
+    await flush();
+
+    expect(hoveredIds(wrapper)).toEqual(["work-task-table"]);
   });
 });

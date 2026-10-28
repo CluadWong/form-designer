@@ -36,7 +36,6 @@ function signNode(overrides: Partial<FieldPNodeV2> = {}): FieldPNodeV2 {
     mode: "field",
     field: "签名",
     prefix: "负责人签名：",
-    underline: true,
     valueType: "image",
     ...overrides,
   };

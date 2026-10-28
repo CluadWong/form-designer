@@ -22,7 +22,6 @@ function signField(index: number, extra: Partial<FieldPNodeV2> = {}): FieldPNode
     type: "p",
     mode: "field",
     field: `签名${index}`,
-    underline: true,
     valueType: "image",
     ...extra,
   };

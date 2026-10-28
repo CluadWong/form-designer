@@ -17,7 +17,16 @@ const props = defineProps<{
   depth: number;
 }>();
 
-const emit = defineEmits<{ (event: "select", id: string): void }>();
+const emit = defineEmits<{
+  (event: "select", id: string): void;
+  /**
+   * 悬停定位（2026-10-23）：鼠标进入本行 → 上抛节点 id，由宿主驱动画布高亮同一节点。
+   * 用 `mouseenter` / `mouseleave` 而非 `mouseover` / `mouseout`：后者会从子元素冒泡上来，
+   * 行内移动（如从标签挪到类型徽标）会反复触发，导致高亮闪动。
+   */
+  (event: "hover", id: string): void;
+  (event: "leave", id: string): void;
+}>();
 
 /** 全局折叠/展开信号（由 FormDesigner 经 provide 下发）。 */
 const control = inject<TreeControl | null>(TreeControlKey, null);
@@ -55,6 +64,14 @@ function onRowClick(): void {
   emit("select", props.node.id);
 }
 
+function onRowEnter(): void {
+  emit("hover", props.node.id);
+}
+
+function onRowLeave(): void {
+  emit("leave", props.node.id);
+}
+
 function onToggle(): void {
   expanded.value = !expanded.value;
 }
@@ -68,6 +85,8 @@ function onToggle(): void {
       :style="{ paddingLeft: `${depth * 14 + 6}px` }"
       :data-tree-node-id="node.id"
       @click="onRowClick"
+      @mouseenter="onRowEnter"
+      @mouseleave="onRowLeave"
     >
       <button
         v-if="node.children.length"
@@ -89,6 +108,8 @@ function onToggle(): void {
         :selected-id="selectedId"
         :depth="depth + 1"
         @select="emit('select', $event)"
+        @hover="emit('hover', $event)"
+        @leave="emit('leave', $event)"
       />
     </div>
   </div>

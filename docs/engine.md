@@ -901,6 +901,10 @@ Chrome 按**提升那一刻**的比例（「适应宽度」常是 0.3~0.5×）�
 | 第一行 | `mode:"field"`、`underline:true`，**无 prefix/suffix** | **不换行** ❌ |
 | 第二行 | 同上 + `prefix:"1"` | 换行 ✓ |
 
+> 注（2026-10-23）：`underline` 键已从 schema 移除，改为渲染层恒定行为（未开 `innerBorder`
+> 即带下划线）。本节表格记录的是当时的导出模板，`underline:true` 现等价于「未开 `innerBorder`」，
+> 结论不受影响。
+
 ### 根因：Chrome 回车「克隆内联元素」，不是插入 `<div>`
 
 内核里那条为「无前后标签的字段」准备的规则写的是 `.layout-p :deep(div){flex:1 1 100%}` —— 它

@@ -7,7 +7,7 @@ defineProps<{ node: HtmlNodeV2; api: SchemaEdits }>();
 </script>
 
 <template>
-  <label class="v2-control v2-control--full">
+  <label class="v2-control v2-control--area">
     <span>HTML 片段（不含脚本）</span>
     <textarea
       class="v2-textarea"
@@ -17,7 +17,7 @@ defineProps<{ node: HtmlNodeV2; api: SchemaEdits }>();
       @input="api.updateSelectedHtml"
     ></textarea>
   </label>
-  <label class="v2-control v2-control--full">
+  <label class="v2-control v2-control--area">
     <span>样式代码（仅模块内生效）</span>
     <textarea
       class="v2-textarea"

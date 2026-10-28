@@ -39,6 +39,10 @@ import {
   updateTableBorderV2,
   updateTableColumnV2,
   updateTableMinRowsV2,
+  updateTableRepeatHeaderV2,
+  updateTableShowHeaderV2,
+  setTableHeaderRowsV2,
+  resetTableHeaderRowsV2,
 } from "@/types";
 import type {
   BorderModeV2,
@@ -56,6 +60,7 @@ import type {
   ImageNodeV2,
   ImageVerticalAlignV2,
   NodeParamsV2,
+  TableHeaderRowV2,
   TableColumnV2,
   TextStyleV2,
 } from "@/types";
@@ -93,7 +98,9 @@ function parseNonNegativeMm(raw: string): number | undefined {
 
 /** 尺寸类数值：正数才有效，其余（0 / 负数 / NaN / undefined）视为未配置。 */
 function positiveOrUndefined(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
 }
 
 export function useSchemaEdits(ctx: SchemaEditsContext) {
@@ -156,7 +163,9 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     const firstCellId = grid.rows[0]?.cells[0]?.id;
     const child = createNodeByKind(kind);
     const withGrid = insertRootGridV2(schema.value, grid);
-    commit(firstCellId ? appendNodeToCellV2(withGrid, firstCellId, child) : withGrid);
+    commit(
+      firstCellId ? appendNodeToCellV2(withGrid, firstCellId, child) : withGrid,
+    );
     selectedNodeId.value = child.id;
   }
 
@@ -266,7 +275,9 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     // 选中普通组件且其父是格：插到它后面
     const ownerCell = selectedOwnerCell.value;
     if (selNode && ownerCell) {
-      const idx = ownerCell.children.findIndex((c) => c.id === selectedNodeId.value);
+      const idx = ownerCell.children.findIndex(
+        (c) => c.id === selectedNodeId.value,
+      );
       const at = idx >= 0 ? idx + 1 : ownerCell.children.length;
       const appended = appendNodeToCellV2(schema.value, ownerCell.id, clone);
       commit(moveNodeToIndexV2(appended, clone.id, ownerCell.id, at));
@@ -275,7 +286,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     }
     // 落到「插入槽」（新增组件的同一落点）
     const slot = insertionSlot.value;
-    if (slot && (slot.type === "grid-cell" || slot.type === "table-cell-template")) {
+    if (
+      slot &&
+      (slot.type === "grid-cell" || slot.type === "table-cell-template")
+    ) {
       commit(appendNodeToCellV2(schema.value, slot.id, clone));
       selectedNodeId.value = clone.id;
       return;
@@ -302,7 +316,9 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   function placeRootGrid(clone: GridNodeV2, afterId?: string): void {
     const page = schema.value.pages[0];
     if (!page) return;
-    const at = afterId ? page.children.findIndex((child) => child.id === afterId) : -1;
+    const at = afterId
+      ? page.children.findIndex((child) => child.id === afterId)
+      : -1;
     if (at < 0) {
       commit(insertRootGridV2(schema.value, clone));
     } else {
@@ -397,7 +413,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     const node = selectedCopiableNode();
     if (!node) return;
     const clone = cloneNodeWithFreshIdsV2(node) as FormNodeV2;
-    if (clone.type === "grid" && nodeIndex.value.get(node.id)?.parent?.type === "page") {
+    if (
+      clone.type === "grid" &&
+      nodeIndex.value.get(node.id)?.parent?.type === "page"
+    ) {
       placeRootGrid(clone, node.id);
       return;
     }
@@ -444,8 +463,17 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     selectedNodeId.value = id;
   }
 
-  function onDropNode(detail: { moveId: string; cellId: string; index: number }): void {
-    const next = moveNodeToIndexV2(schema.value, detail.moveId, detail.cellId, detail.index);
+  function onDropNode(detail: {
+    moveId: string;
+    cellId: string;
+    index: number;
+  }): void {
+    const next = moveNodeToIndexV2(
+      schema.value,
+      detail.moveId,
+      detail.cellId,
+      detail.index,
+    );
     if (next === schema.value) return; // 原位 / 非法：不产生新结构
     commit(next, "move:" + detail.moveId);
     selectedNodeId.value = detail.moveId;
@@ -457,10 +485,18 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
    * - **落在格子之外**（页面空白处、网格间隙、`cellId` 为 `null` 或已失效）→ 页面末尾
    *   先追加一个网格，组件进它的首格，与点击新增同一兜底口径（2026-10-21）。
    */
-  function onDropPalette(detail: { kind: NodeKind; cellId: string | null }): void {
+  function onDropPalette(detail: {
+    kind: NodeKind;
+    cellId: string | null;
+  }): void {
     if (!ctx.editable()) return;
-    const slot = detail.cellId ? nodeIndex.value.get(detail.cellId)?.node : undefined;
-    if (!slot || (slot.type !== "grid-cell" && slot.type !== "table-cell-template")) {
+    const slot = detail.cellId
+      ? nodeIndex.value.get(detail.cellId)?.node
+      : undefined;
+    if (
+      !slot ||
+      (slot.type !== "grid-cell" && slot.type !== "table-cell-template")
+    ) {
       addNodeInNewRootGrid(detail.kind);
       return;
     }
@@ -474,7 +510,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     tag?: string,
   ): void {
     if (!selectedNodeId.value) return;
-    commit(updateSchemaNodeV2(schema.value, selectedNodeId.value, updater), tag);
+    commit(
+      updateSchemaNodeV2(schema.value, selectedNodeId.value, updater),
+      tag,
+    );
   }
 
   // ── 字段 P（含点击触发开关） ──
@@ -489,7 +528,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   function updateSelectedField(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     updateSelectedNode(
-      (node) => (node.type === "p" && node.mode === "field" ? { ...node, field: value } : node),
+      (node) =>
+        node.type === "p" && node.mode === "field"
+          ? { ...node, field: value }
+          : node,
       selectedNodeId.value ? `edit:${selectedNodeId.value}` : undefined,
     );
   }
@@ -550,6 +592,27 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   }
 
   /**
+   * 初始行数（`rows`，2026-10-27）：**最小行数**，不是固定高度。
+   *
+   * 空值就占 N 行、输入超出继续长高（详见 `FieldPNodeV2.rows` 与
+   * `resolvePFieldRowsV2`）。≤1 / 非法一律**删键**，导出 JSON 回到「一行」的老形态，
+   * 不留下「看起来配了多行、实际按 1 行渲染」的值（与 `maxCount` / `imageHeight` 同口径）。
+   */
+  function updateSelectedRowCount(event: Event): void {
+    const raw = Math.floor(Number((event.target as HTMLInputElement).value));
+    updateSelectedNode(
+      (node) =>
+        node.type === "p" && node.mode === "field"
+          ? {
+              ...node,
+              rows: Number.isFinite(raw) && raw > 1 ? raw : undefined,
+            }
+          : node,
+      selectedNodeId.value ? `edit:${selectedNodeId.value}` : undefined,
+    );
+  }
+
+  /**
    * 值的渲染形态（`valueType`，2026-09-29）：文本 / 图片。
    *
    * 图片形态服务电子签名——宿主经 `params.action`（落到字段标签属性）识别签名栏并
@@ -581,25 +644,42 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
    *  空态也占这个高度，令「未签名 / 已签名」两态的下划线位置一致。
    *  多人签名换行时**每行行高都等于它**。 */
   function updateSelectedImageHeight(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+    const raw = (event.target as HTMLInputElement).value.trim();
+    let imageHeight: string | undefined;
+    if (raw !== "") {
+      const n = Number(raw);
+      // 与「多图间距」同一口径（2026-10-28）：数值 → `${n}mm`；已带单位的 CSS 长度原样保留
+      imageHeight = Number.isFinite(n)
+        ? `${Math.max(0, n)}mm`
+        : /^\d+(\.\d+)?\s*(mm|cm|em|rem|px|%)$/i.test(raw)
+          ? raw.replace(/\s+/g, "")
+          : undefined;
+    }
     updateSelectedNode(
-      (node) =>
-        node.type === "p" && node.mode === "field"
-          ? { ...node, imageHeight: value.trim() || undefined }
-          : node,
+      (node) => (node.type === "p" && node.mode === "field" ? { ...node, imageHeight } : node),
       selectedNodeId.value ? `edit:${selectedNodeId.value}` : undefined,
     );
   }
 
-  /** 多张签名图之间的水平间距（`gap`，CSS 长度如 `2mm` / `0.5em`）：**留空 = 0.5em**
-   *  （见 `DEFAULT_SIGN_IMAGE_GAP_V2`）。仅多人签名（≥2 张）时有视觉效果。 */
+  /** 多张签名图之间的水平间距（`gap`）：**面板单位统一为 mm**（2026-10-28）——
+   *  输入数值即落 `${n}mm`；留空 / 非法 → 移除覆盖，回落到引擎默认间距
+   *  （见 `DEFAULT_SIGN_IMAGE_GAP_V2`）。仅多人签名（≥2 张）时有视觉效果。
+   *
+   *  已带单位的 CSS 长度（历史 schema 里的 `0.5em`，或宿主复用本 handler 直接传
+   *  `2mm`）原样保留，避免把既有值静默清空。 */
   function updateSelectedSignGap(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+    const raw = (event.target as HTMLInputElement).value.trim();
+    let gap: string | undefined;
+    if (raw !== "") {
+      const n = Number(raw);
+      gap = Number.isFinite(n)
+        ? `${Math.max(0, n)}mm`
+        : /^\d+(\.\d+)?\s*(mm|cm|em|rem|px|%)$/i.test(raw)
+          ? raw.replace(/\s+/g, "")
+          : undefined;
+    }
     updateSelectedNode(
-      (node) =>
-        node.type === "p" && node.mode === "field"
-          ? { ...node, gap: value.trim() || undefined }
-          : node,
+      (node) => (node.type === "p" && node.mode === "field" ? { ...node, gap } : node),
       selectedNodeId.value ? `edit:${selectedNodeId.value}` : undefined,
     );
   }
@@ -615,7 +695,9 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
         : undefined;
     updateSelectedNode(
       (node) =>
-        node.type === "p" && node.mode === "field" ? { ...node, maxCount: next } : node,
+        node.type === "p" && node.mode === "field"
+          ? { ...node, maxCount: next }
+          : node,
       selectedNodeId.value ? `edit:${selectedNodeId.value}` : undefined,
     );
   }
@@ -729,12 +811,16 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     if (!Number.isInteger(parsed) || parsed < 1) return;
     const value = parsed;
     const rowCount =
-      input.dataset.dimension === "rows" ? value : selectedNode.value.rows.length;
+      input.dataset.dimension === "rows"
+        ? value
+        : selectedNode.value.rows.length;
     const columnCount =
       input.dataset.dimension === "columns"
         ? value
         : (selectedNode.value.rows[0]?.cells.length ?? 1);
-    commit(resizeGridV2(schema.value, selectedNode.value.id, rowCount, columnCount));
+    commit(
+      resizeGridV2(schema.value, selectedNode.value.id, rowCount, columnCount),
+    );
   }
 
   function updateTableRows(event: Event): void {
@@ -744,6 +830,45 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
         schema.value,
         selectedNode.value.id,
         Number((event.target as HTMLInputElement).value),
+      ),
+    );
+  }
+
+  /** 表格复合表头：整份替换（传 undefined 回退单行表头）。 */
+  function updateTableHeaderRows(rows: TableHeaderRowV2[] | undefined): void {
+    if (selectedNode.value?.type !== "table") return;
+    commit(setTableHeaderRowsV2(schema.value, selectedNode.value.id, rows));
+  }
+
+  /**
+   * 恢复单行表头（面板「恢复单行」）：先把首行文字摊平回 `columns[].title`，再移除矩阵。
+   * 与 `updateTableHeaderRows(undefined)` 的差别是**字不丢**（跨列格文字落到它覆盖的第一列）。
+   */
+  function resetTableHeaderRows(): void {
+    if (selectedNode.value?.type !== "table") return;
+    commit(resetTableHeaderRowsV2(schema.value, selectedNode.value.id));
+  }
+
+  /** 表格「显示表头」开关（`showHeader`，缺省 true）。 */
+  function updateTableShowHeader(event: Event): void {
+    if (selectedNode.value?.type !== "table") return;
+    commit(
+      updateTableShowHeaderV2(
+        schema.value,
+        selectedNode.value.id,
+        (event.target as HTMLInputElement).checked,
+      ),
+    );
+  }
+
+  /** 表格「跨页重复表头」开关（`repeatHeaderOnBreak`，缺省 true）。 */
+  function updateTableRepeatHeader(event: Event): void {
+    if (selectedNode.value?.type !== "table") return;
+    commit(
+      updateTableRepeatHeaderV2(
+        schema.value,
+        selectedNode.value.id,
+        (event.target as HTMLInputElement).checked,
       ),
     );
   }
@@ -762,7 +887,14 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     if (selectedNode.value?.type !== "table") return;
     const newKey = (event.target as HTMLInputElement).value.trim();
     if (!newKey || newKey === oldKey) return;
-    commit(renameTableColumnKeyV2(schema.value, selectedNode.value.id, oldKey, newKey));
+    commit(
+      renameTableColumnKeyV2(
+        schema.value,
+        selectedNode.value.id,
+        oldKey,
+        newKey,
+      ),
+    );
   }
 
   function updateTableColumn(
@@ -776,14 +908,23 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
       const parsed = parseColumnWidth(target.value);
       if (parsed === "INVALID") return; // 非法输入不提交，避免误写 24
       commit(
-        updateTableColumnV2(schema.value, selectedNode.value.id, columnKey, { width: parsed }),
+        updateTableColumnV2(schema.value, selectedNode.value.id, columnKey, {
+          width: parsed,
+        }),
         `tblcol:${columnKey}:width`,
       );
       return;
     }
-    const patch = { [field]: target.value || undefined } as Partial<TableColumnV2>;
+    const patch = {
+      [field]: target.value || undefined,
+    } as Partial<TableColumnV2>;
     commit(
-      updateTableColumnV2(schema.value, selectedNode.value.id, columnKey, patch),
+      updateTableColumnV2(
+        schema.value,
+        selectedNode.value.id,
+        columnKey,
+        patch,
+      ),
       `tblcol:${columnKey}:${field}`,
     );
   }
@@ -804,7 +945,9 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     const raw = (event.target as HTMLInputElement).value;
     const value = Number(raw);
     // 金标准：非法/空 → undefined（移除覆盖），不静默成 1（对齐项目既定范式）
-    updateTableHeaderStyle({ fontSize: Number.isFinite(value) && value > 0 ? value : undefined });
+    updateTableHeaderStyle({
+      fontSize: Number.isFinite(value) && value > 0 ? value : undefined,
+    });
   }
 
   function updateTableHeaderFontWeight(event: Event): void {
@@ -847,7 +990,12 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     const parsed = parseColumnWidth((event.target as HTMLInputElement).value);
     if (parsed === "INVALID") return; // 非法输入不提交，避免误写 24
     commit(
-      setGridColumnWidthV2(schema.value, selectedNode.value.id, columnIndex, parsed),
+      setGridColumnWidthV2(
+        schema.value,
+        selectedNode.value.id,
+        columnIndex,
+        parsed,
+      ),
       `col:${selectedNode.value.id}:${columnIndex}`,
     );
   }
@@ -866,7 +1014,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
         : ({ [field]: raw === "" ? undefined : raw } as Partial<
             Pick<GridNodeV2, "cellAlign" | "cellVerticalAlign">
           >);
-    commit(updateGridCellDefaultsV2(schema.value, selectedNode.value.id, patch), `gridcell:${field}`);
+    commit(
+      updateGridCellDefaultsV2(schema.value, selectedNode.value.id, patch),
+      `gridcell:${field}`,
+    );
   }
 
   /** 设置 Grid 单元格间距（mm，等价于 CSS gap，同时作用于行与列）。 */
@@ -874,7 +1025,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     if (selectedNode.value?.type !== "grid") return;
     const raw = (event.target as HTMLInputElement).value;
     const gap = parseNonNegativeMm(raw);
-    commit(updateGridGapV2(schema.value, selectedNode.value.id, gap), "gridgap");
+    commit(
+      updateGridGapV2(schema.value, selectedNode.value.id, gap),
+      "gridgap",
+    );
   }
 
   // ── 单元格（grid-cell）覆盖 ──
@@ -882,7 +1036,8 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     const raw = (event.target as HTMLInputElement).value;
     const value = parseNonNegativeMm(raw); // 空/非法 → undefined（移除覆盖，不静默写 0）
     updateSelectedNode(
-      (node) => (node.type === "grid-cell" ? { ...node, padding: value } : node),
+      (node) =>
+        node.type === "grid-cell" ? { ...node, padding: value } : node,
       selectedNodeId.value ? `cellpad:${selectedNodeId.value}` : undefined,
     );
   }
@@ -930,7 +1085,8 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     // 空/非法/非正 → undefined（移除覆盖，且不写 NaN）；有效才按整数行高写入
     const value = Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
     updateSelectedNode(
-      (node) => (node.type === "grid-cell" ? { ...node, rowHeight: value } : node),
+      (node) =>
+        node.type === "grid-cell" ? { ...node, rowHeight: value } : node,
       selectedNodeId.value ? `cellrowh:${selectedNodeId.value}` : undefined,
     );
   }
@@ -951,7 +1107,8 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     const value = Number(raw);
     // 金标准：非法/空 → undefined（移除覆盖），不静默兜底成 1
     updateSelectedTextStyle({
-      fontSize: Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined,
+      fontSize:
+        Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined,
     });
   }
 
@@ -989,7 +1146,11 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   function updateSelectedVerticalAlign(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
     updateSelectedTextStyle({
-      verticalAlign: (value || undefined) as "top" | "middle" | "bottom" | undefined,
+      verticalAlign: (value || undefined) as
+        | "top"
+        | "middle"
+        | "bottom"
+        | undefined,
     });
   }
 
@@ -1005,7 +1166,8 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   function updateSelectedCss(event: Event): void {
     const value = (event.target as HTMLTextAreaElement).value;
     updateSelectedNode(
-      (node) => (node.type === "html" ? { ...node, css: value || undefined } : node),
+      (node) =>
+        node.type === "html" ? { ...node, css: value || undefined } : node,
       selectedNodeId.value ? `css:${selectedNodeId.value}` : undefined,
     );
   }
@@ -1024,7 +1186,12 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     updateSelectedNode(
       (node) => {
         if (node.type !== "image") return node;
-        const { src: _src, width: legacyWidth, height: legacyHeight, ...rest } = updater(node);
+        const {
+          src: _src,
+          width: legacyWidth,
+          height: legacyHeight,
+          ...rest
+        } = updater(node);
         const next: ImageNodeV2 = { ...rest };
         if (next.defaultWidth === undefined) {
           const promoted = positiveOrUndefined(legacyWidth);
@@ -1042,10 +1209,16 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
 
   /** 取列表条目（越界 / 空数组时按需补齐空条目），保证「面板 index 0 先在」。 */
   function imageItemsOf(node: ImageNodeV2): ImageItemV2[] {
-    return Array.isArray(node.images) ? node.images.map((item) => ({ ...item })) : [];
+    return Array.isArray(node.images)
+      ? node.images.map((item) => ({ ...item }))
+      : [];
   }
 
-  function patchSelectedImageItem(index: number, patch: Partial<ImageItemV2>, token: string): void {
+  function patchSelectedImageItem(
+    index: number,
+    patch: Partial<ImageItemV2>,
+    token: string,
+  ): void {
     patchSelectedImage((node) => {
       const items = imageItemsOf(node);
       while (items.length <= index) items.push({});
@@ -1056,12 +1229,20 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
 
   function updateSelectedImageItemName(index: number, event: Event): void {
     const value = (event.target as HTMLInputElement).value;
-    patchSelectedImageItem(index, { name: value || undefined }, `imgitemname:${index}`);
+    patchSelectedImageItem(
+      index,
+      { name: value || undefined },
+      `imgitemname:${index}`,
+    );
   }
 
   function updateSelectedImageItemSrc(index: number, event: Event): void {
     const value = (event.target as HTMLInputElement).value;
-    patchSelectedImageItem(index, { src: value || undefined }, `imgitemsrc:${index}`);
+    patchSelectedImageItem(
+      index,
+      { src: value || undefined },
+      `imgitemsrc:${index}`,
+    );
   }
 
   function updateSelectedImageItemSize(
@@ -1096,7 +1277,8 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   function updateSelectedImageField(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     updateSelectedNode(
-      (node) => (node.type === "image" ? { ...node, field: value || undefined } : node),
+      (node) =>
+        node.type === "image" ? { ...node, field: value || undefined } : node,
       selectedNodeId.value ? `imgfield:${selectedNodeId.value}` : undefined,
     );
   }
@@ -1123,9 +1305,13 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
    * 与 `align` 各管一个方向、互不覆盖；未显式配置时渲染层取默认 `top`。
    */
   function updateSelectedImageVerticalAlign(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as ImageVerticalAlignV2;
+    const value = (event.target as HTMLSelectElement)
+      .value as ImageVerticalAlignV2;
     if (value !== "top" && value !== "middle" && value !== "bottom") return;
-    patchSelectedImage((node) => ({ ...node, verticalAlign: value }), "imgvalign");
+    patchSelectedImage(
+      (node) => ({ ...node, verticalAlign: value }),
+      "imgvalign",
+    );
   }
 
   /** 数量上限：空 / 非正数 → 取消限制（不落 schema 值）。 */
@@ -1169,7 +1355,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   }
 
   function updateSelectedImageFit(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as "contain" | "cover" | "fill";
+    const value = (event.target as HTMLSelectElement).value as
+      | "contain"
+      | "cover"
+      | "fill";
     patchSelectedImage((node) => ({ ...node, objectFit: value }), "imgfit");
   }
 
@@ -1183,7 +1372,8 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
   }
 
   function updatePaperSize(event: Event): void {
-    const size = (event.target as HTMLSelectElement).value as FormSchemaV2["paper"]["size"];
+    const size = (event.target as HTMLSelectElement)
+      .value as FormSchemaV2["paper"]["size"];
     // 方向自 P11-3 起由纸张尺寸派生（A4→纵向、A3→横向），渲染与打印均忽略 `orientation`
     // 字段（已置为可选废弃键）。仅更新 size，旧 orientation 在内存中置 undefined，序列化导出自然丢弃。
     commit(updatePaperConfigV2(schema.value, { size }));
@@ -1267,7 +1457,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
       const paper = schema.value.paper;
       commit({
         ...schema.value,
-        paper: kind === "header" ? { ...paper, header: next } : { ...paper, footer: next },
+        paper:
+          kind === "header"
+            ? { ...paper, header: next }
+            : { ...paper, footer: next },
       });
     }
 
@@ -1314,7 +1507,9 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
 
     function fontWeight(event: Event): void {
       const value = (event.target as HTMLSelectElement).value;
-      style({ fontWeight: value === "bold" || value === "normal" ? value : undefined });
+      style({
+        fontWeight: value === "bold" || value === "normal" ? value : undefined,
+      });
     }
 
     function color(event: Event): void {
@@ -1322,7 +1517,18 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
       style({ color: value || undefined });
     }
 
-    return { patch, content, enabled, repeatOnEveryPage, height, separator, style, fontSize, fontWeight, color };
+    return {
+      patch,
+      content,
+      enabled,
+      repeatOnEveryPage,
+      height,
+      separator,
+      style,
+      fontSize,
+      fontWeight,
+      color,
+    };
   }
 
   const headerUpdaters = makeHeaderFooterUpdaters("header");
@@ -1352,6 +1558,7 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     updateSelectedWidth,
     updateSelectedDefault,
     updateSelectedInnerBorder,
+    updateSelectedRowCount,
     updateSelectedValueType,
     updateSelectedImageHeight,
     updateSelectedSignGap,
@@ -1364,6 +1571,10 @@ export function useSchemaEdits(ctx: SchemaEditsContext) {
     updateTableBorder,
     updateGridDimensions,
     updateTableRows,
+    updateTableHeaderRows,
+    resetTableHeaderRows,
+    updateTableShowHeader,
+    updateTableRepeatHeader,
     addTableColumn,
     removeTableColumn,
     renameTableColumnKey,

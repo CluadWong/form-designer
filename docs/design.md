@@ -204,13 +204,21 @@ interface PNode {
   gap?: string
   /** 签名图数量上限：>0 生效（超出部分不渲染、不采集、不参与估高）；≤0 或未设 = 不限 */
   maxCount?: number
-  underline?: boolean
+  /** 逐行底边框：每行各一条，打印态保留（手写票横线）。 */
   innerBorder?: boolean
   width?: string
   default?: string
   style?: TextStyle
 }
 ```
+
+> **下划线（`underline`）已于 2026-10-23 从 schema 移除**：它从无 UI 开关、新建节点恒为 `true`、
+> 全仓无 `false` 用法，键值等价于「未开 `innerBorder`」。现在改为渲染层恒定行为 ——
+> **未开 `innerBorder` 的字段一律带屏幕态提示线**（整块底部 `border-bottom`，打印态由
+> `@media print` 抹掉）。历史 JSON 中残留的 `underline` 键被原样忽略，不影响打开。
+>
+> `underline` 与 `innerBorder` **不等同、不要合并**：前者整块一条线且打印不输出，后者逐行一条
+> 且打印保留。二者同时命中会在末行叠出双线，故渲染层让 `innerBorder` 优先。
 
 约束：
 
@@ -228,8 +236,8 @@ interface PNode {
   宽度按比例、受输入区约束（`object-fit: contain` 不裁不拉，竖长图也不变形）。
   若留空时不设高度，图片会按固有尺寸铺开（实测一张 400×120 的签名图渲染成
   105.83×31.75mm，把原本 5.77mm 的字段行撑到 38.51mm，撑高 6.7 倍）。
-- 电子签名场景因此收敛为**一个节点**：`prefix: "负责人签名："` + `underline: true` +
-  `params: { action: "signature" }` + `valueType: "image"`。
+- 电子签名场景因此收敛为**一个节点**：`prefix: "负责人签名："` +
+  `params: { action: "signature" }` + `valueType: "image"`（下划线是默认行为，无需配置）。
   空值渲染「负责人签名：____」，宿主回填图片后签名图贴在那条线上。
 - **多人签名（2026-09-30）**：`valueType: "image"` 时 `data[field]` 可传**字符串数组**，
   多张签名图**并排落在同一条下划线上**、**溢出自动换行**（需求形态：

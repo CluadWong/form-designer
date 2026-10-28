@@ -16,6 +16,14 @@
  */
 export const NODE_ID_ATTR = "data-node-id" as const;
 export const LAYOUT_ID_ATTR = "data-layout-id" as const;
+/**
+ * 物理页所属的**逻辑页** id（2026-10-23）。
+ *
+ * 分页后一张逻辑页会切成多张物理纸，`data-node-id` 是合成 id（首张复用逻辑页 id，
+ * 其余 `${pageId}__pp1`…），schema 里查不到 → 点第 2 页起选不中「页面」。
+ * 纸张上额外输出本属性，让表面层能直接把「哪张纸」映射回「哪个逻辑页」。
+ */
+export const SOURCE_PAGE_ID_ATTR = "data-source-page-id" as const;
 /** 模板面板拖拽到画布时写入 dataTransfer 的 MIME（设计器侧源）。 */
 export const PALETTE_DRAG_MIME = "application/x-ticket-node-kind" as const;
 
@@ -27,4 +35,9 @@ export function nodeIdSelector(id: string): string {
 /** 命中某布局格/行的 CSS 选择器，如 `[data-layout-id="cell-u-l"]`。 */
 export function layoutIdSelector(id: string): string {
   return `[${LAYOUT_ID_ATTR}="${id}"]`;
+}
+
+/** 命中某逻辑页的所有物理纸的 CSS 选择器，如 `[data-source-page-id="page-1"]`。 */
+export function sourcePageIdSelector(pageId: string): string {
+  return `[${SOURCE_PAGE_ID_ATTR}="${pageId}"]`;
 }

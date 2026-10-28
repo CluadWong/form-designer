@@ -88,11 +88,12 @@ describe("InspectorPanel", () => {
     expect(wrapper.find("select").exists()).toBe(true);
   });
 
-  it("选中 Table：渲染列配置，点「+ 添加列」调用 api.addTableColumn", async () => {
+  it("选中 Table：渲染表头网格与列带，点「+ 列」调用 api.addTableColumn", async () => {
     const table = createTableNodeV2();
     const { wrapper, api } = mountPanel({ node: table, nodeType: "table" });
+    expect(wrapper.find('[data-table-header-editor="true"]').exists()).toBe(true);
     expect(wrapper.find('[data-table-columns="true"]').exists()).toBe(true);
-    await wrapper.find(".v2-add-col").trigger("click");
+    await wrapper.find('[data-table-add-column="true"]').trigger("click");
     expect(api.addTableColumn).toHaveBeenCalledTimes(1);
   });
 

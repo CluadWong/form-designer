@@ -10,12 +10,19 @@ import type {
   TableCellTemplateV2,
   TableColumnV2,
   TableNodeV2,
+  TableHeaderRowV2,
   BorderModeV2,
   HtmlNodeV2,
   ImageNodeV2,
 } from "./schema-v2";
 import { FONT_SIZE_MAX_PX, FONT_SIZE_MIN_PX } from "./schema-v2";
 import { buildEditorNodeIndexV2 } from "./schema-v2-index";
+import { resolveTableHeaderLayoutV2 } from "./schema-v2-header";
+import {
+  headerCellsToRowsV2,
+  insertHeaderColumnV2,
+  removeHeaderColumnV2,
+} from "./schema-v2-header-edit";
 
 export function createSchemaNodeIdV2(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -192,6 +199,80 @@ export function updateTableBorderV2(
   );
 }
 
+/**
+ * 整份替换表格的复合表头矩阵（`headerRows`）。
+ * 传 `undefined` 表示**回退单行表头**（由 `columns[].title` 投影），同时把该字段从 schema 移除，
+ * 让导出的 JSON 回到老形态。
+ */
+export function setTableHeaderRowsV2(
+  schema: FormSchemaV2,
+  tableId: string,
+  rows: TableHeaderRowV2[] | undefined,
+): FormSchemaV2 {
+  return updateSchemaNodeV2(schema, tableId, node => {
+    if (node.type !== "table") return node;
+    if (rows === undefined) {
+      const next = { ...node };
+      delete next.headerRows;
+      return next;
+    }
+    return { ...node, headerRows: rows };
+  });
+}
+
+/**
+ * 恢复单行表头（2026-10-27）：把矩阵**首行的文字按列位写回** `columns[].title`，再移除 `headerRows`。
+ *
+ * 与 `setTableHeaderRowsV2(schema, id, undefined)` 的区别：直接传 `undefined` 会让所有标题
+ * 退回旧值（矩阵文字丢掉）。面板的「恢复单行」是先摊平文字再删矩阵，用户看到的字不变。
+ * 跨列格的文字只落到它覆盖的第一列，其余列留空 —— 与渲染时的视觉一致（一个字占多列）。
+ */
+export function resetTableHeaderRowsV2(
+  schema: FormSchemaV2,
+  tableId: string,
+): FormSchemaV2 {
+  return updateSchemaNodeV2(schema, tableId, node => {
+    if (node.type !== "table") return node;
+    if (!node.headerRows || node.headerRows.length === 0) return node;
+    const layout = resolveTableHeaderLayoutV2(node);
+    const next = { ...node };
+    delete next.headerRows;
+    if (!layout.valid) return next;
+    const firstRow = layout.cells.filter(cell => cell.rowStart === 1);
+    next.columns = node.columns.map((column, index) => {
+      const hit = firstRow.find(
+        cell => cell.colStart <= index + 1 && index + 1 < cell.colStart + cell.colSpan,
+      );
+      if (!hit) return column;
+      const title = index + 1 === hit.colStart ? hit.text : "";
+      return { ...column, title };
+    });
+    return next;
+  });
+}
+
+/** 设置表格是否显示表头（`showHeader`，缺省即 true）。 */
+export function updateTableShowHeaderV2(
+  schema: FormSchemaV2,
+  tableId: string,
+  show: boolean,
+): FormSchemaV2 {
+  return updateSchemaNodeV2(schema, tableId, node =>
+    node.type === "table" ? { ...node, showHeader: show } : node,
+  );
+}
+
+/** 设置表格跨页时续页片段是否重复显示表头（`repeatHeaderOnBreak`，缺省即 true）。 */
+export function updateTableRepeatHeaderV2(
+  schema: FormSchemaV2,
+  tableId: string,
+  repeat: boolean,
+): FormSchemaV2 {
+  return updateSchemaNodeV2(schema, tableId, node =>
+    node.type === "table" ? { ...node, repeatHeaderOnBreak: repeat } : node,
+  );
+}
+
 export function updateGridRowHeightV2(
   schema: FormSchemaV2,
   rowId: string,
@@ -298,6 +379,10 @@ export function updateTableMinRowsV2(
  * 新增一列：同时向 columns 追加列定义，并向 rowTemplate 追加一个对应的单元格模板
  * （默认放入一个字段 P），保证渲染层 tableTemplate() 能按 columnKey 命中。
  * 列 key 自动避免与现有 key 冲突。
+ *
+ * 配了复合表头时**一并同步矩阵**（2026-10-27）：每行最右的格向右扩一格，
+ * 于是「加列」在面板里只发生一次，表头不会缺格。放在这里而不是面板里，
+ * 是为了让任何调用方（含宿主脚本）都得到同一个结果、且只产生一步撤销。
  */
 export function addTableColumnV2(
   schema: FormSchemaV2,
@@ -331,19 +416,32 @@ export function addTableColumnV2(
           // 字段名由渲染期按「列key_行号」自动派生（见 schema-v2-table-rows.ts），
           // 行模板内不手写 field；校验层对表格内字段跳过命名检查。
           field: "",
-          underline: true,
         },
       ],
     };
-    return {
+    const next: TableNodeV2 = {
       ...node,
       columns: [...node.columns, newColumn],
       rowTemplate: [...node.rowTemplate, template],
     };
+    // 矩阵非法（手写 JSON）时不猜用户意图：保持原样，由面板提示重建。
+    if (node.headerRows && node.headerRows.length > 0) {
+      const layout = resolveTableHeaderLayoutV2(node);
+      if (layout.valid) {
+        next.headerRows = headerCellsToRowsV2(
+          insertHeaderColumnV2(layout.cells, layout.columnCount),
+          layout.rowCount,
+        );
+      }
+    }
+    return next;
   });
 }
 
-/** 删除一列：同步移除 columns 定义与对应 rowTemplate。至少保留 1 列，避免退化表格。 */
+/**
+ * 删除一列：同步移除 columns 定义与对应 rowTemplate。至少保留 1 列，避免退化表格。
+ * 配了复合表头时，覆盖该列的格收缩一格（缩到 0 则删格），右侧格左移 —— 与加列对称。
+ */
 export function removeTableColumnV2(
   schema: FormSchemaV2,
   tableId: string,
@@ -351,13 +449,28 @@ export function removeTableColumnV2(
 ): FormSchemaV2 {
   return updateSchemaNodeV2(schema, tableId, node => {
     if (node.type !== "table" || node.columns.length <= 1) return node;
-    return {
+    const colIndex = node.columns.findIndex(col => col.key === columnKey);
+    const next: TableNodeV2 = {
       ...node,
       columns: node.columns.filter(col => col.key !== columnKey),
       rowTemplate: node.rowTemplate.filter(template => template.columnKey !== columnKey),
     };
+    if (colIndex >= 0 && node.headerRows && node.headerRows.length > 0) {
+      const layout = resolveTableHeaderLayoutV2(node);
+      if (layout.valid) {
+        const pruned = removeHeaderColumnV2(
+          layout.cells,
+          layout.rowCount,
+          layout.columnCount,
+          colIndex + 1,
+        );
+        next.headerRows = headerCellsToRowsV2(pruned.cells, layout.rowCount);
+      }
+    }
+    return next;
   });
 }
+
 
 /** 重命名列 key（同步更新 columns 与 rowTemplate）。 */
 export function renameTableColumnKeyV2(
@@ -1237,7 +1350,7 @@ export function createTextNodeV2(text = "固定文本"): FormNodeV2 {
 }
 
 export function createFieldPNodeV2(field = "字段"): FormNodeV2 {
-  return { id: createSchemaNodeIdV2("p-field"), type: "p", mode: "field", field, underline: true };
+  return { id: createSchemaNodeIdV2("p-field"), type: "p", mode: "field", field };
 }
 
 export function createTableNodeV2(): TableNodeV2 {
@@ -1262,7 +1375,6 @@ export function createTableNodeV2(): TableNodeV2 {
         // 字段名由渲染期按「列key_行号」自动派生（见 schema-v2-table-rows.ts），
         // 行模板内不手写 field；校验层对表格内字段跳过命名检查。
         field: "",
-        underline: true,
       }],
     })),
     border: "all",

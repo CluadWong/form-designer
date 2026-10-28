@@ -61,7 +61,6 @@ export function makeYunlvSecondTicketFirstFiveRowsSchema(): FormSchemaV2 {
     type: "p",
     mode: "field",
     field,
-    underline: true,
     ...options,
   });
   const cell = (

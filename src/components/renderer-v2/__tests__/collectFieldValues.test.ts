@@ -63,7 +63,6 @@ describe("collectFieldValues · 签名图字段（多人签名）", () => {
       mode: "field",
       field: "签名",
       prefix: "负责人签名：",
-      underline: true,
       valueType: "image",
       ...over,
     };

@@ -41,7 +41,6 @@ describe("GridSchemaNode selection state", () => {
           field: "工作班成员人数",
           prefix: "共",
           suffix: "人",
-          underline: true,
         },
         baseRowHeight: 8,
       },

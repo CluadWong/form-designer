@@ -852,3 +852,157 @@ describe("PaperViewport（尺寸变化自愈）", () => {
     wrapper.unmount();
   });
 });
+
+/**
+ * `centerOn`（2026-10-28）：左侧结构树选中 / 悬浮时，把对应节点锚定到视口。
+ *
+ * jsdom 无排版引擎，`getBoundingClientRect` 恒为全 0，故直接给缩放层、内容、目标三者的矩形伪造。
+ * 关键约束见 `restrictCenterPanToContent`：**居中不得把内容推出视口** —— 实报的
+ * 「hover 第一行格子 → 纸张被推到下方 `translate(0, 369.04)`」就是只做纯居中、没有钳制造成的。
+ *
+ * 夹具：内容 = A4 画布 960×1119（与视口同宽），视口 960×800，缩放层 960×1121，`s = 1`。
+ * ⇒ 水平轴 `cw·s = 960 ≤ 960` 不参与居中（取对齐解 x = 0）；
+ *    垂直轴 `1119 > 800` 允许居中，区间 `[800−1119, TOP_GAP] = [−319, 18]`。
+ */
+describe("PaperViewport centerOn（节点锚定居中）", () => {
+  interface Box {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }
+
+  /** 伪造元素相对视口的屏幕矩形（`getBoundingClientRect`，含 transform 后的值）。 */
+  function fakeRect(el: Element, box: Box): void {
+    Object.defineProperty(el, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        ...box,
+        right: box.left + box.width,
+        bottom: box.top + box.height,
+        x: box.left,
+        y: box.top,
+        toJSON: () => box,
+      }),
+    });
+  }
+
+  /** 挂载并按夹具铺好「缩放层 + 内容」的矩形与布局值，返回可调用 `centerOn` 的 vm。 */
+  function setup(): {
+    centerOn: (el: HTMLElement | null) => void;
+    unmount: () => void;
+  } {
+    const wrapper = mount(PaperViewport);
+    const scaler = wrapper.find(".paper-viewport__scaler").element as HTMLElement;
+    fakeRect(scaler, { left: 0, top: 0, width: 960, height: 1121 });
+
+    // 内容是缩放层的第一个子元素（`resolveFitContent` 的缺省口径）。
+    const content = document.createElement("div");
+    const contentBox: Box = { left: 0, top: 0, width: 960, height: 1119 };
+    fakeRect(content, contentBox);
+    // `alignPanFor` 读的是 scroll / offset 布局值（不受 transform 影响）。
+    for (const [prop, value] of [
+      ["scrollWidth", contentBox.width],
+      ["scrollHeight", contentBox.height],
+      ["offsetLeft", contentBox.left],
+      ["offsetTop", contentBox.top],
+    ] as const) {
+      Object.defineProperty(content, prop, { configurable: true, value });
+    }
+    scaler.appendChild(content);
+
+    return {
+      centerOn: (el) =>
+        (wrapper.vm as unknown as { centerOn: (t: HTMLElement | null) => void }).centerOn(el),
+      unmount: () => wrapper.unmount(),
+    };
+  }
+
+  it("回归（2026-10-28）：hover 内容顶部的格子 → 钳到 TOP_GAP，纸张不再被往下推", () => {
+    installLayout();
+    try {
+      const { centerOn, unmount } = setup();
+      const target = document.createElement("div");
+      // 第一行格子：中心 cy = 16.5 ⇒ 纯居中解 y = 400 − 16.5 = 383.5（实报是 369.04）
+      fakeRect(target, { left: 100, top: 0, width: 200, height: 33 });
+
+      centerOn(target);
+
+      const pan = __getLastPan();
+      expect(pan?.[1]).toBeCloseTo(18, 6); // 钳到「内容上缘贴 TOP_GAP」
+      expect(pan?.[1]).not.toBeCloseTo(383.5, 1); // 反证：没有钳制时纸张会被推下去
+      expect(pan?.[0]).toBeCloseTo(0, 6); // 内容与视口同宽 ⇒ 水平不参与居中
+      unmount();
+    } finally {
+      restoreLayout();
+    }
+  });
+
+  it("hover 中部格子（居中解落在区间内）→ 真居中，不被钳", () => {
+    installLayout();
+    try {
+      const { centerOn, unmount } = setup();
+      const target = document.createElement("div");
+      // 中心 cy = 520 ⇒ y = 400 − 520 = −120，落在 [−319, 18] 内
+      fakeRect(target, { left: 100, top: 500, width: 200, height: 40 });
+
+      centerOn(target);
+
+      expect(__getLastPan()?.[1]).toBeCloseTo(-120, 6);
+      unmount();
+    } finally {
+      restoreLayout();
+    }
+  });
+
+  it("与 offset* 无关：offset 不同、屏幕矩形相同的两个目标得到同一平移量", () => {
+    installLayout();
+    try {
+      const { centerOn, unmount } = setup();
+      const make = (offset: { left: number; top: number }): HTMLElement => {
+        const el = document.createElement("div");
+        for (const [prop, value] of [
+          ["offsetLeft", offset.left],
+          ["offsetTop", offset.top],
+          ["offsetWidth", 400],
+          ["offsetHeight", 40],
+        ] as const) {
+          Object.defineProperty(el, prop, { configurable: true, value });
+        }
+        fakeRect(el, { left: 100, top: 500, width: 400, height: 40 });
+        return el;
+      };
+
+      centerOn(make({ left: 0, top: 0 }));
+      const a = __getLastPan();
+      centerOn(make({ left: 193.5, top: 30.5 })); // offsetParent 是纸张时的典型值
+      const b = __getLastPan();
+
+      expect(b?.[0]).toBeCloseTo(a?.[0] ?? NaN, 6);
+      expect(b?.[1]).toBeCloseTo(a?.[1] ?? NaN, 6);
+      unmount();
+    } finally {
+      restoreLayout();
+    }
+  });
+
+  it("节点为空 → 不产生新的平移；目标已对准视口中心 → 平移量为 0", () => {
+    installLayout();
+    try {
+      const { centerOn, unmount } = setup();
+
+      centerOn(null);
+      expect(__getLastPan()?.[0] ?? 0).toBeCloseTo(0, 6);
+
+      const target = document.createElement("div");
+      // 中心 (480, 400) 恰为视口中心 ⇒ 居中解 = (0, 0)
+      fakeRect(target, { left: 380, top: 380, width: 200, height: 40 });
+      centerOn(target);
+      expect(__getLastPan()?.[0]).toBeCloseTo(0, 6);
+      expect(__getLastPan()?.[1]).toBeCloseTo(0, 6);
+      unmount();
+    } finally {
+      restoreLayout();
+    }
+  });
+});

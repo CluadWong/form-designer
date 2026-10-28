@@ -77,6 +77,74 @@ describe("CanvasSurface selection highlight (A5)", () => {
 });
 
 /**
+ * 结构树悬停定位（2026-10-23）：悬停给一个独立的类 `.is-design-hover`，
+ * 与选中态 `.is-design-selected` 并存、互不覆盖。
+ */
+describe("CanvasSurface 悬停定位高亮", () => {
+  const schema = makeYunlvSecondTicketFirstFiveRowsSchema();
+
+  function findHovered(wrapper: VueWrapper): string[] {
+    return wrapper
+      .findAll(".is-design-hover")
+      .map((el) => el.attributes("data-node-id") ?? "");
+  }
+
+  it("给 hoveredNodeId 对应节点加 .is-design-hover", async () => {
+    const wrapper = mount(CanvasSurface, {
+      props: { schema, mode: "design", hoveredNodeId: "unit-field" },
+    });
+    await flush();
+
+    expect(findHovered(wrapper)).toContain("unit-field");
+  });
+
+  it("hoveredNodeId 为 null 时无悬停高亮", async () => {
+    const wrapper = mount(CanvasSurface, {
+      props: { schema, mode: "design", hoveredNodeId: null },
+    });
+    await flush();
+
+    expect(findHovered(wrapper)).toHaveLength(0);
+  });
+
+  it("悬停移动时旧节点的类被移除（同一时刻只有一个悬停节点）", async () => {
+    const wrapper = mount(CanvasSurface, {
+      props: { schema, mode: "design", hoveredNodeId: "unit-field" },
+    });
+    await flush();
+
+    await wrapper.setProps({ hoveredNodeId: "work-task-table" });
+    await flush();
+
+    expect(findHovered(wrapper)).toEqual(["work-task-table"]);
+  });
+
+  it("悬停的正是选中节点时两个类共存（CSS 里悬停规则在后 → 悬停色优先）", async () => {
+    const wrapper = mount(CanvasSurface, {
+      props: { schema, mode: "design", selectedNodeId: "unit-field", hoveredNodeId: "unit-field" },
+    });
+    await flush();
+
+    const classes = wrapper.find('[data-node-id="unit-field"]').classes();
+    expect(classes).toContain("is-design-selected");
+    expect(classes).toContain("is-design-hover");
+  });
+
+  it("移出结构树（hoveredNodeId 置 null）后选中高亮不受影响", async () => {
+    const wrapper = mount(CanvasSurface, {
+      props: { schema, mode: "design", selectedNodeId: "unit-field", hoveredNodeId: "unit-field" },
+    });
+    await flush();
+
+    await wrapper.setProps({ hoveredNodeId: null });
+    await flush();
+
+    expect(findHovered(wrapper)).toHaveLength(0);
+    expect(findSelected(wrapper)).toContain("unit-field");
+  });
+});
+
+/**
  * 面板拖拽的落点上抛（2026-10-21 交互规则）：落在格子上带 `cellId`；
  * 落在**格子之外**（页面空白 / 网格间隙）不再丢弃，而是 `cellId: null` 上抛，
  * 由编辑层「页面末尾新建网格 + 放进首格」兜底。

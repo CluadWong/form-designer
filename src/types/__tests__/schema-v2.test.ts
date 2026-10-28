@@ -423,6 +423,25 @@ describe("Schema V2 serialization", () => {
     expect("valueType" in bad).toBe(false);
     expect("imageHeight" in bad).toBe(false);
   });
+
+  it("初始行数归一化：只接受 > 1 的有限数并取整，1 / 0 / 字符串一律丢弃", () => {
+    const schema = makeSchema();
+    schema.pages[0].children.push(
+      { id: "p-rows", type: "p", mode: "field", field: "备注", rows: 3.8 } as never,
+      { id: "p-rows-one", type: "p", mode: "field", field: "一行", rows: 1 } as never,
+      { id: "p-rows-zero", type: "p", mode: "field", field: "零行", rows: 0 } as never,
+      { id: "p-rows-str", type: "p", mode: "field", field: "坏值", rows: "3" } as never,
+    );
+    const children = parseFormSchemaV2(serializeFormSchemaV2(schema)).pages[0]
+      .children;
+    const pick = (id: string) =>
+      children.find((node) => node.id === id) as unknown as Record<string, unknown>;
+    expect(pick("p-rows").rows).toBe(3);
+    // ≤1 / 非法一律删键：不留「看起来配了多行、实际按 1 行渲染」的值（同 maxCount 口径）
+    expect("rows" in pick("p-rows-one")).toBe(false);
+    expect("rows" in pick("p-rows-zero")).toBe(false);
+    expect("rows" in pick("p-rows-str")).toBe(false);
+  });
 });
 
 describe("旧字段触发配置迁移（action / actionParams → params）", () => {

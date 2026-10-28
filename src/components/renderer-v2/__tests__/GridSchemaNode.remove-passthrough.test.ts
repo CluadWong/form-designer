@@ -26,7 +26,6 @@ function signNode(): FieldPNodeV2 {
     mode: "field",
     field: "签名",
     prefix: "签名：",
-    underline: true,
     valueType: "image",
     params: { action: "signature" },
   };

@@ -23,6 +23,7 @@ import DesignerToolbar from "./DesignerToolbar.vue";
 import PaletteSidebar from "./PaletteSidebar.vue";
 import InspectorPanel from "./InspectorPanel.vue";
 import HelpPanel from "./HelpPanel.vue";
+import { HELP_OPEN_KEY } from "./help-anchor";
 // 批次 4（2026-09-08）：共用控件样式上移到宿主引入——批次 3 后 DesignerToolbar /
 // PaletteSidebar / InspectorPanel 都依赖这些非 scoped 类，挂在 InspectorPanel 上
 // 会造成「宿主壳层样式依赖右侧面板引入」的错误归属与时序耦合。
@@ -113,6 +114,19 @@ function closeHelp(): void {
 
 /** 应用内帮助面板开关：工具栏「帮助」按钮触发；首次挂载若无已读标记则默认弹出（首次使用引导）。 */
 const helpOpen = ref(!hasSeenHelpOnce());
+/** 打开帮助时定位到的小节 id（属性面板里的「?」会带过来；工具栏「帮助」为 null = 首节）。 */
+const helpSection = ref<string | null>(null);
+
+/**
+ * 打开操作指南，可指定小节：工具栏与深层 inspector 的 `HelpLink` 共用（后者经
+ * `HELP_OPEN_KEY` 注入拿到本函数，见 `help-anchor.ts`）。
+ */
+function openHelp(section?: string): void {
+  helpSection.value = section ?? null;
+  helpOpen.value = true;
+}
+
+provide(HELP_OPEN_KEY, openHelp);
 const canvasEl = ref<HTMLElement | null>(null);
 
 // ── 文档：schema / 历史 / 持久化 ────────────────────────────
@@ -145,6 +159,7 @@ const {
   selectedCellContext,
   selectedCellBox,
   nodeTree,
+  nodeIndex,
   clearSelection,
   selectNode,
   selectNodeById,
@@ -160,6 +175,70 @@ const canRemoveSelected = computed(
     selectedNode.value?.type !== "page" &&
     selectedNode.value?.type !== "grid-cell",
 );
+
+// ── 结构树悬停定位（2026-10-23）───────────────────────────────
+/**
+ * 鼠标悬停在左侧结构树的某行 → 中间画布高亮对应节点，便于在整票版式里定位。
+ *
+ * 与「选中」严格分开：选中是点击后的持久态（`selectedNodeId`，驱动右侧面板），
+ * 悬停是临时的（`hoveredNodeId`，只驱动画布描边），两者互不影响、可同时存在。
+ * 状态放在宿主（而非两侧各自维护）是因为树与画布分属两个组件，只有宿主同时看得到。
+ */
+const hoveredNodeId = ref<string | null>(null);
+
+/** 纸张视口（缩放 / 平移层）：结构树定位要把画布平移到目标节点，只有它持有 panzoom。 */
+const paperViewportRef = ref<InstanceType<typeof PaperViewport> | null>(null);
+
+/**
+ * 把画布平移到指定节点的**正中**（2026-10-28）。
+ *
+ * 需求：在左侧结构树里选中 / 悬浮某行时，中间表单要「锚定到对应区域并居中显示」，
+ * 而不是只把该节点描边高亮——长表单里目标常在视口外，看不见高亮等于没定位。
+ *
+ * 三条设计取舍：
+ * - **只走树侧**（`onTreeSelect` / `onTreeHover`），不挂到 `selectedNodeId` 的 watch 上：
+ *   画布点选本身就在眼前，再平移一次会让点击手感变「跳」（刚点的格子弹到屏幕中央）。
+ * - 预览态不平移：结构树在预览态仍可浏览，但此时用户的意图是看版面，不该被拽走。
+ * - 找不到元素就静默返回：分页后节点可能不在当前渲染的物理页里，或树里的节点
+ *   尚未挂载（折叠 / 刚导入），这都不是错误。
+ */
+function centerCanvasOn(nodeId: string | null): void {
+  if (!nodeId || previewMode.value) return;
+  const root = canvasEl.value;
+  if (!root) return;
+  const target =
+    root.querySelector<HTMLElement>(`[data-node-id="${nodeId}"]`) ??
+    // 逻辑页节点在画布上没有同名标记：`data-node-id` 挂在**物理页**上（`page-x__pp0`），
+    // 逻辑页 id 查不到。点「页面」时回退到纸张根 —— 把视口拉回表单开头，符合「锚定到这页」。
+    (nodeIndex.value.get(nodeId)?.node.type === "page"
+      ? root.querySelector<HTMLElement>(".grid-form-paper")
+      : null);
+  if (!target) return;
+  paperViewportRef.value?.centerOn(target);
+}
+
+function onTreeHover(id: string): void {
+  hoveredNodeId.value = id;
+  centerCanvasOn(id);
+}
+
+/** 结构树点击选中：先选中（右侧面板 / 树高亮随之更新），再把画布锚定过去。 */
+function onTreeSelect(id: string): void {
+  selectNodeById(id);
+  centerCanvasOn(id);
+}
+
+/**
+ * 只有「离开的正是当前悬停节点」才清空。
+ *
+ * 为什么不无条件置 null：从父行移向子行时，浏览器先 `mouseleave` 父行、再
+ * `mouseenter` 子行；而子行的 enter 要经 `NodeTreeItem` 递归转发才能到宿主，
+ * 一旦事件顺序被递归打乱（或快速划过时 enter/leave 交错），无条件清空会把
+ * 刚生效的悬停抹掉，表现为「移到子节点上画布不亮」。
+ */
+function onTreeLeave(id: string): void {
+  if (hoveredNodeId.value === id) hoveredNodeId.value = null;
+}
 
 // ── 结构树全局折叠 / 展开 + 定位（provide 下发信号，NodeTreeItem 经 inject 接收）──
 const treeControl: TreeControl = {
@@ -568,7 +647,7 @@ defineExpose<FormDesignerExposed>({
       @save-fill-data="saveFillDataToLocal"
       @toggle-preview="toggleViewMode('preview')"
       @print="printDocument"
-      @help="helpOpen = true"
+      @help="openHelp()"
     />
 
     <div class="v2-designer__body">
@@ -582,7 +661,9 @@ defineExpose<FormDesignerExposed>({
         @add-node="addNodeToSelectedCell"
         @add-grid="addGrid"
         @palette-drag="startPaletteDrag"
-        @select="selectNodeById"
+        @select="onTreeSelect"
+        @hover="onTreeHover"
+        @leave="onTreeLeave"
         @move-selected="moveSelectedNode"
         @remove-selected="removeSelectedNode"
         @collapse-all="collapseAll"
@@ -595,11 +676,12 @@ defineExpose<FormDesignerExposed>({
         :class="{ 'v2-canvas--preview': previewMode }"
         @click="selectNode"
       >
-        <PaperViewport :fit-on-mount="false">
+        <PaperViewport ref="paperViewportRef" :fit-on-mount="false">
           <CanvasSurface
             :schema="schema"
             :mode="previewMode ? 'preview' : 'design'"
             :selected-node-id="previewMode ? null : selectedNodeId"
+            :hovered-node-id="previewMode ? null : hoveredNodeId"
             :data="previewMode ? previewData : null"
             :readonly="false"
             :bare="true"
@@ -658,7 +740,7 @@ defineExpose<FormDesignerExposed>({
       @change="importFillDataFile"
     />
 
-    <HelpPanel :open="helpOpen" @close="closeHelp" />
+    <HelpPanel :open="helpOpen" :section="helpSection" @close="closeHelp" />
   </div>
 </template>
 

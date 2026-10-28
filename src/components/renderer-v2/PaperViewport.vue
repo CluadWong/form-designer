@@ -2,7 +2,11 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Panzoom from "@panzoom/panzoom";
 import type { PanzoomObject, PanzoomGlobalOptions } from "@panzoom/panzoom";
-import { computeAlignPan } from "./paper-viewport-align";
+import {
+  computeAlignPan,
+  computeCenterPan,
+  restrictCenterPanToContent,
+} from "./paper-viewport-align";
 
 /**
  * 纸张视口（表面层 · 浏览缩放）
@@ -481,6 +485,84 @@ function getScale(): number {
   return pz?.getScale() ?? scale.value;
 }
 
+/**
+ * 把**指定元素**移到视口正中（左侧结构树选中 / 悬停时的「锚定定位」）。
+ *
+ * 与 `alignContent` 的区别只在目标：后者把整份内容对齐进视口（水平居中、垂直贴顶），
+ * 本方法把一个节点的**中心**对到视口中心，用于「点树里某一行 → 画布立刻滚到那一处」。
+ *
+ * 之所以是 `pan()` 而不是 `scrollIntoView`：panzoom 把父级 `overflow` 置为 `hidden`（无滚动条），
+ * 视口里没有可滚动的坐标空间，浏览位置完全由 transform 表达。
+ *
+ * 坐标口径：**必须用屏幕矩形差值再除以比例**，不能用 `offsetLeft / offsetTop`。
+ *
+ * `offset*` 是相对**各自的 offsetParent** 的——而 offsetParent 只认「position 非 static」的祖先：
+ * 缩放层 `.paper-viewport__scaler` 只有 transform（不构成 offsetParent），于是
+ * 视口内的节点各自的 offsetParent 是**离它最近的定位祖先**：纸张 `.grid-form-paper`、
+ * 字段 `.layout-p`、单元格图标等都会成为某一层的 offsetParent。两套坐标系相减毫无意义。
+ *
+ * 实测症状（2026-10-28，A4 空白页 `fitWidth` 后基线 `translate(0, 18)`，结构为 页面-网格-格子）：
+ * 悬停格子算出 `translate(203.5, 369.5)`，整体偏右下 —— 那两个数正是「格子相对纸张」的偏移
+ * （纸在视口内水平居中，左缘约 83px），而 `el.offsetLeft/Top` 是相对视口的 0。
+ *
+ * 屏幕矩形同一坐标系，减去 scaler 自身矩形即得「相对缩放层原点」的**缩放后**偏移，
+ * 再除以 `s` 还原成布局坐标（与 `computeCenterPan` 的 `p` 同口径）。纯缩放无旋转，
+ * 左上角差值就是布局差值，且 translate 分量在相减时天然抵消。
+ *
+ * 包在 `asProgrammatic` 里：这次平移不是用户拖拽，不能把 `userAdjusted` 置位
+ * （否则「适应宽度」的尺寸自愈会因此永久关闭）。
+ *
+ * ⚠️ 居中解必须再过一遍 `restrictCenterPanToContent`（2026-10-28 实报修复）：
+ * 目标越靠近内容边缘，「把它对到视口中心」需要的位移越荒谬 —— A4 空白页里第一行格子
+ * 中心在内容 y≈30.96，纯居中解是 `translate(0, 369.04)`，整张纸被往下推、上半屏空出来。
+ * 钳制后：内容已完整可见的轴不参与居中，超出的轴允许居中但边缘不越界。
+ *
+ * 目标不可见 / 尺寸为 0 / panzoom 未就绪时静默跳过——调用方（宿主）无需判空。
+ */
+function centerOn(target: HTMLElement | null): void {
+  const vp = viewport.value;
+  const el = scaler.value;
+  if (!target || !vp || !el || !pz) return;
+  const s = pz.getScale() ?? scale.value;
+  if (!(s > 0)) return;
+  const content = resolveFitContent();
+  if (!content) return;
+  const scalerBox = el.getBoundingClientRect();
+  const targetBox = target.getBoundingClientRect();
+  const contentBox = content.getBoundingClientRect();
+  const dims = {
+    viewportWidth: vp.clientWidth,
+    viewportHeight: vp.clientHeight,
+    scalerWidth: el.clientWidth,
+    scalerHeight: el.clientHeight,
+    // 视口 / 缩放层用布局值（`client*` 不受 transform 影响）；目标与内容用屏幕值除以比例。
+    contentLeft: (contentBox.left - scalerBox.left) / s,
+    contentTop: (contentBox.top - scalerBox.top) / s,
+    // 宽高取「矩形（还原缩放）」与「scroll 尺寸（布局溢出量）」的较大者：
+    // 画布 `.grid-form-canvas` 是 100% 宽，纸比视口宽时它自身的矩形不反映溢出，
+    // 只有 `scrollWidth` 才有真实内容宽 —— 否则窄视口 + 宽纸会被判成「内容已完整可见」，
+    // 横向永远不参与居中。
+    contentWidth: Math.max(contentBox.width / s, content.scrollWidth),
+    contentHeight: Math.max(contentBox.height / s, content.scrollHeight),
+    scale: s,
+  };
+  const centered = computeCenterPan({
+    ...dims,
+    targetLeft: (targetBox.left - scalerBox.left) / s,
+    targetTop: (targetBox.top - scalerBox.top) / s,
+    targetWidth: targetBox.width / s,
+    targetHeight: targetBox.height / s,
+  });
+  const { x, y } = restrictCenterPanToContent({
+    aligned: alignPanFor(s),
+    centered,
+    ...dims,
+  });
+  asProgrammatic(() => {
+    pz?.pan(x, y, { animate: false, force: true });
+  });
+}
+
 defineExpose({
   zoomIn,
   zoomOut,
@@ -489,6 +571,7 @@ defineExpose({
   fitWidth,
   relayout,
   getScale,
+  centerOn,
 });
 
 onMounted(() => {

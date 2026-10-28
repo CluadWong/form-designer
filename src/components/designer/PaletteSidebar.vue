@@ -82,6 +82,9 @@ const emit = defineEmits<{
   (e: "add-grid"): void;
   (e: "palette-drag", kind: NodeKind, event: DragEvent): void;
   (e: "select", id: string): void;
+  /** 悬停定位（2026-10-23）：结构树行悬停 → 上抛节点 id，由宿主高亮画布同一节点。 */
+  (e: "hover", id: string): void;
+  (e: "leave", id: string): void;
   (e: "move-selected", direction: "up" | "down"): void;
   (e: "remove-selected"): void;
   (e: "collapse-all"): void;
@@ -205,6 +208,8 @@ const emit = defineEmits<{
         :selected-id="selectedNodeId"
         :depth="0"
         @select="emit('select', $event)"
+        @hover="emit('hover', $event)"
+        @leave="emit('leave', $event)"
       />
     </div>
     <div class="v2-tree__buttons">

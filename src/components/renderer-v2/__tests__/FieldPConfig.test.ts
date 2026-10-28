@@ -200,25 +200,46 @@ describe("字段组件配置：宽度 / 默认内容 / 内部边框", () => {
    * border-bottom）都会画字段底边。两者同时命中时，末行会被叠成两条底边 ——
    * 单行值最明显（两条线几乎重合，看起来像加粗的双线）。
    * 口径：**innerBorder 打开时不再挂下划线类**，由逐行线独家承担底边。
+   * 2026-10-23 起 `underline` 键已从 schema 移除：下划线是默认行为，无需显式开启。
    */
   it("内部边框打开时不再叠下划线：非复合字段", () => {
     const both = mount(GridSchemaNode, {
-      props: { node: fieldNode({ underline: true, innerBorder: true }), baseRowHeight: 8 },
+      props: { node: fieldNode({ innerBorder: true }), baseRowHeight: 8 },
     });
     expect(both.classes()).toContain("layout-p--inner-border");
     expect(both.classes()).not.toContain("layout-p--underline");
 
-    // 对照组：只勾下划线（无内部边框）时照旧有下划线
+    // 对照组：未勾内部边框的普通字段默认带下划线
     const underlineOnly = mount(GridSchemaNode, {
-      props: { node: fieldNode({ underline: true }), baseRowHeight: 8 },
+      props: { node: fieldNode({}), baseRowHeight: 8 },
     });
     expect(underlineOnly.classes()).toContain("layout-p--underline");
+  });
+
+  it("下划线恒定：缺 underline 键与旧数据 underline:false 都渲染下划线", () => {
+    // ① 新建节点不再写 underline 键 —— 默认仍有提示线
+    const noKey = mount(GridSchemaNode, {
+      props: { node: fieldNode(), baseRowHeight: 8 },
+    });
+    expect(noKey.classes()).toContain("layout-p--underline");
+
+    // ② 历史 schema 里显式 underline:false 的字段：键已被忽略，行为并入默认（有线）。
+    //    这是 2026-10-23 下线该键后**唯一的行为变更**，在此显式登记，避免被当成回归。
+    //    需要「打印可见的线」应改用 innerBorder；需要完全无线则该字段本就不该出现在票面。
+    const legacyOff = {
+      ...fieldNode(),
+      underline: false,
+    } as unknown as FieldPNodeV2;
+    const wrapper = mount(GridSchemaNode, {
+      props: { node: legacyOff, baseRowHeight: 8 },
+    });
+    expect(wrapper.classes()).toContain("layout-p--underline");
   });
 
   it("内部边框打开时不再叠下划线：复合字段（下划线在 .layout-p__input 上）", () => {
     const wrapper = mount(GridSchemaNode, {
       props: {
-        node: fieldNode({ prefix: "共", suffix: "人", underline: true, innerBorder: true }),
+        node: fieldNode({ prefix: "共", suffix: "人", innerBorder: true }),
         baseRowHeight: 8,
       },
     });
@@ -230,7 +251,7 @@ describe("字段组件配置：宽度 / 默认内容 / 内部边框", () => {
   it("单行 + 内部边框：只渲染一条逐行线（底边唯一来源）", () => {
     const wrapper = mount(GridSchemaNode, {
       props: {
-        node: fieldNode({ underline: true, innerBorder: true, default: "单行内容" }),
+        node: fieldNode({ innerBorder: true, default: "单行内容" }),
         baseRowHeight: 8,
         readonly: true,
       },
@@ -312,7 +333,7 @@ describe("图片值 + 内部边框：线与图共存", () => {
   it("未开内部边框时走原分支：图直接作为容器子项，不出现逐行 div", () => {
     const wrapper = mount(GridSchemaNode, {
       props: {
-        node: fieldNode({ valueType: "image", underline: true }),
+        node: fieldNode({ valueType: "image" }),
         baseRowHeight: 8,
         readonly: true,
         data: { 测试字段: [A] },

@@ -181,6 +181,18 @@ function normalizeNode(value: unknown): RecordValue {
       } else {
         next.maxCount = Math.floor(next.maxCount);
       }
+      // 初始行数（2026-10-27，「最小行数」）：只接受 > 1 的有限数并取整；1 / 0 / 负数 /
+      // NaN / 字符串一律丢弃 = 回落到「一行」。与面板「留空/填 1 即默认」同口径，
+      // 保证导出 JSON 里不会留下「看起来配了多行、实际按 1 行渲染」的值。
+      if (
+        typeof next.rows !== "number" ||
+        !Number.isFinite(next.rows) ||
+        next.rows <= 1
+      ) {
+        delete next.rows;
+      } else {
+        next.rows = Math.floor(next.rows);
+      }
       return next;
     }
     // 兼容旧版：static P 归一化为 text 节点

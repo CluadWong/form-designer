@@ -25,18 +25,20 @@ import HtmlBlock from "./HtmlBlock.vue";
 import { resolveGridGapV2 } from "@/types";
 import { resolveNodeParamAttrs } from "@/utils/node-params";
 import {
+  DEFAULT_TEXT_LINE_HEIGHT,
   bindTableRowCell,
   hasImageSourceV2,
   resolveCellBoxV2,
   resolveImageAlignV2,
   resolveImageItemsV2,
   resolveImageVerticalAlignV2,
+  resolvePFieldRowsV2,
   resolveSignImageGapV2,
   resolveSignImageHeightV2,
   resolveSignImageUrlIndexesV2,
   resolveSignImageUrlsV2,
-  resolveSignPlaceholderLineCountV2,
   resolveTableRowCount,
+  resolveTableHeaderLayoutV2,
   withImageDefaultsV2,
 } from "@/engine-v2/derivation";
 
@@ -244,6 +246,36 @@ function textCss(style?: TextStyleV2): CSSProperties {
   };
 }
 
+/**
+ * 行数样式（2026-10-27）：「初始行数」= **最小行数**，空值占 N 行、内容超出继续长高。
+ *
+ * - `minHeight: calc(N * 1.6em)`：`1.6` 取自 `DEFAULT_TEXT_LINE_HEIGHT`，与 `.layout-p` 的
+ *   `line-height: 1.6` 同源（font-size 变化时行数不错位）；
+ * - ⚠️ **必须同时 `height: auto`**：格子里的 p 有一条 `height: calc(100% - 1mm)`
+ *   （2026-10-26 的下划线呼吸位，见文件末尾该规则注释）。它会把 p 拉满整个格子，
+ *   格子比 N 行高时「N 行」完全看不出来。inline 样式优先级高于 class 规则，故此处覆盖有效；
+ *   下划线的 1mm 间距仍由那条规则的 `margin-bottom: 1mm` 承担（只覆盖 height，不动 margin）；
+ * - **顶对齐**：N > 1 的内容从第一行往下长（备注栏 / 说明栏的预期）。要盖两处默认：
+ *   ① `.layout-p` 自身的 `align-self: center`（它是格子的 flex 子项，否则整块随内容上下浮动）；
+ *   ② `textCss` 给的 `align-items`（= 节点「垂直对齐」，默认居中），否则空值时光标/值落在
+ *   第 N 行的中间而不是第一行。
+ *
+ * 复合字段（有前/后标签）的行高落在内层 `.layout-p__input` 上——`.layout-p` 是 flex row，
+ * 交叉轴 `align-items: center`，子级不会被拉伸，故 minHeight 必须给到输入区（见 `fieldInputStyle`）。
+ */
+function pRowsStyle(node: PNodeV2): CSSProperties {
+  const rows = resolvePFieldRowsV2(node);
+  if (rows <= 1) return {};
+  const box: CSSProperties = {
+    height: "auto",
+    alignSelf: "flex-start",
+    alignItems: "flex-start",
+  };
+  return isCompositeField(node)
+    ? box
+    : { ...box, minHeight: `calc(${rows} * ${DEFAULT_TEXT_LINE_HEIGHT}em)` };
+}
+
 function pStyle(node: PNodeV2): CSSProperties {
   // 字段 P 默认允许换行（内容超过宽度时自动换行），不再依赖 multiline 配置。
   // 宽度作用于「可输入区域」：无前/后标签时整个 <div> 即输入区，故 width 作用于组件整体；
@@ -253,16 +285,26 @@ function pStyle(node: PNodeV2): CSSProperties {
     ...textCss(node.style),
     whiteSpace: "pre-wrap",
     width: isCompositeField(node) ? undefined : node.width,
+    ...pRowsStyle(node),
   };
 }
 
 /** 复合字段（有前/后标签）可输入区域的宽度样式：仅复合字段且配置了 width 时生效，
  *  挂在内层 `.layout-p__input`（A3 统一渲染路径后，设计/预览/填写态都是这个元素，
  *  旧的填充态 `.layout-p__control` textarea 分支已于十续回退）。
- *  flexGrow:0 确保显式宽度不被 flex 拉伸（`.layout-p__input` 默认 flex 可增长）。 */
+ *  flexGrow:0 确保显式宽度不被 flex 拉伸（`.layout-p__input` 默认 flex 可增长）。
+ *
+ *  「初始行数」的 `min-height` 也挂这里（2026-10-27）：外层 `.layout-p` 只在复合字段下给
+ *  `height: auto` + 顶对齐，实际行高由输入区撑起。两项配置互不依赖，故各自判空后合并。 */
 function fieldInputStyle(node: PNodeV2): CSSProperties {
-  if (!isCompositeField(node) || !node.width) return {};
-  return { width: node.width, flexGrow: 0 };
+  if (!isCompositeField(node)) return {};
+  const rows = resolvePFieldRowsV2(node);
+  return {
+    ...(node.width ? { width: node.width, flexGrow: 0 } : {}),
+    ...(rows > 1
+      ? { minHeight: `calc(${rows} * ${DEFAULT_TEXT_LINE_HEIGHT}em)` }
+      : {}),
+  };
 }
 
 function textStyle(node: TextNodeV2): CSSProperties {
@@ -309,6 +351,77 @@ function tableHeaderCellStyle(
   };
 }
 
+/**
+ * 表头布局（复合表头，2026-10-23）：格位 / 跨行跨列 / 边框归属全部由
+ * `resolveTableHeaderLayoutV2` 算好，本层只做映射。
+ *
+ * 单行表头（未配 `headerRows`）时它等价于「columns 逐列投影」，且下面的 style 函数
+ * 不会下发任何 span / 边框内联样式 —— 老模板的 thead 输出保持逐字节不变。
+ */
+const tableHeaderLayout = computed(() =>
+  props.node.type === "table" ? resolveTableHeaderLayoutV2(props.node) : null,
+);
+const tableHeaderCells = computed(() => tableHeaderLayout.value?.cells ?? []);
+const tableHeaderRowCount = computed(
+  () => tableHeaderLayout.value?.rowCount ?? 1,
+);
+
+/** 表头行是 grid 容器：单行沿用旧样（列宽 + minHeight），多行再叠加 N 条行轨道。 */
+function tableHeaderRowStyle(node: TableNodeV2): CSSProperties {
+  const base = tableColumnStyle(node.columns);
+  if (tableHeaderRowCount.value <= 1) {
+    return { ...base, minHeight: `${props.baseRowHeight}mm` };
+  }
+  return {
+    ...base,
+    gridTemplateRows: `repeat(${tableHeaderRowCount.value}, minmax(${props.baseRowHeight}mm, auto))`,
+  };
+}
+
+/**
+ * 表头单元格：单行直通旧逻辑；多行时按格位做 grid 定位。
+ *
+ * 边框由布局求解给出「右 / 下」归属，用来**覆盖** CSS 的
+ * `.layout-table__cell:not(:last-child)` 规则 —— 那条规则按 DOM 顺序判断，遇到合并格会画错位置。
+ *
+ * ⚠️ 四边宽度必须全部显式给出：只要写了 `border-style`，未声明的那几边会回落成
+ * `border-width: medium` = **3px**。2026-10-23 真机实测（导出票 2 列 2 行表头）：
+ * 两行交界处 th[0] 的下边 1px 与 th[1]/th[2] 的**上边 3px** 并排 → 4px 粗线；
+ * 列分界处 1px + 左边 3px → 同样 4px。用户报的「表头边框重叠、显得很粗」就是这个。
+ */
+function tableHeaderCellBoxStyle(
+  node: TableNodeV2,
+  cell: (typeof tableHeaderCells.value)[number],
+): CSSProperties {
+  const column =
+    node.columns[Math.min(cell.colStart - 1, node.columns.length - 1)];
+  const base = tableHeaderCellStyle(column, node.headerStyle);
+  if (tableHeaderRowCount.value <= 1) return base;
+  const boxed: CSSProperties = {
+    ...base,
+    gridRowStart: String(cell.rowStart),
+    gridColumnStart: String(cell.colStart),
+    gridRow: `span ${cell.rowSpan}`,
+    gridColumn: `span ${cell.colSpan}`,
+    // `.layout-table__header { align-items: center }` 会让 th 只占内容高、不填满行轨道，
+    // 于是画在 th 上的边框会在行与行之间留出缺口、rowspan 格也盖不到底（真机实测：
+    // 轨道 30.23px、格高仅 24px）。复合表头必须显式拉伸，内部内容再居中。
+    alignSelf: "stretch",
+    alignItems: "center",
+  };
+  // outer / none 没有内部线：位置照旧，但不许下发任何 border（否则 4 条 3px 的边凭空出现）。
+  if (node.border !== "all" && node.border !== "inner") return boxed;
+  return {
+    ...boxed,
+    borderStyle: "solid",
+    borderColor: "#111827",
+    borderTopWidth: "0px",
+    borderLeftWidth: "0px",
+    borderRightWidth: cell.borderRight ? "1px" : "0px",
+    borderBottomWidth: cell.borderBottom ? "1px" : "0px",
+  };
+}
+
 function tableTemplate(node: TableNodeV2, columnKey: string) {
   return node.rowTemplate.find((template) => template.columnKey === columnKey);
 }
@@ -328,6 +441,18 @@ function tablePaginatedRowCount(
     return Math.min(full, node._paginateMaxRows);
   }
   return full;
+}
+
+/**
+ * 分页片段 Table 的数据行起始行号（2026-10-27）。
+ * 与 `_paginateMaxRows` 配套：续页片段从 `_paginateStartRow` 指定的行继续渲染，
+ * 避免每页都从第 1 行重绘（重复前几行 + 字段回填错位）。未设置时视为 0。
+ */
+function tableRowOffset(node: TableNodeV2): number {
+  const start = node._paginateStartRow;
+  return typeof start === "number" && Number.isFinite(start) && start > 0
+    ? Math.floor(start)
+    : 0;
 }
 
 /**
@@ -432,7 +557,9 @@ function signImageCount(node: PNodeV2): number {
  * 每个复合字段都多一个锚点，污染 `.layout-p__input` 的子节点数（实测会整票快照失配）。
  */
 function signPlaceholderLines(node: PNodeV2): number {
-  return resolveSignPlaceholderLineCountV2(node.default);
+  // 2026-10-27：行数改由 `resolvePFieldRowsV2` 统一给出（显式「初始行数」与 `default`
+  // 换行数取大者），签名栏的占位线数因此也能被「初始行数」配置，不再是 default 的副产物。
+  return resolvePFieldRowsV2(node);
 }
 
 /** 签名图**有效高度**：`imageHeight` 缺省即与标签（文字行盒）等高——解析逻辑与分页估算
@@ -505,10 +632,20 @@ function displayValue(node: PNodeV2): string {
   if (!fieldMasked.value) return fieldValue(node);
   return MASK_TEXT;
 }
-/** 展示行：HIDDEN 字段一律单行 `***`（含全空；多行不展开，避免行数泄露内容长度）。 */
+/** 展示行：HIDDEN 字段一律单行 `***`（含全空；多行不展开，避免行数泄露内容长度）。
+ *
+ *  「初始行数」（2026-10-27）：**不足 N 行时补空行**。内部边框的横线是**真实 `<div>` 的
+ *  底边框**（`.layout-p--inner-border :deep(div)`），没有 div 就没有线——若不补，空值配
+ *  「初始 3 行 + 内部边框」只画出 1 条线，而这恰是手写票备注栏最典型的用法。
+ *
+ *  补的是空串而非占位文字：内容仍由 `collectFieldValues` 按文本采集，空行不影响取值；
+ *  打印态同一份 DOM，故横线张数与屏幕上一致。 */
 function displayLines(node: PNodeV2): string[] {
-  if (!fieldMasked.value) return fieldLines(node);
-  return [MASK_TEXT];
+  if (fieldMasked.value) return [MASK_TEXT];
+  const lines = fieldLines(node);
+  const rows = resolvePFieldRowsV2(node);
+  while (lines.length < rows) lines.push("");
+  return lines;
 }
 
 /**
@@ -577,10 +714,32 @@ function readEditableText(el: HTMLElement): string {
  */
 function normalizeEditableDom(container: HTMLElement, text: string): void {
   const linesEl = container.querySelector<HTMLElement>(".layout-p__lines");
-  const valueEl = linesEl ? null : container.querySelector<HTMLElement>(".layout-p__value");
+  const valueEl = linesEl
+    ? null
+    : container.querySelector<HTMLElement>(".layout-p__value");
+  /**
+   * 复合字段 + innerBorder（非图片）是**第三种**结构（2026-10-27 补）：值直接铺成裸
+   * `.layout-p__line`，既没有 `.layout-p__lines` 容器、也没有 `.layout-p__value`
+   * （见模板 1360 行的 `<template v-else-if="node.innerBorder">`）。
+   *
+   * 此前只认前两种，这一种两个锚点都取不到 ⇒ 重建整段跳过，而删除循环里的判据
+   * `el.matches(".layout-p__value, .layout-p__line")` **命中了所有值节点** ⇒ 把输入区
+   * 删空。宿主表现为输入框整块消失、控制台报
+   * `TypeError: Cannot read properties of null (reading 'emitsOptions')`
+   * （值节点被外删后 Vue 再 patch 拿不到实例）。
+   */
+  const lineAnchor =
+    linesEl || valueEl
+      ? null
+      : container.querySelector<HTMLElement>(".layout-p__line");
+
+  if (!linesEl && !valueEl && !lineAnchor) {
+    // 认不出值容器结构（内核将来改了 DOM）：宁可不动，也不能把内核自己的节点当游离内容删掉
+    return;
+  }
 
   if (linesEl) {
-    // innerBorder：`v-once` 结构，Vue 永不再 patch，只能按行重建（不能用 displayLines：
+    // innerBorder（非复合）：`v-once` 结构，Vue 永不再 patch，只能按行重建（不能用 displayLines：
     // 它读的是 emit 前的旧 data）
     while (linesEl.firstChild) linesEl.removeChild(linesEl.firstChild);
     for (const line of text.split("\n")) {
@@ -591,11 +750,31 @@ function normalizeEditableDom(container: HTMLElement, text: string): void {
     }
   } else if (valueEl) {
     valueEl.textContent = text;
+  } else if (lineAnchor) {
+    // 复合 + innerBorder：复用首个 `__line` 作锚点（就地改文本），其余旧行删掉，再按行追加。
+    // 不能用「记录 nextSibling 再 insertBefore」：那些兄弟本身也在待删之列，删完就成了
+    // 游离节点，`insertBefore` 会抛 `NotFoundError`。
+    const parent = lineAnchor.parentElement ?? container;
+    Array.from(parent.children)
+      .filter((el) => el !== lineAnchor && el.classList.contains("layout-p__line"))
+      .forEach((el) => el.remove());
+    const rows = text.split("\n");
+    lineAnchor.textContent = rows[0] ?? "";
+    let ref: HTMLElement = lineAnchor;
+    for (const line of rows.slice(1)) {
+      const d = document.createElement("div");
+      d.className = "layout-p__line";
+      d.textContent = line;
+      ref.after(d);
+      ref = d;
+    }
   }
 
-  // 删掉非值容器的直接子节点：浏览器克隆出来的兄弟 `__value` / `__line`、裸文本、无 class 的块。
+  // 删掉非值容器的直接子节点：浏览器克隆出来的兄弟 `__value`、裸文本、无 class 的块。
   // 白名单判据用「它不是我们刚写入的那个容器」，而不是列 class 名 —— 克隆出来的节点
   // **class 与原节点完全相同**，靠 class 区分不出来。
+  // `__line` 只在**没有走按行重建**时才删：重建分支产出的行本身就是 `__line`，误删就白建了。
+  const linesRebuilt = Boolean(linesEl || lineAnchor);
   Array.from(container.childNodes).forEach((child) => {
     if (child.nodeType === Node.TEXT_NODE) {
       container.removeChild(child);
@@ -604,7 +783,15 @@ function normalizeEditableDom(container: HTMLElement, text: string): void {
     if (child.nodeType !== Node.ELEMENT_NODE) return;
     const el = child as HTMLElement;
     if (el === valueEl || el === linesEl) return;
-    if (el.classList.length === 0 || el.matches(".layout-p__value, .layout-p__line")) {
+    if (el.classList.length === 0) {
+      el.remove();
+      return;
+    }
+    if (el.matches(".layout-p__value")) {
+      el.remove();
+      return;
+    }
+    if (!linesRebuilt && el.matches(".layout-p__line")) {
       el.remove();
     }
   });
@@ -1109,10 +1296,10 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
     :class="{
       'layout-p--field': true,
       'layout-p--composite': isCompositeField(node),
-      /* 下划线是「这里可填写」的提示线；勾了「内部边框」时由逐行 .layout-p__line 的底边框
-         承担同样的作用。两者同时命中会在末行叠出两条底边（单行值最明显，像加粗双线）→
-         **只有 innerBorder 打开时才隐藏下划线**，其余情况一律照旧。 */
-      'layout-p--underline': node.underline && !isCompositeField(node) && !node.innerBorder,
+      /* 下划线是「这里可填写」的提示线，**恒定行为**（2026-10-23 起 schema 不再有 underline 键）；
+         勾了「内部边框」时由逐行 .layout-p__line 的底边框承担同样的作用。两者同时命中会在末行
+         叠出两条底边（单行值最明显，像加粗双线）→ **只有 innerBorder 打开时才隐藏下划线**。 */
+      'layout-p--underline': !isCompositeField(node) && !node.innerBorder,
       'layout-p--inner-border': node.innerBorder,
       'layout-p--hidden': fieldPermission === 'HIDDEN',
     }"
@@ -1144,8 +1331,8 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
       v-if="isCompositeField(node)"
       class="layout-p__input"
       :class="{
-        /* 同非复合字段：只有 innerBorder 打开时才隐藏下划线，其余情况照旧。 */
-        'layout-p--underline': node.underline && !node.innerBorder,
+        /* 同非复合字段：下划线恒定，只有 innerBorder 打开时才隐藏。 */
+        'layout-p--underline': !node.innerBorder,
         'layout-p__signbox': isImageValue(node),
       }"
       :style="[fieldInputStyle(node), signBoxStyle(node)]"
@@ -1167,56 +1354,61 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
           v-for="li in signPlaceholderLines(node)"
           :key="li"
           class="layout-p__line"
-        ><span
-          v-if="li === signPlaceholderLines(node) && signImageCount(node) === 1"
-          class="layout-p__signcell layout-p__signcell--line"
-          ><img
-            class="layout-p__sign"
-            :src="signImageUrls(node)[0]"
-            :style="signImageStyle(node)"
-            :alt="node.prefix ?? node.field"
-          /><button
-            v-if="signDeletable"
-            class="layout-p__sign-del"
-            type="button"
-            :data-sign-index="0"
-            :title="SIGN_DELETE_TITLE"
-            :aria-label="SIGN_DELETE_TITLE"
-            @pointerdown.stop
-            @mousedown.prevent
-            @click.stop="onRemoveSignImage(node, 0)"
-          >
-            ×
-          </button></span
-        ><span
-          v-else-if="li === signPlaceholderLines(node) && signImageCount(node) > 1"
-          class="layout-p__signs layout-p__signs--line"
-          :style="signWrapStyle(node)"
-          ><span
-            v-for="(signUrl, signIndex) in signImageUrls(node)"
-            :key="signIndex"
-            class="layout-p__signcell"
+        >
+          <span
+            v-if="
+              li === signPlaceholderLines(node) && signImageCount(node) === 1
+            "
+            class="layout-p__signcell layout-p__signcell--line"
             ><img
               class="layout-p__sign"
-              :src="signUrl"
+              :src="signImageUrls(node)[0]"
               :style="signImageStyle(node)"
               :alt="node.prefix ?? node.field"
             /><button
               v-if="signDeletable"
               class="layout-p__sign-del"
               type="button"
-              :data-sign-index="signIndex"
+              :data-sign-index="0"
               :title="SIGN_DELETE_TITLE"
               :aria-label="SIGN_DELETE_TITLE"
               @pointerdown.stop
               @mousedown.prevent
-              @click.stop="onRemoveSignImage(node, signIndex)"
+              @click.stop="onRemoveSignImage(node, 0)"
             >
               ×
             </button></span
-          ></span
-        ></div
-        ></template
+          ><span
+            v-else-if="
+              li === signPlaceholderLines(node) && signImageCount(node) > 1
+            "
+            class="layout-p__signs layout-p__signs--line"
+            :style="signWrapStyle(node)"
+            ><span
+              v-for="(signUrl, signIndex) in signImageUrls(node)"
+              :key="signIndex"
+              class="layout-p__signcell"
+              ><img
+                class="layout-p__sign"
+                :src="signUrl"
+                :style="signImageStyle(node)"
+                :alt="node.prefix ?? node.field"
+              /><button
+                v-if="signDeletable"
+                class="layout-p__sign-del"
+                type="button"
+                :data-sign-index="signIndex"
+                :title="SIGN_DELETE_TITLE"
+                :aria-label="SIGN_DELETE_TITLE"
+                @pointerdown.stop
+                @mousedown.prevent
+                @click.stop="onRemoveSignImage(node, signIndex)"
+              >
+                ×
+              </button></span
+            ></span
+          >
+        </div></template
       ><span v-else-if="signImageCount(node) === 1" class="layout-p__signcell"
         ><img
           class="layout-p__sign"
@@ -1294,7 +1486,8 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
         v-for="li in signPlaceholderLines(node)"
         :key="li"
         class="layout-p__line"
-        ><span
+      >
+        <span
           v-if="li === signPlaceholderLines(node) && signImageCount(node) === 1"
           class="layout-p__signcell layout-p__signcell--line"
           ><img
@@ -1316,7 +1509,9 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
             ×
           </button></span
         ><span
-          v-else-if="li === signPlaceholderLines(node) && signImageCount(node) > 1"
+          v-else-if="
+            li === signPlaceholderLines(node) && signImageCount(node) > 1
+          "
           class="layout-p__signs layout-p__signs--line"
           :style="signWrapStyle(node)"
           ><span
@@ -1342,8 +1537,8 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
               ×
             </button></span
           ></span
-        ></div
-      ></span
+        >
+      </div></span
     >
     <span
       v-else-if="signImageCount(node) === 1"
@@ -1436,28 +1631,28 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
     :data-node-id="node.id"
     v-bind="nodeParamAttrs(node)"
   >
-    <thead>
+    <!-- 表头两个来源：showHeader=false（用户关掉整表表头）、_paginateHideHeader（续页片段，分页引擎写） -->
+    <thead
+      v-if="node.showHeader !== false && node._paginateHideHeader !== true"
+    >
       <tr
         class="layout-table__row layout-table__header"
-        :style="[
-          tableColumnStyle(node.columns),
-          { minHeight: `${baseRowHeight}mm` },
-        ]"
+        :style="tableHeaderRowStyle(node)"
       >
         <th
-          v-for="column in node.columns"
-          :key="column.key"
+          v-for="cell in tableHeaderCells"
+          :key="`${cell.rowStart}-${cell.colStart}`"
           class="layout-table__cell"
-          :style="tableHeaderCellStyle(column, node.headerStyle)"
+          :style="tableHeaderCellBoxStyle(node, cell)"
         >
-          {{ column.title }}
+          {{ cell.text }}
         </th>
       </tr>
     </thead>
     <tbody>
       <tr
         v-for="rowIndex in tablePaginatedRowCount(node, data)"
-        :key="rowIndex"
+        :key="tableRowOffset(node) + rowIndex"
         class="layout-table__row"
         :style="[
           tableColumnStyle(node.columns),
@@ -1473,10 +1668,12 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
         >
           <template
             v-for="child in tableTemplate(node, column.key)?.children ?? []"
-            :key="`${child.id}-${rowIndex}`"
+            :key="`${child.id}-${tableRowOffset(node) + rowIndex}`"
           >
             <GridSchemaNode
-              :node="bindRowCell(child, column.key, rowIndex)"
+              :node="
+                bindRowCell(child, column.key, tableRowOffset(node) + rowIndex)
+              "
               :base-row-height="baseRowHeight"
               :mode="resolvedMode"
               :data="data"
@@ -2022,6 +2219,30 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   border-bottom: 1px solid #111827;
 }
 
+/* 格子里的输入框下划线上移 1mm，与格子边框留出呼吸位（2026-10-26 用户两次实报：
+   先表格格、再 Grid 格，现象相同——下划线与格子边框重叠成一条粗线）。
+
+   真机实测（A4 / 边距 12mm / 行高 8mm，`height: 100%`）：`.layout-p` 的盒子与格子内容盒
+   **完全等高**（差值 0px），它的 1px 下边框正好落在格子底边框的位置上，两条线上下相邻。
+   Grid 格里更明显——格子底边就是 Grid 容器外框/内部线的内沿，完全重合。
+
+   为什么用 `height: calc(100% - 1mm)` + `margin-bottom` 而不是只加外边距：
+   只加 `margin-bottom: 1mm` 会把盒子的**外框**撑成 `100% + 1mm`，flex 行随之长高 1mm
+   ——连空单元格的行高都会被顶大（8mm → 9mm），版面与分页算高一起偏。
+   先减 1mm 再让出 1mm 边距，外框仍等于 100%，行高不动，只有边框位置抬高。
+
+   为什么不用给格子加 padding：
+   - Grid 格子的 padding 来自 schema（`cellStyle` 内联 `padding: {box.padding}mm`），
+     CSS 无法在不覆盖用户配置的前提下追加；
+   - 表格格子改 padding 与这里改盒子等价（内容区都缩 1mm）。v0.3.24 曾用
+     `td.layout-table__cell { padding-bottom: 1mm }` 修表格那一例，真机对拍两者几何**逐项相同**
+     （空行 8.264mm / gap 3.78px、两行文字 12.531mm），故统一收敛到这一条规则。 */
+.layout-table__cell > .layout-p,
+.layout-grid__cell > .layout-p {
+  height: calc(100% - 1mm);
+  margin-bottom: 1mm;
+}
+
 .layout-table {
   display: block;
   width: 100%;
@@ -2081,6 +2302,9 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
 
 .layout-table__header {
   align-items: center;
+  /* 表头文字统一纯黑（2026-10-27）：不随纸张正文色（#111827）浮动。
+     画布与打印共用同一 DOM / 样式，导出票面同样生效。 */
+  color: #000;
   /* 表头默认加粗（600）：`TableInspector` 的「粗细」在未设 `headerStyle.fontWeight`
      时即按此显示「加粗」，改这里要同步面板默认，否则又会出现「显示常规、实际加粗」。 */
   font-weight: 600;
@@ -2224,7 +2448,7 @@ function imageStyle(item: ImageItemV2, index: number): CSSProperties {
   /* 输入框下划线（.layout-p--underline）是设计/预览态的「可填写」提示线，打印时不输出
      （手写票应保持干净）。显式勾选「显示内部边框」(innerBorder) 的逐行实线边框由独立的
      .layout-p--inner-border :deep(div) 绘制、不在本媒体内，故仍正常打印——
-     即「默认无下划线，除非选了内部边框」。 */
+     即「打印态默认无横线，除非选了内部边框」。 */
   .layout-p--underline {
     border-bottom: none;
   }

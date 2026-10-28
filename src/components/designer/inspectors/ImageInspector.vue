@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * 图片列表：字段名 / 布局方式 + **水平对齐 + 垂直对齐** / 数量上限 + 填充方式 / 默认宽高 /
- * 是否显示名称 + 按 index 分行的图片地址列表。
+ * 图片列表：字段名 / 排布（布局 + 两个方向的对齐 + 填充方式）/ 尺寸 / 名称开关 /
+ * 按 index 分条目的图片地址。
  *
  * 尺寸有两档，**行内优先**：
- * 1. 行内 `images[i].width/height`（图中「图片地址」表格每行的宽高列）——精确到某一张；
+ * 1. 行内 `images[i].width/height`（每条地址的「宽 / 高」）——精确到某一张；
  * 2. 节点级 `defaultWidth/defaultHeight`（本面板「默认宽 / 默认高」）——整组图的统一尺寸兜底，
  *    某行留空时吃默认值；两档都没有才按图片自身比例。
  *
@@ -15,15 +15,20 @@
  *   未显式设置时取默认 `top`（= 升级前的 CSS 默认）；
  * - 填充布局每行被撑满，两个对齐都不生效（面板仍显示、可配，便于切回其它布局时保留意图）。
  *
- * 列表行与字段值同构（`{ name, src, width, height }`）：`maxCount` 限制张数。
+ * 列表条目与字段值同构（`{ name, src, width, height }`）：`maxCount` 限制张数。
  * 模板行既是设计期占位，也是**样式预设**——数据里给了 `field` 的值时，按 index 与模板行
  * 逐字段合并（数据项没给宽高的，继承本面板配的宽高），故「宿主只回填地址」的图片
  * （如签名条）也能保持这里配好的尺寸。
+ *
+ * 2026-10-28 布局改版：图片地址由「6 列 440px 横向滚动表格」改为**每条两行**的行项
+ * （序号 + 名称 + 删除 / 地址独占一行 / 宽高并排）——360px 面板里地址不再被截成
+ * 「https:// 链接或 Ba」，删除按钮也不必再 sticky 固定在滚动容器右边。
  */
 import { computed } from "vue";
 import type { ImageAlignV2, ImageItemV2, ImageNodeV2, ImageVerticalAlignV2 } from "@/types";
 import { resolveImageAlignV2, resolveImageVerticalAlignV2 } from "@/engine-v2/derivation";
 import type { SchemaEdits } from "../composables/useSchemaEdits";
+import HelpLink from "./HelpLink.vue";
 
 const props = defineProps<{ node: ImageNodeV2; api: SchemaEdits }>();
 
@@ -42,17 +47,19 @@ const imageVerticalAlign = computed<ImageVerticalAlignV2>(() =>
 </script>
 
 <template>
-  <div class="v2-grid-dimensions">
-    <label class="v2-control v2-control--full">
-      <span>字段名</span>
-      <input
-        :value="node.field ?? ''"
-        placeholder="字段"
-        @input="api.updateSelectedImageField"
-      />
-    </label>
-  </div>
-  <div class="v2-grid-dimensions v2-grid-dimensions--triple">
+  <label class="v2-control">
+    <span>字段名</span>
+    <input
+      :value="node.field ?? ''"
+      placeholder="字段"
+      @input="api.updateSelectedImageField"
+    />
+  </label>
+
+  <div class="v2-sidebar__subheading">排布</div>
+  <!-- 布局与两个方向的对齐同属一个网格容器（单测锁定三者同组）；三列放不下中文下拉，
+       故整组竖排、各自独占一行。 -->
+  <div class="v2-grid-dimensions v2-grid-dimensions--stack">
     <label class="v2-control">
       <span>布局方式</span>
       <select
@@ -90,18 +97,22 @@ const imageVerticalAlign = computed<ImageVerticalAlignV2>(() =>
       </select>
     </label>
   </div>
+
   <div class="v2-grid-dimensions">
     <label class="v2-control">
       <span>数量上限</span>
-      <input
-        type="number"
-        min="0"
-        step="1"
-        data-image-max-count="true"
-        :value="node.maxCount ?? ''"
-        placeholder="0 = 不限"
-        @change="api.updateSelectedImageMaxCount"
-      />
+      <span class="v2-unit">
+        <input
+          type="number"
+          min="0"
+          step="1"
+          data-image-max-count="true"
+          :value="node.maxCount ?? ''"
+          placeholder="不限"
+          @change="api.updateSelectedImageMaxCount"
+        />
+        <span>张</span>
+      </span>
     </label>
     <label class="v2-control">
       <span>填充方式</span>
@@ -116,93 +127,76 @@ const imageVerticalAlign = computed<ImageVerticalAlignV2>(() =>
       </select>
     </label>
   </div>
+
   <div class="v2-grid-dimensions">
     <label class="v2-control">
-      <span>默认宽(mm)</span>
-      <input
-        type="number"
-        min="0"
-        step="1"
-        data-image-default-width="true"
-        :value="node.defaultWidth ?? node.width ?? ''"
-        placeholder="自动"
-        @change="api.updateSelectedImageDefaultSize('width', $event)"
-      />
+      <span>默认宽</span>
+      <span class="v2-unit">
+        <input
+          type="number"
+          min="0"
+          step="1"
+          data-image-default-width="true"
+          :value="node.defaultWidth ?? node.width ?? ''"
+          placeholder="自动"
+          @change="api.updateSelectedImageDefaultSize('width', $event)"
+        />
+        <span>mm</span>
+      </span>
     </label>
     <label class="v2-control">
-      <span>默认高(mm)</span>
-      <input
-        type="number"
-        min="0"
-        step="1"
-        data-image-default-height="true"
-        :value="node.defaultHeight ?? node.height ?? ''"
-        placeholder="自动"
-        @change="api.updateSelectedImageDefaultSize('height', $event)"
-      />
+      <span>默认高</span>
+      <span class="v2-unit">
+        <input
+          type="number"
+          min="0"
+          step="1"
+          data-image-default-height="true"
+          :value="node.defaultHeight ?? node.height ?? ''"
+          placeholder="自动"
+          @change="api.updateSelectedImageDefaultSize('height', $event)"
+        />
+        <span>mm</span>
+      </span>
     </label>
   </div>
-  <label class="v2-control v2-control--toggle">
+
+  <label class="v2-control v2-control--switch">
+    <span title="显示图片下方的说明文字">显示名称</span>
     <input
       type="checkbox"
       data-image-show-name="true"
       :checked="node.showName === true"
       @change="api.updateSelectedImageShowName"
     />
-    <span>显示名称（图片下方的说明文字）</span>
   </label>
 
-  <div class="v2-sidebar__subheading">图片地址</div>
+  <div class="v2-sidebar__subheading v2-sidebar__subheading--row">
+    <span>图片地址</span>
+    <span class="v2-subheading__actions">
+      <HelpLink section="components" hint="查看图片列表的配置说明" />
+    </span>
+  </div>
   <p class="v2-sidebar__hint v2-sidebar__hint--tight">
-    每行的宽 / 高优先于上方默认值；都留空则按图片自身比例。
+    宽高留空用上方默认值；都留空按图片比例。
   </p>
-  <div class="v2-image-table" data-image-list="true">
-    <div class="v2-image-table__grid">
-      <div class="v2-image-table__row v2-image-table__head">
-        <span class="v2-image-table__th">#</span>
-        <span class="v2-image-table__th">名称</span>
-        <span class="v2-image-table__th">地址</span>
-        <span class="v2-image-table__th">宽(mm)</span>
-        <span class="v2-image-table__th">高(mm)</span>
-        <span class="v2-image-table__th"></span>
-      </div>
-      <div
-        v-for="(item, index) in rows"
-        :key="index"
-        class="v2-image-table__row"
-        :data-image-row="index"
-      >
-        <span class="v2-image-table__index">{{ index + 1 }}</span>
+  <div class="v2-image-list" data-image-list="true">
+    <div
+      v-for="(item, index) in rows"
+      :key="index"
+      class="v2-image-item"
+      :data-image-row="index"
+    >
+      <div class="v2-image-item__head">
+        <span class="v2-image-item__index">{{ index + 1 }}</span>
         <input
-          class="v2-col-table__input"
+          class="v2-image-item__name"
           :value="item.name ?? ''"
           placeholder="名称（可选）"
           @input="api.updateSelectedImageItemName(index, $event)"
         />
-        <input
-          class="v2-col-table__input v2-col-table__input--mono"
-          :value="item.src ?? ''"
-          placeholder="https:// 链接或 Base64"
-          @input="api.updateSelectedImageItemSrc(index, $event)"
-        />
-        <input
-          class="v2-col-table__input v2-col-table__input--width"
-          type="number"
-          min="0"
-          :value="item.width ?? ''"
-          placeholder="如 40"
-          @change="api.updateSelectedImageItemSize(index, 'width', $event)"
-        />
-        <input
-          class="v2-col-table__input v2-col-table__input--width"
-          type="number"
-          min="0"
-          :value="item.height ?? ''"
-          placeholder="如 40"
-          @change="api.updateSelectedImageItemSize(index, 'height', $event)"
-        />
         <button
-          class="v2-inspector__delete v2-inspector__delete--small"
+          class="v2-image-item__del"
           type="button"
           :title="`删除第 ${index + 1} 张`"
           @click="api.removeSelectedImageItem(index)"
@@ -210,13 +204,39 @@ const imageVerticalAlign = computed<ImageVerticalAlignV2>(() =>
           ✕
         </button>
       </div>
+      <input
+        class="v2-image-item__src"
+        :value="item.src ?? ''"
+        placeholder="https:// 链接或 Base64"
+        @input="api.updateSelectedImageItemSrc(index, $event)"
+      />
+      <div class="v2-image-item__size">
+        <span class="v2-unit">
+          <span class="v2-unit__tag">宽</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="如 40"
+            :value="item.width ?? ''"
+            @change="api.updateSelectedImageItemSize(index, 'width', $event)"
+          />
+          <span>mm</span>
+        </span>
+        <span class="v2-unit">
+          <span class="v2-unit__tag">高</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="如 40"
+            :value="item.height ?? ''"
+            @change="api.updateSelectedImageItemSize(index, 'height', $event)"
+          />
+          <span>mm</span>
+        </span>
+      </div>
     </div>
   </div>
-  <button
-    class="v2-toolbar__button v2-add-col"
-    type="button"
-    @click="api.addSelectedImageItem"
-  >
+  <button class="v2-action v2-image-add" type="button" @click="api.addSelectedImageItem">
     + 添加图片
   </button>
 </template>

@@ -6,6 +6,8 @@ import {
   NODE_ID_ATTR,
   LAYOUT_ID_ATTR,
   PALETTE_DRAG_MIME,
+  nodeIdSelector,
+  sourcePageIdSelector,
 } from "@/engine-v2/node-address";
 import { NODE_MOVE_MIME, buildEditorNodeIndexV2 } from "@/types";
 import type {
@@ -22,6 +24,8 @@ import type {
  * 渲染内核（renderer-v2）只负责 schema + data → 版式 DOM，不认识「选中 / 拖拽 / 落点」。
  * 本组件是内核之上的「设计表面」，承接来自设计态的全部交互关注点：
  * - 选中高亮（A5）：在渲染 DOM 上加 `.is-design-selected`（MutationObserver）。
+ * - 结构树悬停定位（2026-10-23）：同一周期给悬停节点加 `.is-design-hover`
+ *   （琥珀色 2px 内描边 + 淡底，与选中同款视觉重量），与选中态并存、悬停优先。
  * - 拖拽（A6）：落点（dragover / drop / dragend）与**源**（dragstart）均在本层以事件委托处理。
  *   原生 dragstart 冒泡到表面层根后，由本层确定被拖节点、套用拦截规则（表格内部节点 /
  *   设计态字段 p 需 Alt）、写入 NODE_MOVE_MIME，再计算合法投放格与插入下标；
@@ -46,6 +50,12 @@ const props = withDefaults(
     readonly?: boolean;
     /** 当前选中的节点 id（设计态）；预览/填充态传 null（选中高亮仅设计态出现）。 */
     selectedNodeId?: string | null;
+    /**
+     * 结构树悬停的节点 id（设计态，2026-10-23）。与 `selectedNodeId` 相互独立：
+     * 悬停只画一圈琥珀色内描边做「在版式哪里」的定位提示，不改变选中态、不驱动右侧面板。
+     * 预览/填充态同样传 null。
+     */
+    hoveredNodeId?: string | null;
     /** 无外壳模式（嵌入消费页）。 */
     bare?: boolean;
     /** 分页开关（预览/填写/打印强制分页；设计态可关为整页连续）。 */
@@ -79,20 +89,49 @@ const emit = defineEmits<{
   (e: "drag-end"): void;
 }>();
 
-// ── 选中高亮（A5） ──
+// ── 选中 / 悬停高亮（A5） ──
 const root = ref<HTMLElement | null>(null);
 let observer: MutationObserver | null = null;
 
-function applySelectionHighlight(): void {
+/**
+ * 节点 id 在画布上对应的**全部** DOM 元素。
+ *
+ * 一 id 对一元素是常态，页面是例外：分页后一张逻辑页切成多张物理纸，
+ * 它们的 `data-node-id` 各不相同（首张复用逻辑页 id，其余合成 id），
+ * 只能靠 `data-source-page-id` 归到一起。只命中共用一个元素的话，
+ * 用户点第 2 页选中「页面」后，高亮仍留在第 1 页 —— 看起来像没选中。
+ */
+function targetElements(id: string | null | undefined): HTMLElement[] {
+  const el = root.value;
+  if (!el || !id) return [];
+  const targets = Array.from(
+    el.querySelectorAll<HTMLElement>(sourcePageIdSelector(id)),
+  );
+  const single = el.querySelector<HTMLElement>(nodeIdSelector(id));
+  if (single && !targets.includes(single)) targets.push(single);
+  return targets;
+}
+
+/**
+ * 把 `className` 精确地加到 `id` 对应的节点上，其余节点上的同类名清掉。
+ *
+ * 用「类名 + id」两个参数而不是写死选中逻辑，是因为现在有两种互不相干的高亮：
+ * 选中（`.is-design-selected`，持久）与结构树悬停（`.is-design-hover`，临时），
+ * 两者可同时命中同一节点 —— 各管各的类，互不清除。
+ */
+function applyNodeClass(className: string, id: string | null | undefined): void {
   const el = root.value;
   if (!el) return;
-  const target = props.selectedNodeId
-    ? el.querySelector<HTMLElement>(`[${NODE_ID_ATTR}="${props.selectedNodeId}"]`)
-    : null;
-  el.querySelectorAll<HTMLElement>(".is-design-selected").forEach((n) => {
-    if (n !== target) n.classList.remove("is-design-selected");
+  const targets = targetElements(id);
+  el.querySelectorAll<HTMLElement>(`.${className}`).forEach((n) => {
+    if (!targets.includes(n)) n.classList.remove(className);
   });
-  if (target) target.classList.add("is-design-selected");
+  targets.forEach((n) => n.classList.add(className));
+}
+
+function applySelectionHighlight(): void {
+  applyNodeClass("is-design-selected", props.selectedNodeId);
+  applyNodeClass("is-design-hover", props.hoveredNodeId);
 }
 
 /**
@@ -126,6 +165,7 @@ function scheduleApply(): void {
 watch(
   () => [
     props.selectedNodeId,
+    props.hoveredNodeId,
     props.schema,
     props.data,
     props.mode,
@@ -454,6 +494,20 @@ function onDragEnd(): void {
   box-shadow: inset 0 0 0 2px #2563eb !important;
 }
 
+/* 结构树悬停定位（2026-10-23）：与选中**同等视觉重量**（2px 实线内描边 + 淡底），
+   只换颜色（琥珀）以示「这是悬停提示，不是你选中的」。用户实报「看不到」后重做：
+   - 原方案 `outline: 1px dashed` 在白纸上、紧邻表格 1px 实线边框时辨识度太低；
+   - `outline` 还会被 `PaperViewport` 的 `transform: scale()` 一起缩放，缩小后成亚像素；
+   - 改用与选中同款 `inset box-shadow`（不参与 transform 的线宽缩放感知），稳定可见。
+   放在选中规则**之后**：两者同时命中时悬停（琥珀）优先 —— 悬停是瞬时反馈，
+   离开后立刻回落到选中的蓝色，用户能明确感到「指到哪个就是哪个」。 */
+.v2-canvas-surface :deep(.is-design-hover) {
+  position: relative;
+  z-index: 2;
+  background-color: rgb(245 158 11 / 10%) !important;
+  box-shadow: inset 0 0 0 2px #f59e0b !important;
+}
+
 /* 落点高亮（A6）：拖拽悬停的合法投放格。 */
 .v2-canvas-surface :deep(.v2-drop-target) {
   outline: 2px dashed #2563eb;
@@ -474,6 +528,11 @@ function onDragEnd(): void {
 
 @media print {
   .v2-canvas-surface :deep(.is-design-selected) {
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+  /* 悬停高亮是交互态，打印时不该出现（与选中高亮同理，防御性隐藏） */
+  .v2-canvas-surface :deep(.is-design-hover) {
     background-color: transparent !important;
     box-shadow: none !important;
   }

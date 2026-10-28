@@ -14,7 +14,8 @@ import type {
   TableNodeV2,
 } from "@/types";
 // 字号区间常量住类型层（schema 约束），引擎与设计器面板共用，保持 types ← engine 的依赖方向。
-import { FONT_SIZE_MAX_PX, FONT_SIZE_MIN_PX } from "@/types";
+// `resolveDefaultLineCountV2` 同理：行数是校验层也要用的口径，真源在 types（见 schema-v2-p-rows）。
+import { FONT_SIZE_MAX_PX, FONT_SIZE_MIN_PX, resolveDefaultLineCountV2 } from "@/types";
 
 /**
  * 渲染期领域逻辑（B4 归 engine）。
@@ -387,13 +388,21 @@ export function resolveSignImageUrlIndexesV2(raw: unknown, maxCount?: number): n
  * 语义：`default` 不再当「一张图」，而是当「签名栏占几行」——`"\n"` → 2 行、`"\n\n"` → 3 行；
  * 空 / 未设 → 1 行；`default` 是图片地址时也是 1 行（地址本身不参与行数）。
  *
- * 渲染层（`GridSchemaNode` 铺 N 条 `.layout-p__line`）与分页估算（`pagination` 算行盒高度）
- * 共用本函数，避免「屏上 3 行、分页按 1 行」的高度错配（那会导致溢出纸外或提前分页）。
+ * 2026-10-27：行数真源迁至 `@/types` 的 `resolvePFieldRowsV2`（并入显式「初始行数」），
+ * 本函数退化为「只看 `default` 换行数」的底层口径，保留是为了既有引用与单测不变。
+ * 需要「生效行数」的地方一律用 `resolvePFieldRowsV2`。
  */
 export function resolveSignPlaceholderLineCountV2(defaultValue?: string): number {
-  const raw = typeof defaultValue === "string" ? defaultValue : "";
-  return Math.max(1, raw.split("\n").length);
+  return resolveDefaultLineCountV2(defaultValue);
 }
+
+/**
+ * 字段 P 的生效行数（初始 / 最小行数）——原样再导出 `@/types` 的实现。
+ *
+ * 住在 types 层是因为校验层也要用它，而 types 不能反向依赖 engine（见该模块注释）。
+ * 渲染 / 分页 / 校验三方共用同一答案，避免「屏上 N 行、分页按 1 行算」。
+ */
+export { resolvePFieldRowsV2 } from "@/types";
 
 /** 签名图**有效高度**：配了 `imageHeight` 用它，留空回落到与标签等高的 `1.6em`。 */
 export function resolveSignImageHeightV2(node: Pick<FieldPNodeV2, "imageHeight">): string {
@@ -475,6 +484,21 @@ export function resolveCellBoxV2(
       cell.verticalAlign ?? grid.cellVerticalAlign ?? DEFAULT_CELL_VERTICAL_ALIGN,
   };
 }
+
+// ---------------------------------------------------------------------------
+// 表格复合表头布局（2026-10-23）
+//
+// 求解器住在 types 层（`@/types/schema-v2-header`）：Schema 校验算表格最低高度时也要数表头行数，
+// 而 types 层不能反向依赖 engine 层。此处原样再导出，历史引用（pagination / 渲染 / 面板）无需改动。
+// ---------------------------------------------------------------------------
+
+export {
+  resolveTableHeaderRowsV2,
+  resolveTableHeaderLayoutV2,
+  resolveTableHeaderRowCountV2,
+  type PlacedTableHeaderCellV2,
+  type ResolvedTableHeaderV2,
+} from "@/types/schema-v2-header";
 
 // ---------------------------------------------------------------------------
 // 表格字段派生
