@@ -9,7 +9,6 @@ const fieldNode = {
   type: "p" as const,
   mode: "field" as const,
   field: "单位",
-  underline: true,
 };
 
 const compositeNode = {
@@ -19,7 +18,6 @@ const compositeNode = {
   field: "工作班成员人数",
   prefix: "共",
   suffix: "人",
-  underline: true,
 };
 
 describe("GridSchemaNode 填写态数据回写（P9.1b / G15 / 十续）", () => {

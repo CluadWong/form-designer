@@ -1,56 +1,28 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import FormRenderer from "@/components/renderer-v2/FormRenderer.vue";
 import { collectFieldValues } from "@/components/renderer-v2/collectFieldValues";
-import { makeYunlvSecondTicketFullSchema } from "@/dev/yunlv-second-ticket-full";
 import { parseTolerantFormSchemaV2 } from "@/types";
 import type { FormDataV2, FormSchemaV2 } from "@/types";
-import signTableExport from "@/fixtures/formdesigner-schema-v2-sign-table.json";
-import jinglingExport from "@/dev/金陵-第二种操作票.json";
 
 /**
- * 消费页演示（G8 独立运行，最简形态）：schema → 渲染 / 填写 / 取数。
+ * 消费页演示（G8 独立运行，最简形态）：导入模板 → 渲染 / 填写 / 取数。
  * 只验证渲染内核可脱离设计器独立运行。设计页（FormDesigner）保持纯设计用途。
  *
  * `readonly` 是 `options` 里的字段（`FormRenderer` 无同名 prop）：显式 false 即「填写」态。
  *
- * URL 参数（缺省 = 金陵第二种操作票，2026-10-21）：
- * - `?schema=jingling`（缺省）：`src/dev/金陵-第二种操作票.json` —— 设计器真实导出的模板，
- *   可直接看版面 / 填值 / 取数；
- * - `?schema=yunlv`：云铝第二种工作票全工单（代码内构造的基线模板）；
- * - `?schema=sign-table`：切到「HTML 复杂表」——设计器**真实导出**的收工/开工签名时间表
- *   （36 格原生 `data-field`），用于验证 HTML 模块「能填 / 能取数 / 只读态能回显」；
- * - `?readonly=1`：以只读回显态打开，对照填写态看值是否照常显示。
+ * 预览页不内置任何样例模板，仅支持导入设计器「导出文件」产出的 .json 模板进行预览。
  */
-const SAMPLE_KEYS = ["jingling", "yunlv", "sign-table"] as const;
-type SampleKey = (typeof SAMPLE_KEYS)[number];
 
-/** 未知 / 缺省的 `?schema=` 一律回落到缺省模板，避免演示页白屏。 */
-function resolveSample(raw: string | null): SampleKey {
-  return raw && (SAMPLE_KEYS as readonly string[]).includes(raw)
-    ? (raw as SampleKey)
-    : "jingling";
-}
-
-const query = new URLSearchParams(window.location.search);
-const sample = resolveSample(query.get("schema"));
-const readonly = ref(query.get("readonly") === "1");
-
-/** 导入的模板 / 数据（导入后优先于 `?schema=` 样例）。 */
+/** 导入的模板（导入后渲染，未导入时为 null）。 */
 const importedSchema = ref<FormSchemaV2 | null>(null);
 const importedData = ref<FormDataV2 | null>(null);
 /** 每次导入都换 key 强制重建渲染器：schema 与 data 一起换，避免沿用上一份的内部填写态。 */
 const renderKey = ref(0);
 /** 顶部标签：当前渲染的是哪份来源。 */
-const sourceLabel = ref(`样例：${sample}`);
+const sourceLabel = ref("未导入模板");
 const importNote = ref("");
-
-const schema = computed<FormSchemaV2 | null>(() => {
-  if (importedSchema.value) return importedSchema.value;
-  if (sample === "sign-table") return parseTolerantFormSchemaV2(signTableExport).schema;
-  if (sample === "yunlv") return makeYunlvSecondTicketFullSchema();
-  return parseTolerantFormSchemaV2(jinglingExport).schema;
-});
+const readonly = ref(false);
 
 const schemaFileInput = ref<HTMLInputElement | null>(null);
 const dataFileInput = ref<HTMLInputElement | null>(null);
@@ -80,11 +52,14 @@ async function onImportSchemaFile(event: Event): Promise<void> {
     importedData.value = null;
     renderKey.value += 1;
     sourceLabel.value = `导入文件：${file.name}`;
-    importNote.value = parsed.issues.length > 0
-      ? `已导入（${parsed.issues.length} 处容错修复）`
-      : "已导入";
+    importNote.value =
+      parsed.issues.length > 0
+        ? `已导入（${parsed.issues.length} 处容错修复）`
+        : "已导入";
   } catch (error) {
-    alert(`导入文件失败：${error instanceof Error ? error.message : String(error)}`);
+    alert(
+      `导入文件失败：${error instanceof Error ? error.message : String(error)}`,
+    );
   } finally {
     input.value = "";
   }
@@ -108,7 +83,9 @@ async function onImportDataFile(event: Event): Promise<void> {
     importNote.value = `已导入数据：${Object.keys(importedData.value).length} 项`;
     sourceLabel.value = `导入文件：${file.name} · 数据`;
   } catch (error) {
-    alert(`导入数据失败：${error instanceof Error ? error.message : String(error)}`);
+    alert(
+      `导入数据失败：${error instanceof Error ? error.message : String(error)}`,
+    );
   } finally {
     input.value = "";
   }
@@ -165,14 +142,16 @@ function dumpDom(): void {
     </div>
     <pre v-if="dump" class="preview-dump">{{ dump }}</pre>
     <FormRenderer
-      v-if="schema"
+      v-if="importedSchema"
       :key="renderKey"
       ref="rendererRef"
-      :schema="schema"
+      :schema="importedSchema"
       :data="importedData"
       :options="{ readonly }"
     />
-    <p v-else class="preview-error">Schema 解析失败（issues 见控制台）。</p>
+    <p v-else class="preview-error">
+      未导入模板：请先通过上方「导入文件」选择设计器导出的 .json 模板。
+    </p>
   </div>
 </template>
 

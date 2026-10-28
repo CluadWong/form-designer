@@ -36,7 +36,6 @@ function fieldP(id: string, field: string, label?: string): FieldPNodeV2 {
     type: "p",
     mode: "field",
     field,
-    underline: true,
     ...(label ? { prefix: label } : {}),
   };
 }

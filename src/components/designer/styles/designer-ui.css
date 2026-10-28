@@ -56,10 +56,6 @@
   background: #1d4ed8;
 }
 
-.v2-toolbar--row{
-  background: #fff;
-}
-
 .v2-sidebar {
   min-width: 0;
   padding: 16px;
@@ -103,17 +99,28 @@
   overflow: hidden;
 }
 
+/* 分组标题（2026-10-28 改版）：11px / 500 / #475569，靠上方 1px 细线分隔分组，
+   不再用加大外边距表达分组（面板要装得下 14 条配置）。 */
 .v2-sidebar__subheading {
-  margin: 16px 0 8px;
-  color: #64748b;
+  margin: 12px 0 4px;
+  padding-top: 10px;
+  border-top: 1px solid #eef2f7;
+  color: #475569;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
-/* 紧跟在小标题（`.v2-sidebar__subheading`，本身 16/8 外边距）之后的提示，
+/* 面板里的第一个分组不需要上分隔线 */
+.v2-sidebar__subheading:first-child {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* 紧跟在小标题（`.v2-sidebar__subheading`）之后的提示，
    收紧到「标题 → 提示 → 内容」的紧凑节奏，不额外撑开。 */
 .v2-sidebar__hint--tight {
-  margin: 0 2px 8px;
+  margin: 0 2px 6px;
 }
 
 .v2-sidebar__hint {
@@ -123,63 +130,122 @@
   line-height: 1.6;
 }
 
+/* ── 配置行（2026-10-28 改版的核心） ──────────────────────────────
+   一条配置 = 一行：标签定宽居左、控件吃掉剩余宽度（原来标签在上、控件在下的
+   56px 块，360px 面板一屏只放得下 6 项）。
+   标签宽度由 `--v2-label-w` 局部覆写：整行默认 62px（容 5 个汉字），
+   双列压到 46px（容「水平对齐」4 字），三列改为标签在上。 */
 .v2-control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 14px 0;
-  color: #475569;
-  font-size: 12px;
+  display: grid;
+  grid-template-columns: var(--v2-label-w, 62px) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
 }
 
-.v2-control input,
-.v2-control select {
+/* 相邻配置块之间的节奏由这里统一给，组件里不再逐个写 margin。
+   只对**面板直属**的块生效：网格内部的兄弟 `.v2-control` 由 grid gap 控制，
+   否则双列里的第 2 格会额外多出 6px（两列高度不一致）。 */
+.v2-sidebar__subheading + .v2-control,
+.v2-sidebar__subheading + .v2-grid-dimensions,
+.v2-sidebar__subheading + .v2-style-grid,
+.v2-control + .v2-control,
+.v2-control + .v2-grid-dimensions,
+.v2-control + .v2-style-grid,
+.v2-grid-dimensions + .v2-control,
+.v2-grid-dimensions + .v2-grid-dimensions,
+.v2-grid-dimensions + .v2-style-grid,
+.v2-style-grid + .v2-control,
+.v2-style-grid + .v2-grid-dimensions {
+  margin-top: 6px;
+}
+
+.v2-grid-dimensions > .v2-control,
+.v2-grid-dimensions > .v2-control + .v2-control,
+.v2-style-grid > .v2-control,
+.v2-style-grid > .v2-control + .v2-control {
+  margin-top: 0;
+}
+
+/* 头部（类型 + 名称）之后的第一条配置：留出与分之下的呼吸，避免贴着分隔线 */
+.v2-inspector-row--head + .v2-control,
+.v2-inspector-row--head + .v2-grid-dimensions {
+  margin-top: 8px;
+}
+
+/* 行首的标签格：`span:first-child` 限定为标签，避免把 `.v2-unit` / 输入框外壳
+   也吃进标签样式（它们同样是 `.v2-control` 的直接 span 子元素）。 */
+.v2-control > span:first-child {
+  min-width: 0;
+  line-height: 1.35;
+}
+
+/* 只命中**直接子元素**：`.v2-unit` / `.v2-color` 内部的输入框自己管边框，
+   否则外框套内框会露出 2px 双线。 */
+.v2-control > input,
+.v2-control > select,
+.v2-control > textarea {
   width: 100%;
-  min-height: 30px;
-  padding: 0 8px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 7px;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
   box-sizing: border-box;
-  color: #1e293b;
+  color: #0f172a;
   background: #fff;
+  font-family: inherit;
   font-size: 12px;
 }
 
-/* 复选框不套用文本框的全宽边框样式：保持上下结构（标签在上、勾选框在下）并左对齐 */
-.v2-control input[type="checkbox"] {
-  width: 16px;
-  min-height: 16px;
-  height: 16px;
+.v2-control > textarea {
+  height: auto;
+  min-height: 52px;
+  padding: 5px 7px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.v2-control > input:focus,
+.v2-control > select:focus,
+.v2-control > textarea:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+/* 多行控件：标签与首行文字对齐，而不是与整块垂直居中 */
+.v2-control--area {
+  align-items: start;
+}
+
+.v2-control--area > span {
+  padding-top: 6px;
+}
+
+/* 布尔项：标签占满左侧、勾选框贴右，与同排控件同一基线 */
+.v2-control--switch {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.v2-control > input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
   margin: 0;
   padding: 0;
   border: none;
   background: transparent;
-  align-self: flex-start;
+  justify-self: end;
   accent-color: #2563eb;
   cursor: pointer;
 }
 
-/* 统一为上下结构：标签在上、输入在下（与 .v2-control 一致）。
-   输入框样式不再重复声明——使用处一律 `class="v2-control v2-control--inline"`，
-   已命中上面的 `.v2-control input` 规则（批次 4 去重）。 */
+/* 兼容标记：历史文案里用的 `.v2-control--inline`（测试按它定位字号输入框），
+   语义是「窄标签行」——46px 刚好容下 4 个汉字（水平对齐）。 */
 .v2-control--inline {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  margin: 0;
-}
-
-/* 复选框类控件：标签与勾选框同一行（如页面设置里的「分页」开关） */
-.v2-control--toggle {
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  margin: 14px 0 0;
-}
-
-.v2-control--toggle span {
-  color: #475569;
-  font-size: 12px;
+  --v2-label-w: 46px;
 }
 
 /* 长文本控件独占一整行（在 2 列网格中横跨两列） */
@@ -187,57 +253,213 @@
   grid-column: 1 / -1;
 }
 
+/* ── 单位后缀 ─────────────────────────────────────────────────
+   单位不再写进标签（「字号(px)」「默认宽(mm)」），改为输入框右侧的固定后缀块：
+   标签只剩纯名词，同一列里单位对齐，一眼能扫下来。 */
+.v2-unit {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.v2-unit:focus-within {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.v2-unit > input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 7px;
+  border: none;
+  background: transparent;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.v2-unit > span {
+  display: flex;
+  align-items: center;
+  padding: 0 5px;
+  border-left: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #94a3b8;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* 单位在**左**时的分段（图片尺寸：宽 | 40 | mm）——窄到只能放两列时，
+   把「宽 / 高」读成字段名的前置标签，比塞在右侧更符合阅读顺序。 */
+.v2-unit > span.v2-unit__tag {
+  border-left: none;
+  border-right: 1px solid #e2e8f0;
+}
+
+/* ── 颜色 ─────────────────────────────────────────────────────
+   原来是一个撑满整行的 26px 纯色长条，是面板里视觉最重的元素。
+   改成「22px 色块 + 等宽 hex」：既能看值，也不再压过其他配置。 */
+.v2-color {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.v2-color:focus-within {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.v2-color input[type="color"] {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.v2-color input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.v2-color input[type="color"]::-webkit-color-swatch {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 3px;
+}
+
+.v2-color__hex {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #475569;
+}
+
+/* ── 两列 / 三列排布 ─────────────────────────────────────────
+   两列：每格收窄到「46px 标签 + 控件」，能容「水平对齐 / 垂直对齐」4 字；
+   竖排（--stack）：同组但每行要占满宽度，给 6 个字的开关或整句下拉留位置。 */
 .v2-grid-dimensions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 6px 10px;
 }
 
-/* 网格容器内的控件去掉上下外边距，由网格 gap 控制间距 */
-.v2-grid-dimensions .v2-control {
-  margin: 0;
+.v2-grid-dimensions > .v2-control {
+  --v2-label-w: 46px;
 }
 
-/* 三列变体：只给「布局方式 + 水平对齐 + 垂直对齐」这一行用——三者语义成组（都决定排布），
-   拆成两行会把「布局」与其中一个方向的对齐拆散。列宽够用：右栏固定 360px，扣掉 padding 32px
-   与常显滚动条 8px 后内容宽 320px，两处 gap 16px → 每列约 101px，而控件是上下结构
-   （标签在上、控件在下），最长的标签「水平对齐 / 垂直对齐」4 字 ≈ 48px。 */
-.v2-grid-dimensions--triple {
-  grid-template-columns: repeat(3, 1fr);
+/* 竖排变体：同属一个分组、但每行都要占满宽度（如两个表头开关，
+   标签 6 个字放不进双列的半格里）。 */
+.v2-grid-dimensions--stack {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin-top: 6px;
 }
 
+/* 与 `.v2-grid-dimensions` 同义的旧类：文本样式的字号/行高等仍在用 */
 .v2-style-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px 12px;
-  margin-bottom: 4px;
+  gap: 6px 10px;
 }
 
-.v2-style-grid .v2-control {
-  margin-bottom: 0;
+.v2-style-grid > .v2-control {
+  --v2-label-w: 34px;
 }
 
-.v2-style-grid .v2-control--inline input[type="color"] {
-  width: 100%;
-  height: 26px;
-  padding: 0;
-  border: 1px solid #cbd5e1;
-  border-radius: 3px;
-  background: #fff;
-}
-
+/* 代码块类长文本（当前只有 HTML 模块在用）：等宽字体，便于对齐标签 */
 .v2-textarea {
   width: 100%;
-  min-height: 30px;
-  padding: 6px 8px;
+  min-height: 52px;
+  padding: 5px 7px;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
   box-sizing: border-box;
-  color: #1e293b;
+  color: #0f172a;
   background: #fff;
-  font-size: 12px;
+  font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.6;
   resize: vertical;
+}
+
+/* ── 面板内动作按钮 ───────────────────────────────────────────
+   与配置行同高（28px）、同圆角、白底灰字：动作不是主视线，不抢配置项。
+   原来单元格的「合并 / 拆分」借用了深色 `.v2-toolbar`，在白色侧栏里像一条异物。 */
+.v2-action-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.v2-action {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #475569;
+  font-family: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.v2-action:hover:not(:disabled) {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.v2-action:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+/* 可折叠分组的标题行（额外属性等低频配置）：整行可点，caret 指示展开态 */.v2-section-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.v2-section-toggle__caret {
+  color: #94a3b8;
+  font-size: 9px;
+  line-height: 1;
+  transition: transform 0.12s ease;
+}
+
+.v2-section-toggle--collapsed .v2-section-toggle__caret {
+  transform: rotate(-90deg);
+}
+
+.v2-section-toggle__count {
+  color: #94a3b8;
+  font-weight: 400;
 }
 
 .v2-hint {
@@ -269,134 +491,677 @@
   overflow: hidden;
 }
 
-/* ── 图片列表配置（ImageInspector） ────────────────────────────────────
-   列比键值表多（# / 名称 / 地址 / 宽 / 高 / 删除），从面板宽度里挤不下，
-   故外层横向滚动、内层维持固定列宽：窄侧栏下按 index 逐行左右拖动查看。
-   滚动条用 `scroll` 常显（不依赖悬停/滚动才浮现），让「右边还有内容」一眼可见；
-   Chromium 下必须显式给 ::-webkit-scrollbar 尺寸，否则 overlay 滚动条依旧会隐藏。
-   360px 侧栏下无头 Chromium 实测（2026-09-28）：clientWidth 325 / scrollWidth 440，
-   `offsetHeight - clientHeight = 10`（滚动条确实常驻）。 */
-.v2-image-table {
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  overflow-x: scroll;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f1f5f9;
+/* ── 表头与列（TableInspector，2026-10-27 重设计） ──────────────────────
+   旧版把「表头结构」和「列配置」做成两张同构键值表：标题两处、增删两套、
+   跨列跨行是数字框看不见落位。新版合并成一个网格编辑器：
+     网格（表头矩阵）→ 格操作条 → 列带（与网格同列对齐）
+   视觉主张只有一处：**网格必须长得像画布上的表格**（真格线、真合并），
+   其余控件（小标题按钮、格操作条、列带）全部退成无框灰字，不与网格抢注意力。 */
+.v2-sidebar__subheading--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.v2-image-table::-webkit-scrollbar {
+/* 分组标题右侧的「?」上下文帮助（HelpLink）：16px 圆形描边，与 +行/+列 同排但不抢主视线 */
+.v2-help-link {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  color: #94a3b8;
+  background: #fff;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.v2-help-link:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.v2-help-link:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.v2-subheading__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 小标题右侧的动作按钮：浅蓝描边，尺寸压到 22px 不撑高标题行。 */
+.v2-subheading__action {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.v2-subheading__action:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+/* 次要动作（恢复单行）：无底色，避免两个按钮平分视觉重量。 */
+.v2-subheading__action--quiet {
+  border-color: #e2e8f0;
+  color: #64748b;
+  background: transparent;
+  font-weight: 500;
+}
+
+.v2-subheading__action--quiet:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  color: #334155;
+  background: #f8fafc;
+}
+
+.v2-subheading__action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── 表头网格 ──
+   网格与列带同处一个横向滚动区：11 列的表格不再把每列压到 30px（标题碎成三行、字段名只剩两个字），
+   而是按最小 56px 排开、整体横向滚动，网格与列带共用一份列轨所以永远逐列对齐。 */
+.v2-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+}
+
+/* 细滚动条：常显的粗滚动条在 360px 面板里会吃掉一整行高度。 */
+.v2-table-scroll::-webkit-scrollbar {
   height: 8px;
 }
 
-.v2-image-table::-webkit-scrollbar-track {
+.v2-table-scroll::-webkit-scrollbar-track {
   background: #f1f5f9;
-  border-radius: 0 0 6px 6px;
+  border-radius: 4px;
 }
 
-.v2-image-table::-webkit-scrollbar-thumb {
+.v2-table-scroll::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
 }
 
-.v2-image-table::-webkit-scrollbar-thumb:hover {
+.v2-table-scroll::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-.v2-image-table__grid {
-  min-width: 440px;
+/* 撑开由每行网格自己的 `min-width` 负责（见 `sheetStyle`）：这里只保证至少占满面板。 */
+.v2-table-stack {
+  min-width: 100%;
 }
 
-.v2-image-table__row {
+.v2-sheet {
   display: grid;
-  /* 末列 28px 是「固定」的删除列：宽度只够放下按钮，多出来的横向空间全给地址列 */
-  grid-template-columns: 20px 84px 1fr 56px 56px 28px;
-  align-items: center;
-  gap: 0;
-  border-bottom: 1px solid #f1f5f9;
+  grid-auto-rows: minmax(32px, auto);
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  /* 必须是 clip 而不是 hidden：`overflow: hidden` 会成为 sticky 行把手的滚动容器，
+     横向滚动时行号就不跟手了。clip 只做圆角裁剪、不建立滚动容器。 */
+  overflow: clip;
 }
 
-.v2-image-table__row:last-child {
+/* 表头当前不显示（showHeader=false）：淡化网格，配置仍可编辑，但一眼看出"此刻不生效"。 */
+.v2-sheet--muted {
+  opacity: 0.55;
+}
+
+/* 行把手：常显行号，hover 才浮出删除，避免每行一颗 ✕ 把网格打散。 */
+.v2-sheet__gutter {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  padding: 0 3px 0 5px;
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  color: #94a3b8;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.v2-sheet__gutter--last {
   border-bottom: none;
 }
 
-.v2-image-table__head {
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0 !important;
+.v2-sheet__rowdel {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  color: #b91c1c;
+  background: transparent;
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0;
+  cursor: pointer;
 }
 
-.v2-image-table__th {
-  padding: 6px 4px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  /* 表头标题必须完整可读：不设 ellipsis、不裁切，列宽按最宽标题（宽(mm)）留足 */
-  white-space: nowrap;
+.v2-sheet__gutter:hover .v2-sheet__rowdel,
+.v2-sheet__rowdel:focus-visible {
+  opacity: 1;
 }
 
-/* ── 固定删除列 ────────────────────────────────────────────────────────
-   内容横向滚动时右侧删除按钮必须一直停在视口右边（sticky 相对滚动容器定位），
-   否则要滚到最右才能删行。自底色遮住滚过的内容，左侧描边 + 阴影提示「这一列是固定的」。
-   实测（同上）：`scrollLeft = 0` 与 `= 115`（最右）两个状态下按钮矩形完全一致（L 314 / R 342），
-   同时「高」列已滚出可视区（R 373 → 258）—— 说明固定生效且由 sticky 而非列序造成。 */
-.v2-image-table__row > :last-child {
-  position: sticky;
-  right: 0;
-  z-index: 1;
-  align-self: stretch;
+.v2-sheet__rowdel:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.v2-sheet__rowdel:disabled {
+  cursor: not-allowed;
+  opacity: 0;
+}
+
+/* 表头格：格线画在「右 / 下」两边（与渲染层 borderRight / borderBottom 同规则），
+   合并格因此不会与邻格各画一条、叠成 2px。
+   注意 `align-items` 必须是 center 而不是 stretch：格内 textarea 靠 scrollHeight 自动增高，
+   一旦被拉伸，scrollHeight 就会等于容器高 → 每次 autosize 又把 height 写大 → 行轨道被正反馈撑爆
+   （真机实测：两行表头里第二行被撑到 84px，全是空白）。 */
+.v2-sheet__cell {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
   background: #fff;
-  box-shadow: -6px 0 6px -6px rgba(15, 23, 42, 0.16);
+  cursor: text;
 }
 
-.v2-image-table__head > :last-child {
+.v2-sheet__cell--right {
+  border-right: 1px solid #e2e8f0;
+}
+
+.v2-sheet__cell--bottom {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.v2-sheet__cell:hover {
   background: #f8fafc;
 }
 
-.v2-image-table__index {
-  padding: 6px 2px;
-  text-align: center;
+.v2-sheet__cell.is-selected {
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 2px #2563eb;
+  border-radius: 2px;
+}
+
+/* 与选中格同列的所有格（跨列格只要覆盖该列也算）：与列清单的 .is-active 同色 */
+.v2-sheet__cell.is-column-active {
+  background: #f5f8ff;
+}
+
+.v2-sheet__cell.is-column-active:hover {
+  background: #eef4ff;
+}
+
+.v2-sheet__cell.is-column-active.is-selected {
+  background: #eff6ff;
+}
+
+.v2-sheet__cell--merged {
+  background-image: linear-gradient(180deg, #fbfdff, #fff);
+}
+
+.v2-sheet__text {
+  width: 100%;
+  /* 必须 border-box：autosize 把 `scrollHeight`（含 padding）写进 `height`，
+     若按 content-box 解释，每轮都会多算 8px padding，行高越撑越大（真机实测 2 行顶到 48px）。 */
+  box-sizing: border-box;
+  min-height: 32px;
+  /* 上限 = 一行的高度：多行标题在格内滚动查看，行轨道不被撑高。
+     面板宽度与画布列宽无关，格内换行只是"面板太窄"，不该让整个矩阵忽高忽低。 */
+  max-height: 56px;
+  padding: 4px 5px;
+  border: none;
+  background: transparent;
+  color: #0f172a;
+  font-family: inherit;
+  /* 11px：360px 面板里 4 列时每列约 65px，12px 会让常见四字标题就换行、把行高顶到 50px。 */
   font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: pre-wrap;
+  /* 不出现任何滚动条：系统滚动条（含上下箭头）会占掉格高、把标题文字裁掉一半。
+     超过 3 行（56px）的部分裁切——表头标题不该长到那份上，真长了去画布调整。 */
+  overflow: hidden;
+  resize: none;
+  outline: none;
+}
+
+.v2-sheet__text::placeholder {
+  color: #cbd5e1;
+  font-weight: 400;
+}
+
+/* ── 选中格详情区 ─────────────────────────────────────────────
+   2026-10-28：从"一条工具条"扩成"格详情"——上排是定位 + 跨度步进 + 删格，
+   下面是**整宽标题输入框**（格内那个 46px 的格子装不下长标题）。
+   底色与虚线边框保留：它是一块"上下文区"，跟常驻配置区分开。 */
+.v2-cellbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 8px 8px;
+  border: 1px dashed #e2e8f0;
+  border-radius: 6px;
+  background: #fcfdff;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.v2-cellbar__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+}
+
+/* 详情区里的标题框：标签只需「标题」两字宽，把宽度全留给可换行的输入 */
+.v2-cellbar .v2-control {
+  --v2-label-w: 30px;
+  gap: 6px;
+}
+
+.v2-cellbar .v2-control > textarea {
+  min-height: 46px;
+  background: #fff;
+}
+
+.v2-cellbar__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #334155;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-cellbar__empty {
   color: #94a3b8;
 }
 
-/* 行内输入沿用键值表外观，仅去掉最后两列的右边框（紧邻删除按钮） */
-.v2-image-table__row .v2-col-table__input--width {
-  border-right: 1px solid #f1f5f9;
+.v2-cellbar__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
 }
 
-/* 列宽压到 52px 后留白很紧：收紧内边距，并隐藏数字输入的 spinner（它会吃掉大半格宽）。 */
-.v2-image-table__row .v2-col-table__input {
-  padding-left: 5px;
-  padding-right: 5px;
+.v2-cellbar__step b {
+  min-width: 12px;
+  color: #1e293b;
+  font-size: 11px;
+  text-align: center;
 }
 
-.v2-image-table__row input[type="number"]::-webkit-outer-spin-button,
-.v2-image-table__row input[type="number"]::-webkit-inner-spin-button {
+.v2-cellbar__step button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  color: #475569;
+  background: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.v2-cellbar__step button:hover:not(:disabled) {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.v2-cellbar__step button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* 不可删时收成中性灰：红色描边留给「能删但危险」，disabled 的红框看着像报错。 */
+.v2-cellbar__del:disabled {
+  border-color: #e2e8f0;
+  color: #cbd5e1;
+  background: #fff;
+  cursor: not-allowed;
+}
+
+.v2-cellbar__unit {
+  margin-left: 1px;
+  color: #94a3b8;
+}
+
+.v2-cellbar__del {
+  flex: 0 0 auto;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid #fecaca;
+  border-radius: 3px;
+  color: #b91c1c;
+  background: #fef2f2;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.v2-cellbar__del:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+/* ── 列清单（2026-10-28 替代"列带"） ─────────────────────────────
+   原列带与网格逐列像素对齐，一列只有 56px：字段名被压成两个字、宽度与删除要横滚才可见，
+   10 列的宽表实际没法用。改为一列一行的纵向清单：
+     序号 | 字段名（吃满剩余宽度）| 宽度 | 删除
+   列数再多也不用横向滚动；与网格的对应靠选中联动（行高亮 ↔ 格高亮）。 */
+.v2-col-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.v2-col-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 54px 18px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 4px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+}
+
+.v2-col-row:last-child {
+  border-bottom: none;
+}
+
+.v2-col-row:hover {
+  background: #f8fafc;
+}
+
+/* 选中格所在的列：左侧 2px 蓝条 + 淡蓝底，与网格里同列格子的高亮同色 */
+.v2-col-row.is-active {
+  background: #eff6ff;
+  box-shadow: inset 2px 0 0 #2563eb;
+}
+
+.v2-col-row__index {
+  color: #94a3b8;
+  font-size: 11px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 字段名：等宽小字但占满剩余宽度（原来被压到 2 个字的正是它） */
+.v2-col-row__key,
+.v2-col-row__width {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  outline: none;
+}
+
+.v2-col-row__key {
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.v2-col-row__width {
+  color: #64748b;
+  text-align: center;
+}
+
+.v2-col-row__key:hover,
+.v2-col-row__width:hover {
+  border-color: #e2e8f0;
+}
+
+.v2-col-row__key:focus,
+.v2-col-row__width:focus {
+  border-color: #93c5fd;
+  background: #fff;
+}
+
+.v2-col-row__key::placeholder,
+.v2-col-row__width::placeholder {
+  color: #cbd5e1;
+  font-weight: 400;
+}
+
+/* 删列：常态淡显，hover 行才变红——避免 10 行红叉组成一堵按钮墙 */
+.v2-col-row__del {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.v2-col-row:hover .v2-col-row__del,
+.v2-col-row__del:focus-visible {
+  color: #b91c1c;
+}
+
+.v2-col-row__del:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.v2-col-row__del:disabled {
+  color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+.v2-header-hint {
+  margin: 6px 2px 0;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.v2-header-hint--issue {
+  color: #dc2626;
+}
+
+/* ── 图片地址列表（ImageInspector） ─────────────────────────────
+   每条 = 一张小卡片，三行：
+     ① 序号 + 名称 + 删除
+     ② 地址（独占一整行，长的 URL / Base64 才看得见）
+     ③ 宽 | 高（并排两列，单位做后缀）
+   2026-10-28 之前是 6 列 440px 的横向滚动表格，地址被截成「https:// 链接或 Ba」，
+   宽 / 高 / 删除都要横滚才可见、删除列还得 sticky 固定。 */
+.v2-image-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.v2-image-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px 7px 7px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fcfdff;
+}
+
+.v2-image-item__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.v2-image-item__index {
+  flex: 0 0 12px;
+  color: #94a3b8;
+  font-size: 11px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 名称读作「这一条叫什么」而不是一个输入框：默认无框，hover / 聚焦才浮出边线 */
+.v2-image-item__name {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+}
+
+.v2-image-item__name:hover {
+  border-color: #e2e8f0;
+}
+
+.v2-image-item__name:focus {
+  border-color: #93c5fd;
+  background: #fff;
+}
+
+/* 地址：独占一整行。必须显式 width:100% + border-box，
+   `<input>` 的默认宽度由 size 属性决定，不会自动铺满。 */
+.v2-image-item__src {
+  display: block;
+  width: 100%;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  box-sizing: border-box;
+  background: #fff;
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  outline: none;
+}
+
+.v2-image-item__src:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.v2-image-item__del {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #b91c1c;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.v2-image-item__del:hover {
+  background: #fee2e2;
+}
+
+/* 宽 / 高并排两列（grid 而不是 flex：两列永远等宽，与内容长度无关） */
+.v2-image-item__size {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.v2-image-item__size .v2-unit {
+  min-width: 0;
+  height: 26px;
+}
+
+/* 26px 高的框里 spinner 会吃掉半格，隐藏（仍可直接输入 / 上下键调） */
+.v2-image-item__size input::-webkit-outer-spin-button,
+.v2-image-item__size input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-.v2-image-table__row input[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield;
+.v2-image-add {
+  flex: none;
+  width: 100%;
+  margin-top: 6px;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 
-/* 删除按钮同理：默认 8px 内边距 + margin-left:auto 会顶出固定的 28px 列，收紧并居中 */
-.v2-image-table__row .v2-inspector__delete--small {
-  margin: 4px;
-  padding: 2px 6px;
+.v2-image-add:hover:not(:disabled) {
+  background: #dbeafe;
 }
 
+/* 键值表（节点「额外属性」）：属性名 / 值 / 删除 三列。
+   旧模板是 4 列（`1fr 1fr 88px 32px`）而模板里只有 3 个单元格 —— 右侧恒留一格空列、
+   删除按钮永不贴右（2026-10-28 修正）。 */
 .v2-col-table__row {
   display: grid;
-  grid-template-columns: 1fr 1fr 88px 32px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 26px;
   align-items: center;
   gap: 0;
   border-bottom: 1px solid #f1f5f9;
+}
+
+.v2-col-table__row .v2-inspector__delete--small {
+  width: 20px;
+  margin: 0;
+  padding: 2px 0;
+  border-color: transparent;
+  background: transparent;
+  line-height: 1;
+}
+
+.v2-col-table__row .v2-inspector__delete--small:hover:not(:disabled) {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+/* 空态：一行灰字替代一整行的"+ 添加属性"大按钮（新增入口在标题行右侧） */
+.v2-col-table__empty {
+  margin: 0;
+  padding: 7px 10px;
+  color: #94a3b8;
+  font-size: 11px;
 }
 
 .v2-col-table__row:last-child {
@@ -444,26 +1209,14 @@
   color: #475569;
 }
 
-.v2-col-table__input--title {
-  font-family: inherit;
-  font-size: 12px;
-  color: #1e293b;
-  line-height: 1.3;
-  resize: none;
-  overflow: hidden;
-}
-
-.v2-col-table__input--width {
-  text-align: center;
-  font-size: 11px;
-}
-
 /* 键值表里被过滤掉的键（如 `on*` / `data-*` / 保留属性）：红字提示而非静默丢弃 */
 .v2-col-table__input--invalid {
   color: #b91c1c;
   background: #fff7f7;
 }
 
+/* 只读态（如配了复合表头后，列配置的标题被表头矩阵锁定）：灰底降低可编辑暗示，
+   但仍保留可选中复制——它依旧是「恢复单行表头」后的兜底值。 */
 .v2-inspector__delete {
   margin-left: auto;
   padding: 4px 8px;
@@ -487,18 +1240,6 @@
 .v2-inspector__delete--small {
   padding: 2px 8px;
   font-size: 11px;
-}
-
-.v2-add-col {
-  width: 100%;
-  margin-top: 8px;
-  border-color: #93c5fd;
-  color: #1d4ed8;
-  background: #eff6ff;
-}
-
-.v2-add-col:hover {
-  background: #dbeafe;
 }
 
 /* 打印：工具条与两侧面板跨组件（FormDesigner 工具栏 / InspectorPanel 侧栏）统一隐藏，

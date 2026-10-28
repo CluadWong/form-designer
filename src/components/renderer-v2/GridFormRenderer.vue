@@ -409,6 +409,7 @@ function pageParamAttrs(sourcePageId: string): Record<string, string> {
       class="grid-form-paper"
       :style="paperStyle(pp.margin)"
       :data-node-id="pp.id"
+      :data-source-page-id="pp.sourcePageId"
       v-bind="pageParamAttrs(pp.sourcePageId)"
     >
       <div

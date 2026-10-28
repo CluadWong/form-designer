@@ -115,6 +115,8 @@ describe("FormDesigner 基础字号：提交时机与传导", () => {
 
     const numbers = wrapper
       .findAll('input[type="number"]')
+      // 「表头结构」矩阵每格带 colspan / rowspan 两个数字框，不属于默认值口径（2026-10-23）。
+      .filter((n) => !n.element.closest("[data-table-header-editor]"))
       .map((n) => (n.element as HTMLInputElement).value);
     expect(numbers).toEqual(["4", "25"]);
   });

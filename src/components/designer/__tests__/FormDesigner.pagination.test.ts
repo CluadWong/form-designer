@@ -217,3 +217,75 @@ describe("FormDesigner 打印强制分页", () => {
     }
   });
 });
+
+/**
+ * 分页后点击第 2 页起仍能选中页面（2026-10-23 回归）。
+ *
+ * 根因：一张逻辑页切成多张物理纸后，第 2 张起的 `data-node-id` 是**合成 id**
+ * （`${pageId}__pp1`…），schema 里没有这个节点 —— `selectNode` 据此判定「不可选中」
+ * 并把选中态清空，右侧纸张配置随之消失，于是「只有第 1 页能点」。
+ * 修复：纸张额外输出 `data-source-page-id`，点击时归一化回逻辑页 id；
+ * 高亮也按该属性覆盖同一逻辑页切出的**全部**纸张。
+ */
+describe("FormDesigner 分页后点击第 2 页起仍可选中页面", () => {
+  type DesignerWrapper = ReturnType<typeof mountWithTallSchema>;
+
+  /** 选中高亮由 CanvasSurface 经 MutationObserver 异步注入，需两次 flush。 */
+  async function flush(): Promise<void> {
+    await nextTick();
+    await nextTick();
+  }
+
+  function selectedIds(wrapper: DesignerWrapper): string[] {
+    return wrapper
+      .findAll(".is-design-selected")
+      .map((el) => el.attributes("data-node-id") ?? "");
+  }
+
+  it("第 2..N 张纸的 data-node-id 是合成 id，data-source-page-id 才指向逻辑页", () => {
+    const wrapper = mountWithTallSchema();
+    const papers = wrapper.findAll(".grid-form-paper");
+    expect(papers.length).toBeGreaterThan(1);
+    expect(papers[0].attributes("data-node-id")).toBe("demo-page");
+    expect(papers[1].attributes("data-node-id")).toBe("demo-page__pp1");
+    for (const paper of papers) {
+      expect(paper.attributes("data-source-page-id")).toBe("demo-page");
+    }
+  });
+
+  it("点击第 2 张纸 → 选中该逻辑页，纸张配置面板重新出现", async () => {
+    const wrapper = mountWithTallSchema();
+    const papers = wrapper.findAll(".grid-form-paper");
+
+    // 先把选中态挪到第 2 页里的网格，才能证明「点第 2 页纸张本身」能把页面选回来
+    await papers[1].find(".layout-grid").trigger("click");
+    await flush();
+    expect(wrapper.find('[data-paginate="true"]').exists()).toBe(false);
+
+    await papers[1].trigger("click");
+    await flush();
+
+    // 纸张配置面板只在选中 page 节点时渲染
+    expect(wrapper.find('[data-paginate="true"]').exists()).toBe(true);
+  });
+
+  it("选中页面时该逻辑页切出的全部物理纸一起高亮（不止第 1 张）", async () => {
+    const wrapper = mountWithTallSchema();
+    const papers = wrapper.findAll(".grid-form-paper");
+
+    await papers[1].trigger("click");
+    await flush();
+
+    expect(selectedIds(wrapper)).toEqual(papers.map((p) => p.attributes("data-node-id")));
+  });
+
+  it("第 2 页里的节点仍按自身 id 选中（归一化只作用于纸张，不误伤内部节点）", async () => {
+    const wrapper = mountWithTallSchema();
+    const papers = wrapper.findAll(".grid-form-paper");
+
+    await papers[1].find(".layout-grid").trigger("click");
+    await flush();
+
+    expect(selectedIds(wrapper)).toEqual(["big-grid"]);
+  });
+});

@@ -13,6 +13,8 @@ import type {
   TableNodeV2,
 } from "./schema-v2";
 import { resolvePaperSizeV2 } from "./schema-v2";
+import { resolvePFieldRowsV2 } from "./schema-v2-p-rows";
+import { resolveTableHeaderLayoutV2, resolveTableHeaderRowCountV2 } from "./schema-v2-header";
 import { buildEditorNodeIndexV2 } from "./schema-v2-index";
 
 export interface SchemaIssueV2 {
@@ -46,6 +48,13 @@ function isValidTrack(value: unknown): boolean {
 
 const MM_PER_PX = 25.4 / 96;
 const DEFAULT_P_FONT_SIZE_PX = 13;
+/**
+ * 字段 P 的行高倍数（2026-10-27，`rows` 行盒高度用）。
+ * 与 `.layout-p { line-height }`、`engine-v2/derivation.DEFAULT_TEXT_LINE_HEIGHT` 同源（1.6）。
+ * 同样不 import 那个常量：validation 属于 `types` 模块，engine-v2 反向依赖 `@/types`，
+ * 引入会形成循环。改行高时三处同改。
+ */
+const P_LINE_HEIGHT = 1.6;
 const FIELD_P_MIN_INPUT_WIDTH_MM = 12;
 /**
  * 图片名称说明文字的估算行高（mm）：与 `.layout-image__name`（`font-size: 11px` /
@@ -108,10 +117,19 @@ function minNodeHeightMm(node: FormNodeV2, baseRowHeight: number): number {
   if (node.type === "grid") {
     return node.rows.reduce((total, row) => total + Math.max(0, row.height), 0) * baseRowHeight;
   }
-  if (node.type === "p") return baseRowHeight;
+  if (node.type === "p") {
+    // 「初始行数」（2026-10-27）= 最小行数，与渲染层 `min-height: calc(N * 1.6em)` 同口径；
+    // 不计入就会把「配了 3 行」的正常字段误报成内容超高。
+    const rows = resolvePFieldRowsV2(node);
+    if (rows <= 1) return baseRowHeight;
+    const fontPx = node.style?.fontSize ?? DEFAULT_P_FONT_SIZE_PX;
+    const lineMm = P_LINE_HEIGHT * fontPx * MM_PER_PX;
+    return Math.max(baseRowHeight, rows * lineMm);
+  }
   if (node.type === "table") {
-    // 表头与数据行均固定为 1× 基准行高（表头高度 / 行高倍数配置已移至单元格）。
-    return Math.max(0, 1 + node.minRows) * baseRowHeight;
+    // 表头行数走复合表头的同一口径（`showHeader === false` 记 0、布局非法回退 1 行），
+    // 数据行固定 1× 基准行高（行高倍数配置已移至单元格）。
+    return Math.max(0, resolveTableHeaderRowCountV2(node) + node.minRows) * baseRowHeight;
   }
   if (node.type === "image") {
     // 与渲染 / 分页同口径：整块列表都没有可显示地址的不占版面，估高为 0（避免误报「内容超高」）。
@@ -280,6 +298,21 @@ function validateTable(node: TableNodeV2, path: Array<string | number>, issues: 
   });
   if (!Number.isInteger(node.minRows) || node.minRows < 0) {
     issue(issues, "error", "INVALID_TABLE_MIN_ROWS", node, path, "表格最小行数必须是不小于 0 的整数");
+  }
+  if (node.headerRows && node.headerRows.length > 0) {
+    // 自定义表头只能在「行 × 列」上排成自洽矩阵；排不出来时渲染层会静默回退单行，
+    // 这里必须说出来，否则用户看到的是「配了没生效」。
+    const layout = resolveTableHeaderLayoutV2(node);
+    if (!layout.valid) {
+      issue(
+        issues,
+        "warning",
+        "INVALID_TABLE_HEADER",
+        node,
+        [...path, "headerRows"],
+        `表头结构无法排成 ${node.columns.length} 列的矩阵（${layout.issues[0] ?? "结构不完整"}），当前按单行表头显示`,
+      );
+    }
   }
   const templateKeys = new Set<string>();
   node.rowTemplate.forEach((template, templateIndex) => {

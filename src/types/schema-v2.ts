@@ -125,14 +125,36 @@ export interface FieldPNodeV2 extends SchemaNodeBaseV2 {
   prefix?: string;
   /** Optional inline label rendered after the input area. */
   suffix?: string;
-  underline?: boolean;
-  webUnderline?: boolean;
-  printUnderline?: boolean;
+  /**
+   * 下划线（`.layout-p--underline`）已于 2026-10-23 从 schema 移除，改为渲染层的**恒定行为**：
+   * 未开 `innerBorder` 的字段一律带屏幕态提示线（整块底部一条），打印态仍由 `@media print` 抹掉。
+   *
+   * 删除理由：设计器 UI 从无开关、新建节点一律写死 `true`、全仓无 `false` 用法 ——
+   * 键值恒等于「未开 `innerBorder`」，是冗余配置。旧的 `underline` 键在历史 JSON 中会被
+   * normalize / 渲染层原样忽略，不影响打开；曾经的 `webUnderline` / `printUnderline`
+   * 两个候选字段从未实现，一并清除。
+   *
+   * **不要与 `innerBorder` 合并**：后者是逐行底边框、打印态保留（手写票横线）。
+   */
   /** 字段宽度（CSS 长度字符串，支持 mm / px / % 等，如 "30mm"、"120px"、"50%"）。
    *  缺省时不限制宽度（沿用父容器 100%）。 */
   width?: string;
   /** 字段默认内容：无填写数据时的预设文本，支持多行（`\n`）。 */
   default?: string;
+  /**
+   * 初始行数（2026-10-27）：**最小行数**，不是固定高度。
+   *
+   * 空值就占 N 行版面（`.layout-p` 的 `min-height: N × 1.6em`），输入内容超出后**继续长高**
+   * ——所在 Grid 行只有 `min-height`、无固定高度，内容变高会把行撑开，分页再经 `measureRow`
+   * 实测校正，所以「自动增高」不需要额外机制。
+   *
+   * 之所以要这个字段：此前行数只能靠 `default` 里的换行「撑」，而默认值是**初始内容**，
+   * contenteditable 输入时会整体替换 → 一敲字就掉回一行。
+   *
+   * 缺省 / ≤1 = 一行（历史行为，老 schema 导出外观逐值不变）。取值入口是
+   * `derivation.resolvePFieldRowsV2`（与 `default` 换行数取大者，三处渲染/分页/校验同源）。
+   */
+  rows?: number;
   /** 内部边框：为 p 标签内每一行（回车生成的 div）显示底边框。
    *  默认不显示；勾选后设计态 / 预览 / 打印均保持显示。 */
   innerBorder?: boolean;
@@ -251,6 +273,21 @@ export interface TableColumnV2 {
   align?: "left" | "center" | "right";
 }
 
+/**
+ * 复合表头的一个单元格（2026-10-23）。
+ * `colspan` / `rowspan` 与 HTML 同语义，缺省均为 1；非法值（≤0 / 非整数）按 1 处理。
+ */
+export interface TableHeaderCellV2 {
+  text: string;
+  colspan?: number;
+  rowspan?: number;
+}
+
+/** 复合表头的一行（按列顺序排列，不描述绝对列号 —— 列号由布局求解按 span 累加得出）。 */
+export interface TableHeaderRowV2 {
+  cells: TableHeaderCellV2[];
+}
+
 export interface TableCellTemplateV2 extends SchemaNodeBaseV2 {
   type: "table-cell-template";
   columnKey: string;
@@ -265,8 +302,42 @@ export interface TableNodeV2 extends SchemaNodeBaseV2 {
   rowTemplate: TableCellTemplateV2[];
   /** 表头样式（标题行）：字号(px) / 粗细 / 对齐。可选；未设时回退到列 align 与默认外观。 */
   headerStyle?: TextStyleV2;
+  /**
+   * 复合表头矩阵（2026-10-23）。
+   *
+   * 缺省（`undefined`）→ 单行表头，直接由 `columns[].title` 投影得到（老模板行为不变）。
+   * 给出时以本矩阵为准：行数 = 表头行数，每格可 `colspan` / `rowspan` 跨列跨行，
+   * 从而表达「收工时间 colspan=4 + 工作负责人 rowspan=2」这类复合表头。
+   *
+   * 与数据的耦合只有一条：**列定义（`columns`）不变**，表头只是「怎么画标题」。
+   * 校验口径：求解后每一行被覆盖的列数必须等于 `columns.length`，否则视为布局非法
+   * （渲染与分页回退单行表头，面板给出提示）。
+   */
+  headerRows?: TableHeaderRowV2[];
   /** 边框模式（与 Grid 一致）：all=外框+内部线（默认）、inner=仅内部线、outer=仅外框、none=无。 */
   border?: BorderModeV2;
+  /**
+   * 是否显示表头（2026-10-23）。
+   * 缺省为 `true`：渲染标题行，分页引擎按「表头 1 行」预留高度。
+   * 设为 `false`：渲染层跳过 `<thead>`，分页引擎不再预留表头高度（每页可多放 1 行数据），
+   * `repeatHeaderOnBreak` 随之失去意义（本来就没有表头可重复）。
+   */
+  showHeader?: boolean;
+  /**
+   * 跨页时续页片段是否重复显示表头（2026-10-22）。
+   * 缺省为 `true`：表格分页到多个物理页时，每个续页片段顶部都重复渲染表头行
+   * （分页引擎在每个片段都预留表头高度）；
+   * 设为 `false`：仅首片段显示表头，续页从数据行直接开始（分页引擎在续页片段
+   * 写入 `_paginateHideHeader` 供渲染层隐藏表头）。
+   */
+  repeatHeaderOnBreak?: boolean;
+  /**
+   * 分页引擎内部字段（2026-10-22）：本片段**隐藏表头**——`repeatHeaderOnBreak === false`
+   * 的续页片段由分页引擎写入。渲染层 `GridSchemaNode.vue` 据此跳过 `<thead>`。
+   * 与 `_paginateMaxRows` 同性质：仅出现在分页引擎写入的克隆片段节点上，
+   * 序列化/校验层忽略（不在用户 JSON 中出现）。
+   */
+  _paginateHideHeader?: boolean;
   /**
    * 分页引擎内部字段（2026-09-03 廿一续）：跨页切分时，本片段最多渲染的数据行数。
    * 仅由 `paginateTable` 写入，渲染层 `GridSchemaNode.vue` 用它限制 `v-for` 行范围。
@@ -274,6 +345,13 @@ export interface TableNodeV2 extends SchemaNodeBaseV2 {
    * 序列化/校验层忽略此字段（不在用户 JSON 中出现）。
    */
   _paginateMaxRows?: number;
+  /**
+   * 分页引擎内部字段（2026-10-27）：本片段的数据行**起始行号**（0-based）。
+   * 跨页切分时续页片段不能从第 1 行重绘，渲染层按 `_paginateStartRow + 行序号`
+   * 绑定字段，保证续页接着上一页继续渲染（否则每页重复前几行、数据回填错位）。
+   * 未设置时视为 0。序列化/校验层忽略此字段（不在用户 JSON 中出现）。
+   */
+  _paginateStartRow?: number;
 }
 
 export interface HtmlNodeV2 extends SchemaNodeBaseV2 {

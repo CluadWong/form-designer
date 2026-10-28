@@ -1,5 +1,13 @@
 <script setup lang="ts">
-/** 文本样式字段组（text / p 共用）：字号 / 行高 / 粗细 / 颜色 / 对齐 / 字体。 */
+/**
+ * 文本样式字段组（text / p 共用）：字号 / 行高 / 粗细 / 颜色 / 对齐。
+ *
+ * 2026-10-28 改版：
+ * - 「字体」项移除（字体族统一由宿主决定，面板不再暴露一个写 `font-family` 的自由文本）；
+ * - 单位从标签移入输入框后缀（「字号(px)」→「字号」+ px），标签只剩纯名词；
+ * - 颜色由撑满整行的 26px 纯色条改成「22px 色块 + 等宽 hex」，不再压过其他配置；
+ * - 对齐从「标签在上」的两列块改为同一行两格（面板每行 28px）。
+ */
 import type { TextStyleV2 } from "@/types";
 import type { SchemaEdits } from "../composables/useSchemaEdits";
 // 生效默认值取自引擎常量（单一真源），与渲染层 `.layout-p` / `.layout-text` 的
@@ -22,23 +30,25 @@ defineProps<{
 /**
  * schema 刻意**不落**这些默认值（`style` 缺省即用引擎/CSS 默认，见 `useSchemaEdits`
  * 的「空/非法→undefined」契约），故此处只在面板把它们**显示**出来，不写回 schema；
- * 用户改动时才经 `@change` 落值。此前面板对这几项渲染为空白，与已显示默认的
- * select（`?? 'normal'` 等）不一致。
+ * 用户改动时才经 `@change` 落值。
  */
 </script>
 
 <template>
   <div class="v2-sidebar__subheading">文本样式</div>
-  <div class="v2-style-grid">
+  <div class="v2-grid-dimensions">
     <label class="v2-control v2-control--inline">
-      <span>字号(px)</span>
-      <input
-        type="number"
-        min="1"
-        step="1"
-        :value="style?.fontSize ?? baseFontSize ?? DEFAULT_TEXT_FONT_SIZE_PX"
-        @change="api.updateSelectedFontSize"
-      />
+      <span>字号</span>
+      <span class="v2-unit">
+        <input
+          type="number"
+          min="1"
+          step="1"
+          :value="style?.fontSize ?? baseFontSize ?? DEFAULT_TEXT_FONT_SIZE_PX"
+          @change="api.updateSelectedFontSize"
+        />
+        <span>px</span>
+      </span>
     </label>
     <label class="v2-control v2-control--inline">
       <span>行高</span>
@@ -50,6 +60,8 @@ defineProps<{
         @change="api.updateSelectedLineHeight"
       />
     </label>
+  </div>
+  <div class="v2-grid-dimensions">
     <label class="v2-control v2-control--inline">
       <span>粗细</span>
       <select
@@ -62,15 +74,18 @@ defineProps<{
     </label>
     <label class="v2-control v2-control--inline">
       <span>颜色</span>
-      <input
-        type="color"
-        :value="style?.color ?? '#111827'"
-        @input="api.updateSelectedColor"
-      />
+      <span class="v2-color">
+        <input
+          type="color"
+          :value="style?.color ?? '#111827'"
+          @input="api.updateSelectedColor"
+        />
+        <span class="v2-color__hex">{{ style?.color ?? "#111827" }}</span>
+      </span>
     </label>
   </div>
   <div class="v2-grid-dimensions">
-    <label class="v2-control">
+    <label class="v2-control v2-control--inline">
       <span>水平对齐</span>
       <select :value="style?.align ?? 'left'" @change="api.updateSelectedAlign">
         <option value="left">左</option>
@@ -78,7 +93,7 @@ defineProps<{
         <option value="right">右</option>
       </select>
     </label>
-    <label class="v2-control">
+    <label class="v2-control v2-control--inline">
       <span>垂直对齐</span>
       <select
         :value="style?.verticalAlign ?? 'middle'"
@@ -88,14 +103,6 @@ defineProps<{
         <option value="middle">居中</option>
         <option value="bottom">底部</option>
       </select>
-    </label>
-    <label class="v2-control v2-control--full">
-      <span>字体</span>
-      <input
-        :value="style?.fontFamily ?? ''"
-        placeholder="默认（继承宿主字体）"
-        @input="api.updateSelectedFontFamily"
-      />
     </label>
   </div>
 </template>

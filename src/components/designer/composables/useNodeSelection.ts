@@ -23,7 +23,7 @@ import type {
   SchemaIssueV2,
 } from "@/types";
 import { resolveCellBoxV2 } from "@/engine-v2/derivation";
-import { LAYOUT_ID_ATTR, NODE_ID_ATTR } from "@/engine-v2/node-address";
+import { LAYOUT_ID_ATTR, NODE_ID_ATTR, SOURCE_PAGE_ID_ATTR } from "@/engine-v2/node-address";
 import type { TreeNode } from "../NodeTreeItem.vue";
 
 /**
@@ -141,6 +141,21 @@ export function useNodeSelection(
     return isSelectableSchemaNodeV2(node) || node.type === "grid-cell";
   }
 
+  /**
+   * DOM 上的节点地址 → schema 里真实存在的节点 id。
+   *
+   * 分页后一张逻辑页切成多张物理纸，纸张的 `data-node-id` 是**合成 id**
+   * （首张复用逻辑页 id，其余 `${pageId}__pp1`…），schema 里没有这个节点 ——
+   * 若直接拿它去查 `nodeIndex` 会判定「不可选中」，点击第 2 页起选中态被清空，
+   * 右侧纸张配置面板也就出不来。纸张上额外输出的 `data-source-page-id` 记录
+   * 了所属逻辑页，命中它即可把「点了哪张纸」映射回「哪个逻辑页」。
+   */
+  function resolveAddressableId(el: HTMLElement, id: string): string {
+    if (nodeIndex.value.has(id)) return id;
+    const sourcePageId = el.getAttribute(SOURCE_PAGE_ID_ATTR);
+    return sourcePageId && nodeIndex.value.has(sourcePageId) ? sourcePageId : id;
+  }
+
   const selectedNode = computed<EditorNodeV2 | null>(() => {
     const id = selectedNodeId.value;
     return id && isStyleEditableNodeId(id) ? (nodeIndex.value.get(id)?.node ?? null) : null;
@@ -228,7 +243,8 @@ export function useNodeSelection(
     let cursor = target.closest<HTMLElement>(`[${NODE_ID_ATTR}]`);
     while (cursor) {
       const id = cursor.dataset.nodeId;
-      if (id) ids.push(id);
+      // 合成物理页 id 先归一化为逻辑页 id，否则第 2 页起点击会被判成「不可选中」。
+      if (id) ids.push(resolveAddressableId(cursor, id));
       cursor = cursor.parentElement?.closest<HTMLElement>(`[${NODE_ID_ATTR}]`) ?? null;
     }
     const selectableIds = ids.filter((id) => isStyleEditableNodeId(id));

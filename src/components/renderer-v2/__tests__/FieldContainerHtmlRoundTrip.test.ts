@@ -24,7 +24,6 @@ const compositeInnerBorder = {
   field: "工作班成员人数",
   prefix: "共",
   suffix: "人",
-  underline: true,
   innerBorder: true,
   width: "10mm",
 };
@@ -44,7 +43,6 @@ const compositePlain = {
   field: "数量",
   prefix: "共",
   suffix: "件",
-  underline: true,
 };
 
 /** 模拟打印插件的内容搬运：序列化成字符串后由 HTML 解析器重建。 */

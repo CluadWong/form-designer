@@ -98,13 +98,11 @@ const selectedLabel = computed(() => {
 
 <template>
   <aside class="v2-sidebar v2-sidebar--right">
-    <div class="v2-inspector-row">
-      <span>组件类型</span>
-      <strong>{{ nodeType }}</strong>
-    </div>
+    <!-- 头部（2026-10-28 合并为一行）：类型 + 当前选中同一行，原来各占一行白吃 24px，
+         而窄面板里这两条信息大多重复（如图片列表面板两行都是「图片列表」）。 -->
     <div class="v2-inspector-row v2-inspector-row--head">
-      <span>当前选中</span>
-      <code>{{ selectedLabel }}</code>
+      <span class="v2-inspector-row__type">{{ nodeType }}</span>
+      <code v-if="node">{{ selectedLabel }}</code>
     </div>
 
     <PageInspector
@@ -162,30 +160,40 @@ const selectedLabel = computed(() => {
 .v2-sidebar--right {
   border-right: 0;
   border-left: 1px solid #d8dee8;
+  /* 顶部收紧：头行是 sticky 的，再给 16px 上内边距只会让第一条配置晚出现 4px */
+  padding: 12px 14px 18px;
 }
 
 .v2-inspector-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
   color: #64748b;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .v2-inspector-row--head {
   position: sticky;
   top: 0;
-  padding-bottom: 10px;
+  z-index: 1;
+  padding-bottom: 8px;
   border-bottom: 1px solid #e2e8f0;
   background: #ffffff;
 }
 
+.v2-inspector-row__type {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .v2-inspector-row code {
-  max-width: 150px;
+  max-width: 190px;
   overflow: hidden;
-  color: #334155;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

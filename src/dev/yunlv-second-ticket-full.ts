@@ -56,7 +56,6 @@ const fieldP = (
   type: "p",
   mode: "field",
   field,
-  underline: true,
   ...options,
 });
 

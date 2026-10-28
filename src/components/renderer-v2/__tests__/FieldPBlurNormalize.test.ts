@@ -37,7 +37,6 @@ const fieldNode = {
   type: "p" as const,
   mode: "field" as const,
   field: "安措内容",
-  underline: true,
 };
 
 describe("字段 P 失焦归一化（多行输入不重复回写）", () => {
@@ -130,7 +129,6 @@ describe("字段 P 失焦归一化（多行输入不重复回写）", () => {
           field: "工作班成员人数",
           prefix: "共",
           suffix: "人",
-          underline: true,
         },
         baseRowHeight: 8,
         data: { 工作班成员人数: "1" },
@@ -150,6 +148,83 @@ describe("字段 P 失焦归一化（多行输入不重复回写）", () => {
     // 前缀 / 后缀为静态标签，不参与归一
     expect(wrapper.text()).toContain("共");
     expect(wrapper.text()).toContain("人");
+  });
+
+  // ── 复合 + innerBorder（裸 __line，2026-10-27 塌陷点）─────
+  // 该形态的 `__input` 里既没有 `.layout-p__lines` 容器，也没有 `.layout-p__value`，
+  // 值直接铺成裸 `.layout-p__line`。归一化早期版本只认前两种锚点，取不到时重建整段跳过、
+  // 删除循环却命中了 `.layout-p__line` ⇒ 把输入区删空（宿主表现为输入框消失 +
+  // `Cannot read properties of null (reading 'emitsOptions')`）。
+  const compositeLineNode = {
+    id: "compositeLine",
+    type: "p" as const,
+    mode: "field" as const,
+    field: "班组意见",
+    prefix: "共",
+    suffix: "人",
+    innerBorder: true,
+  };
+
+  it("复合 + innerBorder：裸 __line 结构不得被删空", async () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: { node: compositeLineNode, baseRowHeight: 8, data: { 班组意见: "1\n2" } },
+    });
+
+    const input = wrapper.find(".layout-p__input");
+    expect(input.exists()).toBe(true);
+    const el = input.element as HTMLElement;
+    expect(el.querySelector(".layout-p__lines")).toBeNull();
+    expect(el.querySelector(".layout-p__value")).toBeNull();
+    expect(el.querySelectorAll(".layout-p__line").length).toBe(2);
+
+    stubInnerText(el, "1\n2");
+    await input.trigger("blur");
+
+    const lines = el.querySelectorAll(".layout-p__line");
+    expect(lines.length).toBe(2);
+    expect(Array.from(lines).map((d) => d.textContent)).toEqual(["1", "2"]);
+    expect(wrapper.emitted("field-change")?.[0]).toEqual(["班组意见", "1\n2"]);
+  });
+
+  it("复合 + innerBorder：回车克隆出的多余 __line 也会被归一（不重复）", async () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: { node: compositeLineNode, baseRowHeight: 8, data: { 班组意见: "1" } },
+    });
+
+    const el = wrapper.find(".layout-p__input").element as HTMLElement;
+    ["2", "3", "4"].forEach((line) => {
+      const d = document.createElement("div");
+      d.className = "layout-p__line";
+      d.textContent = line;
+      el.appendChild(d);
+    });
+    expect(el.querySelectorAll(".layout-p__line").length).toBe(4);
+
+    stubInnerText(el, "1\n2\n3\n4");
+    await wrapper.find(".layout-p__input").trigger("blur");
+
+    const lines = el.querySelectorAll(".layout-p__line");
+    expect(lines.length).toBe(4);
+    expect(Array.from(lines).map((d) => d.textContent)).toEqual(["1", "2", "3", "4"]);
+    expect(wrapper.emitted("field-change")?.[0]).toEqual(["班组意见", "1\n2\n3\n4"]);
+  });
+
+  it("认不出值容器结构时不动 DOM（宁可留着，也不能把内核节点删光）", async () => {
+    const wrapper = mount(GridSchemaNode, {
+      props: { node: fieldNode, baseRowHeight: 8, data: { 安措内容: "1" } },
+    });
+
+    const root = wrapper.element as HTMLElement;
+    root.querySelectorAll(".layout-p__value").forEach((el) => el.remove());
+    const unknown = document.createElement("span");
+    unknown.className = "layout-p__mystery";
+    unknown.textContent = "保留";
+    root.appendChild(unknown);
+
+    stubInnerText(root, "1");
+    await wrapper.trigger("blur");
+
+    expect(root.querySelector(".layout-p__mystery")).not.toBeNull();
   });
 
   it("裸文本与无 class 的块一并清掉（其他浏览器 / 粘贴产物）", async () => {

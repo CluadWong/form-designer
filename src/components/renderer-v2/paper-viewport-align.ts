@@ -105,3 +105,166 @@ export function computeAlignPan(input: AlignPanInput): AlignPan {
 
   return { x, y };
 }
+
+export interface CenterPanInput {
+  /** 视口（可见区）宽高，取 `.paper-viewport` 的 `clientWidth / clientHeight`。 */
+  viewportWidth: number;
+  viewportHeight: number;
+  /** 缩放元素（`.paper-viewport__scaler`）的布局宽高——panzoom 的 transform-origin 参考盒。 */
+  scalerWidth: number;
+  scalerHeight: number;
+  /**
+   * 目标节点相对缩放元素布局原点的偏移与自身尺寸，取 `offset*` 之差 / `offsetWidth`。
+   * 必须是**未缩放**的布局值（不受 transform 影响），保证每次调用解算同一结果。
+   */
+  targetLeft: number;
+  targetTop: number;
+  targetWidth: number;
+  targetHeight: number;
+  /** 当前缩放比例。 */
+  scale: number;
+}
+
+/**
+ * 解算「把**某个节点**移到视口正中」所需的平移量（左侧结构树选中 / 悬停时用）。
+ *
+ * 与 {@link computeAlignPan} 同一映射式（`screen(p) = O + s·(p + t − O)`，`O` 为缩放元素中心），
+ * 只是目标从「内容整体」换成「目标节点的中心」：
+ *
+ * ```text
+ * tx = (V/2 − W/2)/s + W/2 − cx      // cx = targetLeft + targetWidth/2
+ * ty = (Vh/2 − H/2)/s + H/2 − cy     // cy = targetTop + targetHeight/2
+ * ```
+ *
+ * 垂直方向这里**居中**（不像 `alignContent` 那样贴顶）：需求是「锚定到对应区域并居中显示」，
+ * 让用户一眼看到左侧树那一行在整票版式里的位置。
+ *
+ * 尺寸缺失（jsdom / 未布局，宽高或比例为 0）时返回 `{ x: 0, y: 0 }` —— 不改动 transform，
+ * 与 `fitWidth` / `alignContent` 的降级路径一致，不抛错、不误位移。
+ */
+export function computeCenterPan(input: CenterPanInput): AlignPan {
+  const {
+    viewportWidth,
+    viewportHeight,
+    scalerWidth,
+    scalerHeight,
+    targetLeft,
+    targetTop,
+    targetWidth,
+    targetHeight,
+    scale,
+  } = input;
+
+  if (
+    !(scale > 0) ||
+    !(viewportWidth > 0) ||
+    !(viewportHeight > 0) ||
+    !(scalerWidth > 0) ||
+    !(scalerHeight > 0)
+  ) {
+    return { x: 0, y: 0 };
+  }
+
+  const cx = targetLeft + targetWidth / 2;
+  const cy = targetTop + targetHeight / 2;
+  const x = (viewportWidth / 2 - scalerWidth / 2) / scale + scalerWidth / 2 - cx;
+  const y = (viewportHeight / 2 - scalerHeight / 2) / scale + scalerHeight / 2 - cy;
+
+  return { x, y };
+}
+
+export interface RestrictCenterPanInput {
+  /** 内容整体对齐的解（`computeAlignPan`：水平居中、垂直贴顶留 `TOP_GAP`）。 */
+  aligned: AlignPan;
+  /** 目标节点居中的解（`computeCenterPan`）。 */
+  centered: AlignPan;
+  viewportWidth: number;
+  viewportHeight: number;
+  scalerWidth: number;
+  scalerHeight: number;
+  /** 内容（纸 / 画布）相对缩放层布局原点的偏移与尺寸。 */
+  contentLeft: number;
+  contentTop: number;
+  contentWidth: number;
+  contentHeight: number;
+  scale: number;
+}
+
+/**
+ * 给「节点居中」加上**内容不得被推出视口**的约束（2026-10-28）。
+ *
+ * 为什么必须有这一步：`computeCenterPan` 只看「把目标中心对到视口中心」，目标越靠近内容边缘，
+ * 需要的位移越荒谬 —— 实测（A4 空白页，`translate(0, 0)`，1 行网格，格子中心在内容 y≈30.96）
+ * 解出 `translate(0, 369.04)`：为了让第一行格子居中，整张纸被往下推了 369px，
+ * 视口上半部空出来、纸"掉到下方"。几何上完全正确，体验上不能接受。
+ *
+ * 规则（逐轴独立，与 `scrollIntoView({ block: "nearest" })` 同精神，但保留居中倾向）：
+ * - **内容缩放后窄/矮于视口**（这一轴本来就整体可见）→ 直接用 `aligned`：该轴不做节点居中，
+ *   否则纸会为了把一个小格子居中而整体平移，产生一侧留白。
+ * - **内容超出视口** → 允许居中，但把平移量钳进「内容边缘不越过视口边缘」的区间：
+ *   水平 `[右缘贴 V, 左缘贴 0]`，垂直 `[下缘贴 Vh, 上缘贴 TOP_GAP]`。
+ *
+ * 于是「hover 页面顶部的格子」只会落到 `TOP_GAP`（内容几乎不动），
+ * 「hover 页面中部的格子」才是真居中 —— 两种都在视野内，且纸张不会飞出屏幕。
+ */
+export function restrictCenterPanToContent(
+  input: RestrictCenterPanInput,
+): AlignPan {
+  const {
+    aligned,
+    centered,
+    viewportWidth: V,
+    viewportHeight: Vh,
+    scalerWidth: W,
+    scalerHeight: H,
+    contentLeft: cl,
+    contentTop: ct,
+    contentWidth: cw,
+    contentHeight: ch,
+    scale: s,
+  } = input;
+
+  if (
+    !(s > 0) ||
+    !(V > 0) ||
+    !(Vh > 0) ||
+    !(W > 0) ||
+    !(H > 0)
+  ) {
+    return { x: 0, y: 0 };
+  }
+
+  // `screen(p) = O + s·(p + t − O)` 的反解：给定「内容某条边应落在屏幕何处」，求 t。
+  const txForScreenX = (p: number, screenX: number): number =>
+    (screenX - W / 2) / s + W / 2 - p;
+  const tyForScreenY = (p: number, screenY: number): number =>
+    (screenY - H / 2) / s + H / 2 - p;
+
+  const x =
+    cw * s <= V
+      ? aligned.x
+      : Math.min(
+          // 内容左缘贴视口左缘（内容最靠右）
+          txForScreenX(cl, 0),
+          Math.max(
+            // 内容右缘贴视口右缘（内容最靠左）
+            txForScreenX(cl + cw, V),
+            centered.x,
+          ),
+        );
+
+  const y =
+    ch * s <= Vh
+      ? aligned.y
+      : Math.min(
+          // 内容上缘贴 TOP_GAP（内容最靠下）
+          tyForScreenY(ct, TOP_GAP),
+          Math.max(
+            // 内容下缘贴视口底缘（内容最靠上）
+            tyForScreenY(ct + ch, Vh),
+            centered.y,
+          ),
+        );
+
+  return { x, y };
+}

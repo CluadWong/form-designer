@@ -29,7 +29,6 @@ function fieldNode(overrides: Partial<FieldPNodeV2> = {}): FieldPNodeV2 {
     type: "p",
     mode: "field",
     field: "备注",
-    underline: true,
     ...overrides,
   };
 }
@@ -53,7 +52,6 @@ function schemaWithDefaultField(defaultValue: string): FormSchemaV2 {
     type: "p",
     mode: "field",
     field: "字段1",
-    underline: true,
     default: defaultValue,
   };
   return appendNodeToCellV2(insertRootGridV2(createEmptyFormSchemaV2(), grid), cellId, field);
